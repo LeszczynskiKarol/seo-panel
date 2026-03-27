@@ -1,0 +1,367 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// DOMAINS
+// ============================================
+
+model Domain {
+  id              String    @id @default(cuid())
+  domain          String    @unique  // e.g. "www.maturapolski.pl"
+  siteUrl         String    // e.g. "https://www.maturapolski.pl"
+  
+  // GSC property format
+  gscProperty     String?   // e.g. "sc-domain:maturapolski.pl" or "https://www.maturapolski.pl/"
+  
+  // Sitemap config
+  sitemapPath     String    @default("/sitemap-index.xml")
+  
+  // Metadata
+  label           String?   // friendly name e.g. "Matura Polski"
+  category        DomainCategory @default(OTHER)
+  isActive        Boolean   @default(true)
+  
+  // Cached stats (updated by jobs)
+  totalPages      Int       @default(0)
+  indexedPages     Int       @default(0)
+  avgPosition     Float?
+  totalClicks     Int       @default(0)
+  totalImpressions Int      @default(0)
+  
+  lastGscPull     DateTime?
+  lastCrawl       DateTime?
+  lastSitemapSync DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  pages           Page[]
+  alerts          Alert[]
+  gscDailyStats   GscDomainDaily[]
+  seoEvents       SeoEvent[]
+  backlinks       BacklinkSnapshot[]
+  
+  @@index([isActive])
+}
+
+enum DomainCategory {
+  SAAS         // smart-copy.ai, smart-edu.ai, maturapolski.pl
+  ECOMMERCE    // silniki-elektryczne.com.pl
+  CONTENT_SITE // copywritingseo.pl, ebookcopywriting.pl
+  SATELLITE    // SEO satellite domains
+  OTHER
+}
+
+// ============================================
+// PAGES
+// ============================================
+
+model Page {
+  id              String    @id @default(cuid())
+  domainId        String
+  domain          Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  
+  url             String    // full URL
+  path            String    // just the path, e.g. "/baza-wiedzy/lalka"
+  
+  // Sitemap data
+  inSitemap       Boolean   @default(true)
+  sitemapLastmod   String?
+  
+  // Indexing status (from Google URL Inspection API)
+  indexingVerdict  IndexingVerdict @default(UNKNOWN)
+  coverageState   String?
+  lastCrawlTime   DateTime?
+  robotsTxtState  String?
+  indexingState    String?
+  pageFetchState  String?
+  crawledAs       String?
+  
+  // Indexing tracking
+  firstSubmitted  DateTime?
+  lastSubmitted   DateTime?
+  lastChecked     DateTime?
+  statusChangedAt DateTime?
+  previousVerdict IndexingVerdict?
+  
+  // Cached GSC metrics (latest day)
+  clicks          Int       @default(0)
+  impressions     Int       @default(0)
+  ctr             Float?
+  position        Float?
+  
+  // Link stats (cached)
+  internalLinksIn  Int      @default(0)  // other pages linking TO this page
+  internalLinksOut Int      @default(0)  // this page linking TO other pages
+  externalLinksOut Int      @default(0)  // outbound to external sites
+  brokenLinksOut   Int      @default(0)
+  
+  // Page metadata
+  title           String?
+  metaDescription String?
+  statusCode      Int?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  gscDaily        GscPageDaily[]
+  linksFrom       Link[]    @relation("LinksFrom")
+  linksTo         Link[]    @relation("LinksTo")
+  alerts          Alert[]
+  seoEvents       SeoEvent[]
+  backlinks       BacklinkSnapshot[]
+  
+  @@unique([domainId, path])
+  @@index([domainId, indexingVerdict])
+  @@index([domainId, clicks(sort: Desc)])
+  @@index([url])
+}
+
+enum IndexingVerdict {
+  PASS
+  FAIL
+  NEUTRAL
+  UNKNOWN
+  UNCHECKED
+}
+
+// ============================================
+// GSC METRICS
+// ============================================
+
+// Domain-level daily aggregates
+model GscDomainDaily {
+  id              String    @id @default(cuid())
+  domainId        String
+  domain          Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  
+  date            DateTime  @db.Date
+  clicks          Int       @default(0)
+  impressions     Int       @default(0)
+  ctr             Float?
+  position        Float?
+  
+  @@unique([domainId, date])
+  @@index([domainId, date(sort: Desc)])
+}
+
+// Page-level daily metrics
+model GscPageDaily {
+  id              String    @id @default(cuid())
+  pageId          String
+  page            Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  
+  date            DateTime  @db.Date
+  clicks          Int       @default(0)
+  impressions     Int       @default(0)
+  ctr             Float?
+  position        Float?
+  
+  // Top queries for this page on this day
+  topQueries      Json?     // [{query, clicks, impressions, position}]
+  
+  @@unique([pageId, date])
+  @@index([pageId, date(sort: Desc)])
+}
+
+// ============================================
+// LINKS
+// ============================================
+
+model Link {
+  id              String    @id @default(cuid())
+  
+  fromPageId      String
+  fromPage        Page      @relation("LinksFrom", fields: [fromPageId], references: [id], onDelete: Cascade)
+  
+  // For internal links
+  toPageId        String?
+  toPage          Page?     @relation("LinksTo", fields: [toPageId], references: [id], onDelete: SetNull)
+  
+  // For external links (toPageId is null)
+  toUrl           String
+  
+  anchorText      String?
+  isInternal      Boolean   @default(true)
+  isBroken        Boolean   @default(false)
+  statusCode      Int?
+  
+  // nofollow, ugc, sponsored
+  relAttributes   String[]
+  
+  lastChecked     DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  
+  @@unique([fromPageId, toUrl])
+  @@index([fromPageId])
+  @@index([toPageId])
+  @@index([isBroken])
+}
+
+// ============================================
+// ALERTS
+// ============================================
+
+model Alert {
+  id              String    @id @default(cuid())
+  domainId        String
+  domain          Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  
+  pageId          String?
+  page            Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  
+  type            AlertType
+  severity        AlertSeverity @default(MEDIUM)
+  title           String
+  description     String?
+  
+  isResolved      Boolean   @default(false)
+  resolvedAt      DateTime?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([domainId, isResolved, createdAt(sort: Desc)])
+  @@index([type])
+}
+
+enum AlertType {
+  PAGE_DEINDEXED       // PASS → FAIL/NEUTRAL
+  TRAFFIC_DROP         // >30% click drop week-over-week
+  BROKEN_LINK          // outbound 404
+  NEW_PAGE_NOT_INDEXED // in sitemap >7 days, still not PASS
+  POSITION_DROP        // avg position dropped >5 positions
+  CRAWL_ERROR          // fetch error during link crawl
+  SITEMAP_CHANGE       // pages added/removed from sitemap
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ============================================
+// JOBS LOG
+// ============================================
+
+model JobRun {
+  id              String    @id @default(cuid())
+  jobName         String    // "gsc_pull", "link_crawl", "sitemap_sync", "indexing_check"
+  status          JobStatus @default(RUNNING)
+  
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  
+  domainsProcessed Int      @default(0)
+  pagesProcessed   Int      @default(0)
+  errors           Int      @default(0)
+  
+  details         Json?     // per-domain results
+  errorLog        String?   @db.Text
+  
+  @@index([jobName, startedAt(sort: Desc)])
+}
+
+// ============================================
+// SEO TIMELINE — historia wydarzeń
+// ============================================
+
+model SeoEvent {
+  id              String    @id @default(cuid())
+  domainId        String
+  domain          Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  
+  pageId          String?
+  page            Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  
+  type            SeoEventType
+  
+  // Event data (flexible JSON)
+  data            Json?
+  
+  // For quick filtering
+  importance      Int       @default(1)  // 1=low, 2=medium, 3=high
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([domainId, createdAt(sort: Desc)])
+  @@index([pageId, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+}
+
+enum SeoEventType {
+  // Links
+  BACKLINK_NEW           // new external link discovered
+  BACKLINK_LOST          // external link disappeared
+  INTERNAL_LINK_NEW      // new internal link
+  INTERNAL_LINK_LOST     // internal link removed
+  
+  // Positions
+  POSITION_IMPROVED      // position went up significantly
+  POSITION_DROPPED       // position went down significantly
+  ENTERED_TOP3           // entered top 3
+  ENTERED_TOP10          // entered top 10
+  LEFT_TOP10             // dropped out of top 10
+  
+  // Indexing
+  PAGE_INDEXED           // UNCHECKED/NEUTRAL → PASS
+  PAGE_DEINDEXED         // PASS → FAIL/NEUTRAL
+  PAGE_FIRST_CRAWL       // Google crawled for first time
+  
+  // Content
+  PAGE_ADDED_SITEMAP     // new page in sitemap
+  PAGE_REMOVED_SITEMAP   // page removed from sitemap
+  
+  // Traffic
+  TRAFFIC_SPIKE          // unusual traffic increase
+  TRAFFIC_DROP           // unusual traffic decrease
+}
+
+// Backlink snapshots — track external links pointing to our domains
+model BacklinkSnapshot {
+  id              String    @id @default(cuid())
+  domainId        String
+  domain          Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  
+  // Target page on our domain
+  pageId          String?
+  page            Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  targetUrl       String
+  
+  // Source (external site)
+  sourceUrl       String
+  sourceDomain    String
+  anchorText      String?
+  
+  // Status
+  isLive          Boolean   @default(true)
+  firstSeen       DateTime  @default(now())
+  lastSeen        DateTime  @default(now())
+  lastChecked     DateTime  @default(now())
+  lostAt          DateTime?
+  
+  // Metadata
+  isDofollow      Boolean   @default(true)
+  statusCode      Int?
+  
+  @@unique([domainId, sourceUrl, targetUrl])
+  @@index([domainId, isLive])
+  @@index([domainId, firstSeen(sort: Desc)])
+  @@index([sourceDomain])
+}
+
+enum JobStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+

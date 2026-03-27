@@ -1,0 +1,70 @@
+import "dotenv/config";
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import { domainRoutes } from "./routes/domains.js";
+import { overviewRoutes } from "./routes/overview.js";
+import { startScheduler } from "./jobs/scheduler.js";
+import { prisma } from "./lib/prisma.js";
+import { importRoutes } from "./routes/import.js";
+import { analyticsRoutes } from "./routes/analytics.js";
+import { timelineRoutes } from "./routes/timeline.js";
+
+const fastify = Fastify();
+
+// Plugins
+fastify.register(cors, {
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    process.env.FRONTEND_URL || "",
+  ].filter(Boolean),
+  credentials: true,
+});
+
+// Routes
+fastify.register(domainRoutes, { prefix: "/api/domains" });
+fastify.register(overviewRoutes, { prefix: "/api" });
+fastify.register(importRoutes, { prefix: "/api" });
+fastify.register(analyticsRoutes, { prefix: "/api/analytics" });
+fastify.register(timelineRoutes, { prefix: "/api/timeline" });
+
+// Health check
+fastify.get("/api/health", async () => ({
+  status: "ok",
+  timestamp: new Date().toISOString(),
+}));
+
+// Start
+const PORT = parseInt(process.env.PORT || "5555");
+const HOST = process.env.HOST || "0.0.0.0";
+
+async function start() {
+  try {
+    await prisma.$connect();
+    console.log("✅ Connected to PostgreSQL");
+
+    await fastify.listen({ port: PORT, host: HOST });
+    console.log(`\n🚀 SEO Panel running on http://${HOST}:${PORT}`);
+    console.log(`📊 API: http://localhost:${PORT}/api/health`);
+    console.log(`🌐 Domains: http://localhost:${PORT}/api/domains\n`);
+
+    // Start background jobs
+    if (process.env.ENABLE_SCHEDULER !== "false") {
+      startScheduler();
+    }
+  } catch (err) {
+    console.error("❌ Failed to start:", err);
+    process.exit(1);
+  }
+}
+
+const shutdown = async () => {
+  await fastify.close();
+  await prisma.$disconnect();
+  process.exit(0);
+};
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+
+start();

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.pem
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.node.json
+!tailwind.config.js
+!postcss.config.js
+!vite.config.ts
+!ecosystem.config.js
+.env.local
+google-sa-key.json
