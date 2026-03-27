@@ -2,6 +2,7 @@ import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { domainRoutes } from "./routes/domains.js";
+import { registerAuth, authGuard } from "./lib/auth.js";
 import { overviewRoutes } from "./routes/overview.js";
 import { startScheduler } from "./jobs/scheduler.js";
 import { prisma } from "./lib/prisma.js";
@@ -20,6 +21,9 @@ fastify.register(cors, {
   ].filter(Boolean),
   credentials: true,
 });
+
+registerAuth(fastify);
+fastify.addHook("onRequest", authGuard);
 
 // Routes
 fastify.register(domainRoutes, { prefix: "/api/domains" });

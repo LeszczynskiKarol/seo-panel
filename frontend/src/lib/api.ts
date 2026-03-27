@@ -1,13 +1,25 @@
+import { getToken, clearToken } from "./auth";
+
 const BASE = "/api";
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.body) headers["Content-Type"] = "application/json";
 
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(`${BASE}${path}`, {
     ...opts,
     headers: { ...headers, ...opts.headers },
   });
+
+  if (res.status === 401) {
+    clearToken();
+    window.location.reload();
+    throw new Error("Unauthorized");
+  }
+
   if (!res.ok) {
     const err = await res.text().catch(() => "Request failed");
     throw new Error(err);
@@ -98,6 +110,14 @@ export const api = {
   syncBacklinks: (domainId: string) =>
     request<any>(`/timeline/sync-backlinks/${domainId}`, { method: "POST" }),
   detectChanges: () => request<any>("/timeline/detect-all", { method: "POST" }),
+
+  // Auth
+  login: (login: string, password: string) =>
+    fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login, password }),
+    }).then((r) => r.json()),
 
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
