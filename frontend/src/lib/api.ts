@@ -119,6 +119,24 @@ export const api = {
       body: JSON.stringify({ login, password }),
     }).then((r) => r.json()),
 
+  // Tracked
+  toggleTracked: (domainId: string, pageId: string) =>
+    request<any>(`/domains/${domainId}/pages/${pageId}/track`, {
+      method: "PATCH",
+    }),
+  getTrackedPages: (domainId: string) =>
+    request<any[]>(`/domains/${domainId}/tracked`),
+
+  trackUrl: (domainId: string, url: string) =>
+    request<any>(`/domains/${domainId}/track-url`, {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+  untrackPage: (domainId: string, pageId: string) =>
+    request<any>(`/domains/${domainId}/pages/${pageId}/track`, {
+      method: "DELETE",
+    }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

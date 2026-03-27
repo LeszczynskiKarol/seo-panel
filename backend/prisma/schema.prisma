@@ -90,6 +90,7 @@ model Page {
   lastChecked     DateTime?
   statusChangedAt DateTime?
   previousVerdict IndexingVerdict?
+  isTracked       Boolean   @default(false)
   
   // Cached GSC metrics (latest day)
   clicks          Int       @default(0)

@@ -245,4 +245,159 @@ export async function domainRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     return gsc.getBacklinks(id);
   });
+
+  // ─── TOGGLE TRACKED ────────────────────────────────────────
+  fastify.patch("/:domainId/pages/:pageId/track", async (request) => {
+    const { pageId } = request.params as { pageId: string };
+    const page = await prisma.page.findUniqueOrThrow({ where: { id: pageId } });
+    return prisma.page.update({
+      where: { id: pageId },
+      data: { isTracked: !page.isTracked },
+    });
+  });
+
+  // ─── TRACKED PAGES WITH RICH DATA ─────────────────────────
+  fastify.get("/:id/tracked", async (request) => {
+    const { id } = request.params as { id: string };
+    const domain = await prisma.domain.findUniqueOrThrow({ where: { id } });
+
+    const pages = await prisma.page.findMany({
+      where: { domainId: id, isTracked: true },
+      orderBy: { clicks: "desc" },
+    });
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
+
+    const enriched = await Promise.all(
+      pages.map(async (page) => {
+        // Position history (30 days)
+        const history = await prisma.gscPageDaily.findMany({
+          where: { pageId: page.id, date: { gte: thirtyDaysAgo } },
+          orderBy: { date: "asc" },
+        });
+
+        // Top queries from GSC
+        let topQueries: any[] = [];
+        if (domain.gscProperty) {
+          try {
+            const { getSearchConsole } = await import("../lib/google-auth.js");
+            const sc = await getSearchConsole();
+            const endDate = new Date().toISOString().split("T")[0];
+            const startDate = new Date(Date.now() - 30 * 86400000)
+              .toISOString()
+              .split("T")[0];
+
+            const qRes = await sc.searchanalytics.query({
+              siteUrl: domain.gscProperty,
+              requestBody: {
+                startDate,
+                endDate,
+                dimensions: ["query"],
+                dimensionFilterGroups: [
+                  {
+                    filters: [{ dimension: "page", expression: page.url }],
+                  },
+                ],
+                rowLimit: 10,
+              },
+            });
+
+            topQueries = (qRes.data.rows || []).map((r: any) => ({
+              query: r.keys![0],
+              clicks: r.clicks || 0,
+              impressions: r.impressions || 0,
+              ctr: r.ctr || 0,
+              position: r.position || 0,
+            }));
+          } catch {}
+        }
+
+        // Recent SEO events
+        const events = await prisma.seoEvent.findMany({
+          where: { pageId: page.id },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        });
+
+        // Backlinks
+        const backlinks = await prisma.backlinkSnapshot.findMany({
+          where: { pageId: page.id, isLive: true },
+          orderBy: { firstSeen: "desc" },
+          take: 10,
+        });
+
+        return {
+          ...page,
+          history,
+          topQueries,
+          events,
+          backlinks,
+        };
+      }),
+    );
+
+    return enriched;
+  });
+
+  // ─── ADD TRACKED URL MANUALLY ──────────────────────────────
+  fastify.post("/:id/track-url", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { url } = request.body as { url: string };
+
+    if (!url) return reply.status(400).send({ error: "URL is required" });
+
+    // Normalize — extract path
+    let path: string;
+    try {
+      path = new URL(url).pathname;
+    } catch {
+      // Maybe they pasted just the path
+      path = url.startsWith("/") ? url : `/${url}`;
+    }
+
+    // Remove trailing slash for matching (but keep root /)
+    const pathNorm = path.length > 1 ? path.replace(/\/$/, "") : path;
+
+    // Find page in DB
+    const page = await prisma.page.findFirst({
+      where: {
+        domainId: id,
+        OR: [
+          { path },
+          { path: pathNorm },
+          { path: `${pathNorm}/` },
+          { url: { contains: pathNorm } },
+        ],
+      },
+    });
+
+    if (!page) {
+      // Check if it's in sitemap but not yet synced
+      const domain = await prisma.domain.findUniqueOrThrow({ where: { id } });
+      return reply.status(404).send({
+        error: "not_found",
+        message: `URL "${path}" nie znaleziony w bazie. Sprawdź czy jest w sitemapie ${domain.siteUrl}${domain.sitemapPath} i odpal Sync Sitemap.`,
+      });
+    }
+
+    if (page.isTracked) {
+      return { ...page, message: "already_tracked" };
+    }
+
+    const updated = await prisma.page.update({
+      where: { id: page.id },
+      data: { isTracked: true },
+    });
+
+    return { ...updated, message: "tracked" };
+  });
+
+  // ─── REMOVE FROM TRACKED ───────────────────────────────────
+  fastify.delete("/:domainId/pages/:pageId/track", async (request) => {
+    const { pageId } = request.params as { pageId: string };
+    return prisma.page.update({
+      where: { id: pageId },
+      data: { isTracked: false },
+    });
+  });
 }

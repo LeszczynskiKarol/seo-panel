@@ -27,17 +27,21 @@ import {
   Search,
   ExternalLink,
   AlertTriangle,
+  Star,
   ArrowDown,
   FileWarning,
 } from "lucide-react";
 
-type Tab = "pages" | "queries" | "links" | "broken" | "orphans";
+type Tab = "pages" | "queries" | "tracked" | "links" | "broken" | "orphans";
 
 export function DomainDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("pages");
+  const [trackUrl, setTrackUrl] = useState("");
+  const [trackError, setTrackError] = useState("");
+  const [trackSuccess, setTrackSuccess] = useState("");
   const [search, setSearch] = useState("");
   const [verdictFilter, setVerdictFilter] = useState("");
 
@@ -123,10 +127,60 @@ export function DomainDetailPage() {
     enabled: !!id && tab === "broken",
   });
 
+  const { data: trackedPages } = useQuery({
+    queryKey: ["tracked", id],
+    queryFn: () => api.getTrackedPages(id!),
+    enabled: !!id && tab === "tracked",
+  });
+
   const { data: orphans } = useQuery({
     queryKey: ["orphans", id],
     queryFn: () => api.getOrphanPages(id!),
     enabled: !!id && tab === "orphans",
+  });
+
+  const toggleTrack = useMutation({
+    mutationFn: ({ domainId, pageId }: { domainId: string; pageId: string }) =>
+      api.toggleTracked(domainId, pageId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pages", id] });
+      qc.invalidateQueries({ queryKey: ["tracked", id] });
+    },
+  });
+
+  const addTracked = useMutation({
+    mutationFn: (url: string) => api.trackUrl(id!, url),
+    onSuccess: (data: any) => {
+      setTrackUrl("");
+      setTrackError("");
+      setTrackSuccess(
+        data.message === "already_tracked"
+          ? "Strona już jest śledzona"
+          : `Dodano: ${data.path}`,
+      );
+      qc.invalidateQueries({ queryKey: ["tracked", id] });
+      qc.invalidateQueries({ queryKey: ["pages", id] });
+      setTimeout(() => setTrackSuccess(""), 3000);
+    },
+    onError: (err: any) => {
+      try {
+        const parsed = JSON.parse(err.message);
+        setTrackError(parsed.message || "Nie znaleziono URL-a");
+      } catch {
+        setTrackError(
+          "Nie znaleziono URL-a w bazie. Sprawdź czy jest w sitemapie.",
+        );
+      }
+      setTrackSuccess("");
+    },
+  });
+
+  const removeTracked = useMutation({
+    mutationFn: (pageId: string) => api.untrackPage(id!, pageId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tracked", id] });
+      qc.invalidateQueries({ queryKey: ["pages", id] });
+    },
   });
 
   const syncSitemap = useMutation({
@@ -363,26 +417,27 @@ export function DomainDetailPage() {
 
       {/* ===== TABS — jedna jedyna sekcja nawigacji ===== */}
       <div className="flex gap-1 border-b border-panel-border">
-        {(["pages", "queries", "links", "broken", "orphans"] as Tab[]).map(
-          (t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                "px-4 py-2 text-xs font-medium border-b-2 transition-all -mb-px",
-                tab === t
-                  ? "border-accent-blue text-accent-blue"
-                  : "border-transparent text-panel-muted hover:text-panel-text",
-              )}
-            >
-              {t === "pages" && "Strony"}
-              {t === "queries" && "Zapytania"}
-              {t === "links" && "Linkowanie"}
-              {t === "broken" && "Złamane linki"}
-              {t === "orphans" && "Orphan pages"}
-            </button>
-          ),
-        )}
+        {(
+          ["pages", "queries", "tracked", "links", "broken", "orphans"] as Tab[]
+        ).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              "px-4 py-2 text-xs font-medium border-b-2 transition-all -mb-px",
+              tab === t
+                ? "border-accent-blue text-accent-blue"
+                : "border-transparent text-panel-muted hover:text-panel-text",
+            )}
+          >
+            {t === "pages" && "Strony"}
+            {t === "queries" && "Zapytania"}
+            {t === "tracked" && "Śledzone"}
+            {t === "links" && "Linkowanie"}
+            {t === "broken" && "Złamane linki"}
+            {t === "orphans" && "Orphan pages"}
+          </button>
+        ))}
       </div>
 
       {/* ===== TAB CONTENT ===== */}
@@ -480,6 +535,274 @@ export function DomainDetailPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === "tracked" && (
+        <div className="space-y-4">
+          {/* Add URL form */}
+          <div className="bg-panel-card border border-panel-border rounded-lg p-4">
+            <div className="text-xs font-semibold mb-2 flex items-center gap-2">
+              <Star className="w-3.5 h-3.5 text-accent-amber" />
+              Dodaj URL do śledzenia
+            </div>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1"
+                placeholder="Wklej URL lub ścieżkę, np. /blog/artykul lub https://domena.pl/blog/artykul"
+                value={trackUrl}
+                onChange={(e) => {
+                  setTrackUrl(e.target.value);
+                  setTrackError("");
+                }}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && trackUrl && addTracked.mutate(trackUrl)
+                }
+              />
+              <button
+                className="btn btn-primary text-xs"
+                onClick={() => trackUrl && addTracked.mutate(trackUrl)}
+                disabled={addTracked.isPending || !trackUrl}
+              >
+                {addTracked.isPending ? "Sprawdzam..." : "Dodaj"}
+              </button>
+            </div>
+            {trackError && (
+              <div className="text-xs text-accent-red mt-2">{trackError}</div>
+            )}
+            {trackSuccess && (
+              <div className="text-xs text-accent-green mt-2">
+                {trackSuccess}
+              </div>
+            )}
+            <div className="text-[10px] text-panel-muted mt-1.5">
+              URL musi istnieć w sitemapie domeny. Jeśli nie znaleziony —
+              kliknij "Sync sitemap" i spróbuj ponownie.
+            </div>
+          </div>
+
+          {/* Tracked pages list */}
+          {!trackedPages?.length ? (
+            <div className="bg-panel-card border border-panel-border rounded-lg p-8 text-center text-panel-muted text-sm">
+              Brak śledzonych stron. Wklej URL powyżej lub kliknij gwiazdkę przy
+              stronie w zakładce "Strony".
+            </div>
+          ) : (
+            trackedPages.map((p: any) => (
+              <div
+                key={p.id}
+                className="bg-panel-card border border-panel-border rounded-lg overflow-hidden"
+              >
+                {/* Header */}
+                <div className="px-5 py-3 border-b border-panel-border flex items-center gap-3">
+                  <button
+                    onClick={() => removeTracked.mutate(p.id)}
+                    title="Usuń ze śledzenia"
+                  >
+                    <Star className="w-4 h-4 text-accent-amber fill-accent-amber hover:text-accent-red transition-colors" />
+                  </button>
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    className="text-sm font-mono text-accent-blue hover:underline truncate"
+                  >
+                    {p.path}
+                  </a>
+                  <div className="ml-auto flex items-center gap-4 text-xs">
+                    <span className="text-panel-muted">
+                      poz.{" "}
+                      <strong className="text-panel-text">
+                        {p.position?.toFixed(1) || "—"}
+                      </strong>
+                    </span>
+                    <span className="text-accent-cyan font-semibold">
+                      {p.clicks} kliknięć
+                    </span>
+                    <span className="text-panel-muted">
+                      {p.impressions} wyświetl.
+                    </span>
+                    <span
+                      className={cn(
+                        "badge",
+                        p.indexingVerdict === "PASS"
+                          ? "badge-pass"
+                          : p.indexingVerdict === "FAIL"
+                            ? "badge-fail"
+                            : "badge-unknown",
+                      )}
+                    >
+                      {p.indexingVerdict}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-0 divide-x divide-panel-border">
+                  {/* Position chart */}
+                  <div className="p-4">
+                    <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
+                      Pozycja — 30 dni
+                    </div>
+                    {p.history?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={120}>
+                        <AreaChart data={p.history}>
+                          <defs>
+                            <linearGradient
+                              id={`pg-${p.id}`}
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="1"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="#3b82f6"
+                                stopOpacity={0.2}
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="#3b82f6"
+                                stopOpacity={0}
+                              />
+                            </linearGradient>
+                          </defs>
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 8, fill: "#64748b" }}
+                            tickFormatter={(d: string) =>
+                              new Date(d).toLocaleDateString("pl-PL", {
+                                day: "2-digit",
+                                month: "2-digit",
+                              })
+                            }
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            reversed
+                            tick={{ fontSize: 8, fill: "#64748b" }}
+                            axisLine={false}
+                            tickLine={false}
+                            width={30}
+                            domain={["dataMin - 1", "dataMax + 1"]}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              background: "#1a2235",
+                              border: "1px solid #1e2a3a",
+                              borderRadius: "6px",
+                              fontSize: "10px",
+                            }}
+                            formatter={(v: number) => [
+                              v?.toFixed(1),
+                              "Pozycja",
+                            ]}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="position"
+                            stroke="#3b82f6"
+                            fill={`url(#pg-${p.id})`}
+                            strokeWidth={2}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="text-xs text-panel-muted h-[120px] flex items-center justify-center">
+                        Brak danych
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Top queries */}
+                  <div className="p-4">
+                    <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
+                      Top zapytania
+                    </div>
+                    {p.topQueries?.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {p.topQueries.slice(0, 5).map((q: any, i: number) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2 text-[11px]"
+                          >
+                            <span className="text-accent-amber font-mono truncate flex-1">
+                              "{q.query}"
+                            </span>
+                            <span className="text-accent-cyan font-semibold shrink-0">
+                              {q.clicks}
+                            </span>
+                            <span className="text-panel-muted shrink-0">
+                              poz. {q.position.toFixed(1)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-panel-muted">
+                        Brak zapytań
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Events + Backlinks row */}
+                {(p.events?.length > 0 || p.backlinks?.length > 0) && (
+                  <div className="border-t border-panel-border grid grid-cols-2 gap-0 divide-x divide-panel-border">
+                    <div className="p-4">
+                      <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
+                        Ostatnie eventy
+                      </div>
+                      <div className="space-y-1">
+                        {(p.events || []).slice(0, 5).map((e: any) => (
+                          <div
+                            key={e.id}
+                            className="text-[11px] flex items-center gap-2"
+                          >
+                            <span>
+                              {e.type.includes("IMPROVED") ||
+                              e.type.includes("TOP")
+                                ? "📈"
+                                : e.type.includes("DROPPED") ||
+                                    e.type.includes("LEFT")
+                                  ? "📉"
+                                  : e.type.includes("BACKLINK")
+                                    ? "🔗"
+                                    : "•"}
+                            </span>
+                            <span className="text-panel-dim truncate">
+                              {e.type.replace(/_/g, " ")}
+                            </span>
+                            <span className="text-panel-muted ml-auto text-[10px]">
+                              {new Date(e.createdAt).toLocaleDateString(
+                                "pl-PL",
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
+                        Backlinks ({p.backlinks?.length || 0})
+                      </div>
+                      <div className="space-y-1">
+                        {(p.backlinks || []).slice(0, 5).map((bl: any) => (
+                          <div key={bl.id} className="text-[11px]">
+                            <a
+                              href={bl.sourceUrl}
+                              target="_blank"
+                              className="text-accent-cyan hover:underline truncate block"
+                            >
+                              {bl.sourceDomain}
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       )}
 
@@ -768,11 +1091,27 @@ export function DomainDetailPage() {
                 <tbody>
                   {(orphans || []).map((p: any) => (
                     <tr key={p.id}>
-                      <td>
+                      <td className="max-w-[300px] truncate flex items-center gap-1.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleTrack.mutate({ domainId: id!, pageId: p.id });
+                          }}
+                          className="shrink-0"
+                        >
+                          <Star
+                            className={cn(
+                              "w-3.5 h-3.5 transition-colors",
+                              p.isTracked
+                                ? "text-accent-amber fill-accent-amber"
+                                : "text-panel-border hover:text-panel-muted",
+                            )}
+                          />
+                        </button>
                         <a
                           href={p.url}
                           target="_blank"
-                          className="text-accent-blue hover:underline truncate max-w-[400px] block"
+                          className="text-accent-blue hover:underline truncate"
                         >
                           {p.path}
                         </a>
