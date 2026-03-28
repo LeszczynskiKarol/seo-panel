@@ -1,7 +1,7 @@
 # SEO Command Center — Architecture
 
 ## Overview
-Centralny panel analityczny SEO dla wszystkich domen Karola. Łączy dane z Google Search Console, Google Indexing API, crawl linków wewnętrznych/zewnętrznych, i statusów indeksowania w jeden dashboard.
+Centralny panel analityczny SEO dla wszystkich domen. Łączy dane z Google Search Console, Google Indexing API, crawl linków wewnętrznych/zewnętrznych, i statusów indeksowania w jeden dashboard.
 
 ## Stack
 - **Backend**: Fastify + Prisma + PostgreSQL
