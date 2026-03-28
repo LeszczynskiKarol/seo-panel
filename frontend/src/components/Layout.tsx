@@ -2,6 +2,7 @@ import { Outlet, NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   Globe,
+  Eye,
   Bell,
   Activity,
   Lightbulb,
@@ -16,6 +17,7 @@ const NAV = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/insights", icon: Lightbulb, label: "Insights" },
   { to: "/timeline", icon: Clock, label: "Timeline" },
+  { to: "/watchlist", icon: Eye, label: "Watchlist" },
   { to: "/alerts", icon: Bell, label: "Alerty" },
 ];
 

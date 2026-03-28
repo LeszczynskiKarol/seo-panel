@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import { domainRoutes } from "./routes/domains.js";
 import { registerAuth, authGuard } from "./lib/auth.js";
 import { overviewRoutes } from "./routes/overview.js";
+import { watchlistRoutes } from "./routes/watchlist.js";
 import { startScheduler } from "./jobs/scheduler.js";
 import { prisma } from "./lib/prisma.js";
 import { importRoutes } from "./routes/import.js";
@@ -31,6 +32,7 @@ fastify.register(overviewRoutes, { prefix: "/api" });
 fastify.register(importRoutes, { prefix: "/api" });
 fastify.register(analyticsRoutes, { prefix: "/api/analytics" });
 fastify.register(timelineRoutes, { prefix: "/api/timeline" });
+fastify.register(watchlistRoutes, { prefix: "/api/watchlist" });
 
 // Health check
 fastify.get("/api/health", async () => ({

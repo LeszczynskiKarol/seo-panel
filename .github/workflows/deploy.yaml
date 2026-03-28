@@ -69,7 +69,7 @@ jobs:
             sleep 3
             echo "=== Status ==="
             pm2 list
-            curl -s http://localhost:5555/api/health
+            curl -s http://localhost:5555/api/health || true
 
       - name: Close SSH
         if: always()

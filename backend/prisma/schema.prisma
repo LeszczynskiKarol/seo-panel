@@ -352,6 +352,30 @@ enum SeoEventType {
   TRAFFIC_DROP           // unusual traffic decrease
 }
 
+model WatchedKeyword {
+  id              String    @id @default(cuid())
+  keyword         String    @unique
+  
+  // Latest aggregated data
+  totalPages      Int       @default(0)
+  bestPosition    Float?
+  bestDomain      String?
+  bestUrl         String?
+  
+  // Per-domain results (JSON array)
+  // [{domainId, domain, url, path, position, clicks, impressions, ctr}]
+  results         Json?
+  
+  // History
+  // [{date, results: [{domain, url, position, clicks}]}]  
+  positionHistory Json?
+  
+  lastChecked     DateTime?
+  createdAt       DateTime  @default(now())
+  
+  @@index([keyword])
+}
+
 // Backlink snapshots — track external links pointing to our domains
 model BacklinkSnapshot {
   id              String    @id @default(cuid())

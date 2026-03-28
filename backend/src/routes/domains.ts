@@ -365,15 +365,14 @@ export async function domainRoutes(fastify: FastifyInstance) {
     // Remove trailing slash for matching (but keep root /)
     const pathNorm = path.length > 1 ? path.replace(/\/$/, "") : path;
 
-    // Find page in DB
+    // Find page in DB — exact match only
     const page = await prisma.page.findFirst({
       where: {
         domainId: id,
         OR: [
           { path },
           { path: pathNorm },
-          { path: `${pathNorm}/` },
-          { url: { contains: pathNorm } },
+          ...(pathNorm !== "/" ? [{ path: `${pathNorm}/` }] : []),
         ],
       },
     });
