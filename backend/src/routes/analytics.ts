@@ -81,21 +81,6 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
       }),
     ]);
 
-    // Daily breakdown
-    const dailyRaw = await prisma.$queryRaw`
-      SELECT DATE("createdAt") as date, 
-             COUNT(*) as calls,
-             SUM("costUsd") as cost,
-             SUM("inputTokens") as input_tokens,
-             SUM("outputTokens") as output_tokens
-      FROM "ApiLog"
-      ${startDate ? prisma.$queryRaw`WHERE "createdAt" >= ${new Date(startDate)}` : prisma.$queryRaw``}
-      GROUP BY DATE("createdAt")
-      ORDER BY date DESC
-      LIMIT 30
-    `;
-
-    // By feature
     const byFeature = await prisma.apiLog.groupBy({
       by: ["feature"],
       where,
@@ -104,7 +89,6 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
       _avg: { durationMs: true },
     });
 
-    // By model
     const byModel = await prisma.apiLog.groupBy({
       by: ["model"],
       where,
