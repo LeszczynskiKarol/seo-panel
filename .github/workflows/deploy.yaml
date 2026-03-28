@@ -38,6 +38,11 @@ jobs:
           key: ${{ secrets.SEOPANEL_SSH_KEY }}
           command_timeout: 300s
           script: |
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+            export PATH="$HOME/.nvm/versions/node/$(node --version)/bin:$HOME/.local/bin:$PATH"
+            echo "=== Node: $(node --version) ==="
+
             cd /var/www/seo-panel
 
             echo "=== Git pull ==="
