@@ -31,21 +31,6 @@ export function Layout() {
   return (
     <div className="flex h-screen overflow-hidden">
       <aside className="w-44 bg-panel-surface border-r border-panel-border flex flex-col shrink-0">
-        {/* Logo */}
-        <div className="px-3 py-3 border-b border-panel-border">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-accent-blue/20 flex items-center justify-center">
-              <Activity className="w-3 h-3 text-accent-blue" />
-            </div>
-            <div>
-              <div className="text-xs font-bold tracking-tight">SEO Panel</div>
-              <div className="text-[8px] text-panel-muted font-mono uppercase tracking-widest">
-                Command Center
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Nav */}
         <nav className="flex-1 px-2 py-2 space-y-0.5">
           {NAV.map((item) => (

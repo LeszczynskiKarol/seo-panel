@@ -39,6 +39,8 @@ export function DomainDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("pages");
+  const [trackedDays, setTrackedDays] = useState(30);
+  const [trackedCompare, setTrackedCompare] = useState(false);
   const [trackUrl, setTrackUrl] = useState("");
   const [trackError, setTrackError] = useState("");
   const [trackSuccess, setTrackSuccess] = useState("");
@@ -158,9 +160,17 @@ export function DomainDetailPage() {
   });
 
   const { data: trackedPages } = useQuery({
-    queryKey: ["tracked", id],
-    queryFn: () => api.getTrackedPages(id!),
+    queryKey: ["tracked", id, trackedDays],
+    queryFn: () => api.getTrackedPages(id!, trackedDays),
     enabled: !!id && tab === "tracked",
+    refetchOnMount: "always",
+    staleTime: 0,
+  });
+
+  const { data: trackedPagesPrev } = useQuery({
+    queryKey: ["tracked-prev", id, trackedDays],
+    queryFn: () => api.getTrackedPages(id!, trackedDays * 2),
+    enabled: !!id && tab === "tracked" && trackedCompare,
   });
 
   const { data: orphans } = useQuery({
@@ -682,6 +692,40 @@ export function DomainDetailPage() {
             </div>
           </div>
 
+          {/* Period selector for tracked pages */}
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-[9px] text-panel-muted uppercase tracking-wider">
+              Okres:
+            </span>
+            {[7, 14, 30, 90].map((d) => (
+              <button
+                key={d}
+                onClick={() => setTrackedDays(d)}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[10px] font-mono transition-all",
+                  trackedDays === d
+                    ? "bg-accent-blue/20 text-accent-blue font-semibold"
+                    : "text-panel-muted hover:text-panel-text",
+                )}
+              >
+                {d}d
+              </button>
+            ))}
+            <div className="ml-3 border-l border-panel-border pl-3">
+              <button
+                onClick={() => setTrackedCompare(!trackedCompare)}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[10px] transition-all",
+                  trackedCompare
+                    ? "bg-accent-purple/20 text-accent-purple font-semibold"
+                    : "text-panel-muted hover:text-panel-text",
+                )}
+              >
+                vs poprzedni okres
+              </button>
+            </div>
+          </div>
+
           {/* Tracked pages list */}
           {!trackedPages?.length ? (
             <div className="bg-panel-card border border-panel-border rounded-lg p-8 text-center text-panel-muted text-sm">
@@ -689,288 +733,276 @@ export function DomainDetailPage() {
               stronie w zakładce "Strony".
             </div>
           ) : (
-            trackedPages.map((p: any) => (
-              <div
-                key={p.id}
-                className="bg-panel-card border border-panel-border rounded-lg overflow-hidden"
-              >
-                {/* Header */}
-                <div className="px-5 py-3 border-b border-panel-border flex items-center gap-3">
-                  <button
-                    onClick={() => removeTracked.mutate(p.id)}
-                    title="Usuń ze śledzenia"
-                  >
-                    <Star className="w-4 h-4 text-accent-amber fill-accent-amber hover:text-accent-red transition-colors" />
-                  </button>
-                  <a
-                    href={p.url}
-                    target="_blank"
-                    className="text-sm font-mono text-accent-blue hover:underline truncate"
-                  >
-                    {p.path}
-                  </a>
-                  <div className="ml-auto flex items-center gap-4 text-xs">
-                    <span className="text-panel-muted">
-                      poz.{" "}
-                      <strong className="text-panel-text">
-                        {p.position?.toFixed(1) || "—"}
-                      </strong>
-                    </span>
-                    <span className="text-accent-cyan font-semibold">
-                      {p.clicks} kliknięć
-                    </span>
-                    <span className="text-panel-muted">
-                      {p.impressions} wyświetl.
-                    </span>
-                    <span
-                      className={cn(
-                        "badge",
-                        p.indexingVerdict === "PASS"
-                          ? "badge-pass"
-                          : p.indexingVerdict === "FAIL"
-                            ? "badge-fail"
-                            : "badge-unknown",
-                      )}
+            trackedPages.map((p: any) => {
+              // Find prev data for comparison
+              const prevPage =
+                trackedCompare && trackedPagesPrev
+                  ? trackedPagesPrev.find((pp: any) => pp.id === p.id)
+                  : null;
+              const prevHistory =
+                prevPage?.history?.slice(
+                  0,
+                  prevPage.history.length - (p.history?.length || 0),
+                ) || [];
+
+              const currClicks =
+                p.history?.reduce(
+                  (s: number, h: any) => s + (h.clicks || 0),
+                  0,
+                ) || 0;
+              const prevClicks = prevHistory.reduce(
+                (s: number, h: any) => s + (h.clicks || 0),
+                0,
+              );
+              const currAvgPos = p.history?.length
+                ? p.history.reduce(
+                    (s: number, h: any) => s + (h.position || 0),
+                    0,
+                  ) / p.history.length
+                : null;
+              const prevAvgPos = prevHistory.length
+                ? prevHistory.reduce(
+                    (s: number, h: any) => s + (h.position || 0),
+                    0,
+                  ) / prevHistory.length
+                : null;
+
+              return (
+                <div
+                  key={p.id}
+                  className="bg-panel-card border border-panel-border rounded-lg overflow-hidden"
+                >
+                  {/* Header */}
+                  <div className="px-5 py-3 border-b border-panel-border flex items-center gap-3">
+                    <button
+                      onClick={() => removeTracked.mutate(p.id)}
+                      title="Usuń ze śledzenia"
                     >
-                      {p.indexingVerdict}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-0 divide-x divide-panel-border">
-                  {/* Position chart */}
-                  <div className="p-4">
-                    <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
-                      Pozycja — 30 dni
-                    </div>
-                    {p.history?.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={120}>
-                        <AreaChart data={p.history}>
-                          <defs>
-                            <linearGradient
-                              id={`pg-${p.id}`}
-                              x1="0"
-                              y1="0"
-                              x2="0"
-                              y2="1"
-                            >
-                              <stop
-                                offset="0%"
-                                stopColor="#3b82f6"
-                                stopOpacity={0.2}
-                              />
-                              <stop
-                                offset="100%"
-                                stopColor="#3b82f6"
-                                stopOpacity={0}
-                              />
-                            </linearGradient>
-                          </defs>
-                          <XAxis
-                            dataKey="date"
-                            tick={{ fontSize: 8, fill: "#64748b" }}
-                            tickFormatter={(d: string) =>
-                              new Date(d).toLocaleDateString("pl-PL", {
-                                day: "2-digit",
-                                month: "2-digit",
-                              })
-                            }
-                            axisLine={false}
-                            tickLine={false}
-                          />
-                          <YAxis
-                            reversed
-                            tick={{ fontSize: 8, fill: "#64748b" }}
-                            axisLine={false}
-                            tickLine={false}
-                            width={30}
-                            domain={["dataMin - 1", "dataMax + 1"]}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              background: "#1a2235",
-                              border: "1px solid #1e2a3a",
-                              borderRadius: "6px",
-                              fontSize: "10px",
-                            }}
-                            formatter={(v: number) => [
-                              v?.toFixed(1),
-                              "Pozycja",
-                            ]}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="position"
-                            stroke="#3b82f6"
-                            fill={`url(#pg-${p.id})`}
-                            strokeWidth={2}
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="text-xs text-panel-muted h-[120px] flex items-center justify-center">
-                        Brak danych
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Top queries */}
-                  <div className="p-4">
-                    <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
-                      Top zapytania
-                    </div>
-                    {p.topQueries?.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {p.topQueries.slice(0, 5).map((q: any, i: number) => (
-                          <div
-                            key={i}
-                            className="flex items-center gap-2 text-[11px]"
-                          >
-                            <span className="text-accent-amber font-mono truncate flex-1">
-                              "{q.query}"
-                            </span>
-                            <span className="text-accent-cyan font-semibold shrink-0">
-                              {q.clicks}
-                            </span>
-                            <span className="text-panel-muted shrink-0">
-                              poz. {q.position.toFixed(1)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-panel-muted">
-                        Brak zapytań
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Events + Backlinks row */}
-                {(p.events?.length > 0 || p.backlinks?.length > 0) && (
-                  <div className="border-t border-panel-border grid grid-cols-2 gap-0 divide-x divide-panel-border">
-                    <div className="p-4">
-                      <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
-                        Ostatnie eventy
-                      </div>
-                      <div className="space-y-1">
-                        {(p.events || []).slice(0, 5).map((e: any) => (
-                          <div
-                            key={e.id}
-                            className="text-[11px] flex items-center gap-2"
-                          >
-                            <span>
-                              {e.type.includes("IMPROVED") ||
-                              e.type.includes("TOP")
-                                ? "📈"
-                                : e.type.includes("DROPPED") ||
-                                    e.type.includes("LEFT")
-                                  ? "📉"
-                                  : e.type.includes("BACKLINK")
-                                    ? "🔗"
-                                    : "•"}
-                            </span>
-                            <span className="text-panel-dim truncate">
-                              {e.type.replace(/_/g, " ")}
-                            </span>
-                            <span className="text-panel-muted ml-auto text-[10px]">
-                              {new Date(e.createdAt).toLocaleDateString(
-                                "pl-PL",
-                              )}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="p-4">
-                      <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
-                        Backlinks ({p.backlinks?.length || 0})
-                      </div>
-                      <div className="space-y-1">
-                        {(p.backlinks || []).slice(0, 5).map((bl: any) => (
-                          <div key={bl.id} className="text-[11px]">
-                            <a
-                              href={bl.sourceUrl}
-                              target="_blank"
-                              className="text-accent-cyan hover:underline truncate block"
-                            >
-                              {bl.sourceDomain}
-                            </a>
-                          </div>
-                        ))}
-                      </div>
+                      <Star className="w-4 h-4 text-accent-amber fill-accent-amber hover:text-accent-red transition-colors" />
+                    </button>
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      className="text-sm font-mono text-accent-blue hover:underline truncate"
+                    >
+                      {p.path}
+                    </a>
+                    <div className="ml-auto flex items-center gap-4 text-xs">
+                      <span className="text-panel-muted">
+                        poz.{" "}
+                        <strong className="text-panel-text">
+                          {p.position?.toFixed(1) || "—"}
+                        </strong>
+                      </span>
+                      <span className="text-accent-cyan font-semibold">
+                        {p.clicks} kliknięć
+                      </span>
+                      <span className="text-panel-muted">
+                        {p.impressions} wyświetl.
+                      </span>
+                      <span
+                        className={cn(
+                          "badge",
+                          p.indexingVerdict === "PASS"
+                            ? "badge-pass"
+                            : p.indexingVerdict === "FAIL"
+                              ? "badge-fail"
+                              : "badge-unknown",
+                        )}
+                      >
+                        {p.indexingVerdict}
+                      </span>
                     </div>
                   </div>
-                )}
-                {/* Tracked Keywords */}
-                <div className="border-t border-panel-border p-4">
-                  <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
-                    Śledzone frazy
-                  </div>
 
-                  {/* Add keyword */}
-                  <KeywordInput
-                    domainId={id!}
-                    pageId={p.id}
-                    onAdded={() =>
-                      qc.invalidateQueries({ queryKey: ["tracked", id] })
-                    }
-                  />
-
-                  {p.trackedKeywords?.length > 0 && (
-                    <div className="mt-2 space-y-1.5">
-                      {p.trackedKeywords.map((kw: any) => (
-                        <div
-                          key={kw.id}
-                          className="flex items-center gap-2 text-[11px] bg-panel-bg/50 rounded px-2 py-1.5"
-                        >
-                          <span className="font-mono text-accent-amber font-semibold truncate flex-1">
-                            "{kw.keyword}"
-                          </span>
-                          {kw.position ? (
-                            <>
-                              <span className="text-panel-muted">poz.</span>
-                              <span className="font-mono text-accent-green font-semibold">
-                                {kw.position.toFixed(1)}
-                              </span>
-                              <span className="text-accent-cyan">
-                                {kw.clicks} klik.
-                              </span>
-                              <span className="text-panel-muted">
-                                {kw.impressions} imp.
-                              </span>
-                            </>
-                          ) : (
-                            <span className="text-panel-muted">
-                              nie sprawdzono
-                            </span>
-                          )}
-                          {kw.lastChecked && (
-                            <span className="text-[10px] text-panel-muted">
-                              {new Date(kw.lastChecked).toLocaleDateString(
-                                "pl-PL",
-                              )}
-                            </span>
-                          )}
-                          <button
-                            onClick={() =>
-                              removeKw.mutate({
-                                domainId: id!,
-                                pageId: p.id,
-                                kwId: kw.id,
-                              })
-                            }
-                            className="text-panel-muted hover:text-accent-red text-[10px]"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
+                  {/* Comparison stats */}
+                  {trackedCompare && prevPage && (
+                    <div className="px-5 py-2 border-b border-panel-border/50 flex gap-4 text-[10px]">
+                      <StatWithDelta
+                        label="Kliknięcia"
+                        value={currClicks}
+                        prev={prevClicks}
+                        compare={true}
+                        color="text-accent-cyan"
+                        positiveGood
+                      />
+                      <StatWithDelta
+                        label="Śr. pozycja"
+                        value={
+                          currAvgPos ? parseFloat(currAvgPos.toFixed(1)) : 0
+                        }
+                        prev={
+                          prevAvgPos
+                            ? parseFloat(prevAvgPos.toFixed(1))
+                            : undefined
+                        }
+                        compare={true}
+                        color="text-accent-blue"
+                        positiveGood={false}
+                        isPosition
+                      />
                     </div>
                   )}
+
+                  <div className="grid grid-cols-2 gap-0 divide-x divide-panel-border">
+                    {/* Position chart */}
+                    <div className="p-4">
+                      <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
+                        Pozycja — {trackedDays} dni
+                      </div>
+                      {p.history?.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={120}>
+                          <AreaChart data={p.history}>
+                            <defs>
+                              <linearGradient
+                                id={`pg-${p.id}`}
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                              >
+                                <stop
+                                  offset="0%"
+                                  stopColor="#3b82f6"
+                                  stopOpacity={0.2}
+                                />
+                                <stop
+                                  offset="100%"
+                                  stopColor="#3b82f6"
+                                  stopOpacity={0}
+                                />
+                              </linearGradient>
+                            </defs>
+                            <XAxis
+                              dataKey="date"
+                              tick={{ fontSize: 8, fill: "#64748b" }}
+                              tickFormatter={(d: string) =>
+                                new Date(d).toLocaleDateString("pl-PL", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                })
+                              }
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              reversed
+                              tick={{ fontSize: 8, fill: "#64748b" }}
+                              axisLine={false}
+                              tickLine={false}
+                              width={30}
+                              domain={["dataMin - 1", "dataMax + 1"]}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                background: "#1a2235",
+                                border: "1px solid #1e2a3a",
+                                borderRadius: "6px",
+                                fontSize: "10px",
+                              }}
+                              formatter={(v: number) => [
+                                v?.toFixed(1),
+                                "Pozycja",
+                              ]}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="position"
+                              stroke="#3b82f6"
+                              fill={`url(#pg-${p.id})`}
+                              strokeWidth={2}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="text-xs text-panel-muted h-[120px] flex items-center justify-center">
+                          Brak danych
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Top queries — CLICKABLE */}
+                    <div className="p-4">
+                      <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
+                        Top zapytania — {trackedDays}d
+                      </div>
+                      {p.topQueries?.length > 0 ? (
+                        <div className="space-y-1">
+                          {p.topQueries.slice(0, 5).map((q: any, i: number) => (
+                            <ClickableQuery
+                              key={i}
+                              query={q}
+                              domainId={id!}
+                              pageId={p.id}
+                              days={trackedDays}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-panel-muted">
+                          Brak zapytań
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tracked Keywords */}
+                  <div className="border-t border-panel-border p-4">
+                    <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
+                      Śledzone frazy
+                    </div>
+                    <KeywordInput
+                      domainId={id!}
+                      pageId={p.id}
+                      onAdded={() =>
+                        qc.invalidateQueries({ queryKey: ["tracked", id] })
+                      }
+                    />
+                    {p.trackedKeywords?.length > 0 && (
+                      <div className="mt-2 space-y-1.5">
+                        {p.trackedKeywords.map((tkw: any) => (
+                          <div
+                            key={tkw.id}
+                            className="flex items-center gap-2 text-[11px] bg-panel-bg/50 rounded px-2 py-1.5"
+                          >
+                            <span className="font-mono text-accent-amber font-semibold truncate flex-1">
+                              "{tkw.keyword}"
+                            </span>
+                            {tkw.position ? (
+                              <>
+                                <span className="text-panel-muted">poz.</span>
+                                <span className="font-mono text-accent-green font-semibold">
+                                  {tkw.position.toFixed(1)}
+                                </span>
+                                <span className="text-accent-cyan">
+                                  {tkw.clicks} klik.
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-panel-muted">
+                                nie sprawdzono
+                              </span>
+                            )}
+                            <button
+                              onClick={() =>
+                                removeKw.mutate({
+                                  domainId: id!,
+                                  pageId: p.id,
+                                  kwId: tkw.id,
+                                })
+                              }
+                              className="text-panel-muted hover:text-accent-red text-[10px]"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -1741,6 +1773,121 @@ function StatWithDelta({
           {isPosition ? delta.toFixed(1) : delta} ({pct > 0 ? "+" : ""}
           {pct}%)
         </span>
+      )}
+    </div>
+  );
+}
+
+function ClickableQuery({
+  query: q,
+  domainId,
+  pageId,
+  days,
+}: {
+  query: any;
+  domainId: string;
+  pageId: string;
+  days: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const { data: dailyData } = useQuery({
+    queryKey: ["query-daily", domainId, pageId, q.query, days],
+    queryFn: () => api.getQueryDaily(domainId, pageId, q.query, days),
+    enabled: expanded,
+  });
+
+  return (
+    <div>
+      <div
+        className="flex items-center gap-2 text-[11px] cursor-pointer hover:bg-panel-hover/20 rounded px-1 py-0.5 -mx-1 transition-all"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="text-[9px] text-panel-muted">
+          {expanded ? "▼" : "▶"}
+        </span>
+        <span className="text-accent-amber font-mono truncate flex-1">
+          "{q.query}"
+        </span>
+        <span className="text-accent-cyan font-semibold shrink-0">
+          {q.clicks}
+        </span>
+        <span className="text-panel-muted shrink-0">
+          poz. {q.position.toFixed(1)}
+        </span>
+      </div>
+
+      {expanded && dailyData?.daily?.length > 0 && (
+        <div className="ml-3 mt-1 mb-2 border-l-2 border-panel-border pl-2">
+          <ResponsiveContainer width="100%" height={60}>
+            <AreaChart data={dailyData.daily}>
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 6, fill: "#64748b" }}
+                tickFormatter={(d: string) => d.slice(8)}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                reversed
+                tick={{ fontSize: 6, fill: "#64748b" }}
+                axisLine={false}
+                tickLine={false}
+                width={20}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "#1a2235",
+                  border: "1px solid #1e2a3a",
+                  borderRadius: "4px",
+                  fontSize: "8px",
+                }}
+                formatter={(v: number) => [v?.toFixed(1), "Poz."]}
+              />
+              <Area
+                type="monotone"
+                dataKey="position"
+                stroke="#f59e0b"
+                fill="none"
+                strokeWidth={1}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+          <div className="flex gap-3 text-[9px] text-panel-muted mt-1">
+            <span>
+              Klik:{" "}
+              <strong className="text-accent-cyan">
+                {dailyData.daily.reduce((s: number, d: any) => s + d.clicks, 0)}
+              </strong>
+            </span>
+            <span>
+              Imp:{" "}
+              <strong>
+                {dailyData.daily.reduce(
+                  (s: number, d: any) => s + d.impressions,
+                  0,
+                )}
+              </strong>
+            </span>
+            <span>
+              Śr. poz:{" "}
+              <strong>
+                {(
+                  dailyData.daily.reduce(
+                    (s: number, d: any) => s + d.position,
+                    0,
+                  ) / dailyData.daily.length
+                ).toFixed(1)}
+              </strong>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {expanded && !dailyData?.daily?.length && dailyData && (
+        <div className="ml-3 mt-1 mb-1 text-[9px] text-panel-muted">
+          Brak danych dziennych
+        </div>
       )}
     </div>
   );

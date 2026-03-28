@@ -281,9 +281,15 @@ export async function domainRoutes(fastify: FastifyInstance) {
         if (domain.gscProperty) {
           try {
             const { getSearchConsole } = await import("../lib/google-auth.js");
+            const { days } = request.query as { days?: string };
+            const thirtyDaysAgo = new Date(
+              Date.now() - parseInt(days || "30") * 86400000,
+            );
             const sc = await getSearchConsole();
             const endDate = new Date().toISOString().split("T")[0];
-            const startDate = new Date(Date.now() - 30 * 86400000)
+            const startDate = new Date(
+              Date.now() - parseInt(days || "30") * 86400000,
+            )
               .toISOString()
               .split("T")[0];
 
@@ -764,6 +770,73 @@ export async function domainRoutes(fastify: FastifyInstance) {
       return { keyword: kw.keyword, daily, startDate, endDate };
     } catch (e: any) {
       return { keyword: kw.keyword, daily: [], error: e.message };
+    }
+  });
+
+  // Daily breakdown for specific query on specific page
+  fastify.get("/:domainId/pages/:pageId/query-daily", async (request) => {
+    const { domainId, pageId } = request.params as {
+      domainId: string;
+      pageId: string;
+    };
+    const { query, days } = request.query as { query: string; days?: string };
+
+    const domain = await prisma.domain.findUniqueOrThrow({
+      where: { id: domainId },
+    });
+    const page = await prisma.page.findUniqueOrThrow({ where: { id: pageId } });
+    if (!domain.gscProperty) return { daily: [] };
+
+    const { getSearchConsole } = await import("../lib/google-auth.js");
+    const sc = await getSearchConsole();
+    const endDate = new Date().toISOString().split("T")[0];
+    const startDate = new Date(Date.now() - parseInt(days || "30") * 86400000)
+      .toISOString()
+      .split("T")[0];
+
+    try {
+      const pageUrls = [page.url, page.url.replace(/\/$/, ""), page.url + "/"];
+      let daily: any[] = [];
+
+      for (const tryUrl of pageUrls) {
+        const res = await sc.searchanalytics.query({
+          siteUrl: domain.gscProperty,
+          requestBody: {
+            startDate,
+            endDate,
+            dimensions: ["date"],
+            dimensionFilterGroups: [
+              {
+                filters: [
+                  { dimension: "page", expression: tryUrl },
+                  {
+                    dimension: "query",
+                    operator: "contains",
+                    expression: query,
+                  },
+                ],
+              },
+            ],
+            rowLimit: 100,
+          },
+        });
+
+        daily = (res.data.rows || [])
+          .map((r: any) => ({
+            date: r.keys![0],
+            clicks: r.clicks || 0,
+            impressions: r.impressions || 0,
+            position: Math.round((r.position || 0) * 10) / 10,
+            ctr: r.ctr || 0,
+          }))
+          .sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+        if (daily.length > 0) break;
+      }
+
+      return { query, url: page.url, daily, startDate, endDate };
+    } catch (e: any) {
+      return { query, url: page.url, daily: [], error: e.message };
     }
   });
 }

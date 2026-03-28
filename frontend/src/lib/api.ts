@@ -124,8 +124,8 @@ export const api = {
     request<any>(`/domains/${domainId}/pages/${pageId}/track`, {
       method: "PATCH",
     }),
-  getTrackedPages: (domainId: string) =>
-    request<any[]>(`/domains/${domainId}/tracked`),
+  getTrackedPages: (domainId: string, days = 30) =>
+    request<any[]>(`/domains/${domainId}/tracked?days=${days}`),
 
   trackUrl: (domainId: string, url: string) =>
     request<any>(`/domains/${domainId}/track-url`, {
@@ -182,6 +182,11 @@ export const api = {
   getDomainKeywordDaily: (domainId: string, kwId: string, days = 30) =>
     request<any>(
       `/domains/${domainId}/domain-keywords/${kwId}/daily?days=${days}`,
+    ),
+
+  getQueryDaily: (domainId: string, pageId: string, query: string, days = 30) =>
+    request<any>(
+      `/domains/${domainId}/pages/${pageId}/query-daily?query=${encodeURIComponent(query)}&days=${days}`,
     ),
 
   // Jobs
