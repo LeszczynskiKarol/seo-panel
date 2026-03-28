@@ -32,30 +32,32 @@ export function Layout() {
     <div className="flex h-screen overflow-hidden">
       <aside className="w-44 bg-panel-surface border-r border-panel-border flex flex-col shrink-0">
         {/* Nav */}
-        <nav className="flex-1 px-2 py-2 space-y-0.5">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-all duration-150",
-                  isActive
-                    ? "bg-accent-blue/10 text-accent-blue font-medium"
-                    : "text-panel-dim hover:text-panel-text hover:bg-panel-hover/50",
-                )
-              }
-            >
-              <item.icon className="w-3.5 h-3.5" />
-              {item.label}
-              {item.label === "Alerty" && overview?.alertCount > 0 && (
-                <span className="ml-auto text-[9px] font-mono bg-accent-red/20 text-accent-red px-1 py-px rounded">
-                  {overview.alertCount}
-                </span>
-              )}
-            </NavLink>
-          ))}
+        <nav className="flex-1 flex flex-col px-2 py-2 min-h-0">
+          <div className="space-y-0.5">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === "/"}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-all duration-150",
+                    isActive
+                      ? "bg-accent-blue/10 text-accent-blue font-medium"
+                      : "text-panel-dim hover:text-panel-text hover:bg-panel-hover/50",
+                  )
+                }
+              >
+                <item.icon className="w-3.5 h-3.5" />
+                {item.label}
+                {item.label === "Alerty" && overview?.alertCount > 0 && (
+                  <span className="ml-auto text-[9px] font-mono bg-accent-red/20 text-accent-red px-1 py-px rounded">
+                    {overview.alertCount}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </div>
 
           <div className="pt-3 pb-1 px-2">
             <div className="text-[8px] uppercase tracking-widest text-panel-muted font-semibold">
@@ -93,7 +95,7 @@ function DomainsNav() {
   if (!domains) return null;
 
   return (
-    <div className="space-y-px max-h-[400px] overflow-y-auto">
+    <div className="flex-1 min-h-0 overflow-y-auto">
       {domains.map((d: any) => {
         const pct =
           d.totalPages > 0
