@@ -179,6 +179,11 @@ export const api = {
       method: "POST",
     }),
 
+  getDomainKeywordDaily: (domainId: string, kwId: string, days = 30) =>
+    request<any>(
+      `/domains/${domainId}/domain-keywords/${kwId}/daily?days=${days}`,
+    ),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

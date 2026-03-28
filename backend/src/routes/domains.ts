@@ -535,7 +535,86 @@ export async function domainRoutes(fastify: FastifyInstance) {
     });
     if (existing) return { ...existing, message: "already_exists" };
 
-    return prisma.domainKeyword.create({ data: { domainId: id, keyword: kw } });
+    const created = await prisma.domainKeyword.create({
+      data: { domainId: id, keyword: kw },
+    });
+
+    // Auto-check position
+    const domain = await prisma.domain.findUniqueOrThrow({ where: { id } });
+    if (domain.gscProperty) {
+      try {
+        const { getSearchConsole } = await import("../lib/google-auth.js");
+        const sc = await getSearchConsole();
+        const endDate = new Date().toISOString().split("T")[0];
+        const startDate = new Date(Date.now() - 7 * 86400000)
+          .toISOString()
+          .split("T")[0];
+
+        const res = await sc.searchanalytics.query({
+          siteUrl: domain.gscProperty,
+          requestBody: {
+            startDate,
+            endDate,
+            dimensions: ["page"],
+            dimensionFilterGroups: [
+              {
+                filters: [
+                  { dimension: "query", operator: "contains", expression: kw },
+                ],
+              },
+            ],
+            rowLimit: 20,
+          },
+        });
+
+        const results = (res.data.rows || [])
+          .map((r: any) => {
+            let path: string;
+            try {
+              path = new URL(r.keys![0]).pathname;
+            } catch {
+              path = r.keys![0];
+            }
+            return {
+              url: r.keys![0],
+              path,
+              position: Math.round((r.position || 0) * 10) / 10,
+              clicks: r.clicks || 0,
+              impressions: r.impressions || 0,
+              ctr: r.ctr || 0,
+            };
+          })
+          .sort((a: any, b: any) => a.position - b.position);
+
+        const best = results[0];
+        await prisma.domainKeyword.update({
+          where: { id: created.id },
+          data: {
+            results,
+            bestPosition: best?.position || null,
+            totalClicks: results.reduce((s: number, r: any) => s + r.clicks, 0),
+            totalPages: results.length,
+            positionHistory: [
+              {
+                date: endDate,
+                bestPosition: best?.position || null,
+                pages: results.length,
+              },
+            ],
+            lastChecked: new Date(),
+          },
+        });
+
+        return {
+          ...created,
+          results,
+          bestPosition: best?.position,
+          totalPages: results.length,
+        };
+      } catch {}
+    }
+
+    return created;
   });
 
   fastify.delete("/:id/domain-keywords/:kwId", async (request) => {
@@ -546,13 +625,14 @@ export async function domainRoutes(fastify: FastifyInstance) {
 
   fastify.post("/:id/check-domain-keywords", async (request) => {
     const { id } = request.params as { id: string };
+    const { days } = request.body as { days?: number };
     const domain = await prisma.domain.findUniqueOrThrow({ where: { id } });
     if (!domain.gscProperty) return { error: "No GSC property" };
 
     const { getSearchConsole } = await import("../lib/google-auth.js");
     const sc = await getSearchConsole();
     const endDate = new Date().toISOString().split("T")[0];
-    const startDate = new Date(Date.now() - 7 * 86400000)
+    const startDate = new Date(Date.now() - (days || 7) * 86400000)
       .toISOString()
       .split("T")[0];
     const today = endDate;
@@ -630,5 +710,60 @@ export async function domainRoutes(fastify: FastifyInstance) {
     }
 
     return { checked, total: keywords.length };
+  });
+  // Get daily breakdown for single domain keyword
+  fastify.get("/:id/domain-keywords/:kwId/daily", async (request) => {
+    const { id, kwId } = request.params as { id: string; kwId: string };
+    const { days } = request.query as { days?: string };
+    const domain = await prisma.domain.findUniqueOrThrow({ where: { id } });
+    const kw = await prisma.domainKeyword.findUniqueOrThrow({
+      where: { id: kwId },
+    });
+
+    if (!domain.gscProperty) return { error: "No GSC property", daily: [] };
+
+    const { getSearchConsole } = await import("../lib/google-auth.js");
+    const sc = await getSearchConsole();
+    const endDate = new Date().toISOString().split("T")[0];
+    const startDate = new Date(Date.now() - parseInt(days || "30") * 86400000)
+      .toISOString()
+      .split("T")[0];
+
+    try {
+      const res = await sc.searchanalytics.query({
+        siteUrl: domain.gscProperty,
+        requestBody: {
+          startDate,
+          endDate,
+          dimensions: ["date"],
+          dimensionFilterGroups: [
+            {
+              filters: [
+                {
+                  dimension: "query",
+                  operator: "contains",
+                  expression: kw.keyword,
+                },
+              ],
+            },
+          ],
+          rowLimit: 100,
+        },
+      });
+
+      const daily = (res.data.rows || [])
+        .map((r: any) => ({
+          date: r.keys![0],
+          clicks: r.clicks || 0,
+          impressions: r.impressions || 0,
+          position: Math.round((r.position || 0) * 10) / 10,
+          ctr: r.ctr || 0,
+        }))
+        .sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+      return { keyword: kw.keyword, daily, startDate, endDate };
+    } catch (e: any) {
+      return { keyword: kw.keyword, daily: [], error: e.message };
+    }
   });
 }

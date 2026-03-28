@@ -102,6 +102,8 @@ export function DomainDetailPage() {
     queryKey: ["domain-keywords", id],
     queryFn: () => api.getDomainKeywords(id!),
     enabled: !!id && tab === "tracked",
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   const [newDomainKw, setNewDomainKw] = useState("");
@@ -593,18 +595,6 @@ export function DomainDetailPage() {
                 <Search className="w-3.5 h-3.5 text-accent-cyan" />
                 Śledzone frazy kluczowe
               </div>
-              {domainKeywords && domainKeywords.length > 0 && (
-                <button
-                  className="btn btn-ghost text-[10px] py-1"
-                  onClick={() => checkDomainKw.mutate()}
-                  disabled={checkDomainKw.isPending}
-                >
-                  {checkDomainKw.isPending ? (
-                    <RefreshCw className="w-3 h-3 animate-spin mr-1" />
-                  ) : null}
-                  {checkDomainKw.isPending ? "Sprawdzam..." : "Sprawdź pozycje"}
-                </button>
-              )}
             </div>
             <div className="flex gap-2 mb-3">
               <input
@@ -637,96 +627,14 @@ export function DomainDetailPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {domainKeywords.map((kw: any) => {
-                  const results = (kw.results || []) as any[];
-                  return (
-                    <div
-                      key={kw.id}
-                      className="border border-panel-border rounded overflow-hidden"
-                    >
-                      <div className="px-3 py-2 flex items-center gap-2 bg-panel-bg/30">
-                        <span className="font-mono text-accent-amber font-semibold text-xs">
-                          "{kw.keyword}"
-                        </span>
-                        <div className="ml-auto flex items-center gap-3 text-[11px]">
-                          {kw.bestPosition && (
-                            <span className="text-panel-muted">
-                              poz.{" "}
-                              <strong className="text-accent-green">
-                                {kw.bestPosition.toFixed(1)}
-                              </strong>
-                            </span>
-                          )}
-                          <span className="text-panel-muted">
-                            <strong className="text-panel-text">
-                              {kw.totalPages}
-                            </strong>{" "}
-                            stron
-                          </span>
-                          <span className="text-accent-cyan font-semibold">
-                            {kw.totalClicks} klik.
-                          </span>
-                          {kw.lastChecked && (
-                            <span className="text-[10px] text-panel-muted">
-                              {fmtDate(kw.lastChecked)}
-                            </span>
-                          )}
-                          <button
-                            onClick={() => removeDomainKw.mutate(kw.id)}
-                            className="text-panel-muted hover:text-accent-red"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                      {results.length > 0 && (
-                        <table className="data-table">
-                          <thead>
-                            <tr>
-                              <th>Pozycja</th>
-                              <th>URL</th>
-                              <th>Kliknięcia</th>
-                              <th>Wyświetlenia</th>
-                              <th>CTR</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {results.map((r: any, i: number) => (
-                              <tr key={i}>
-                                <td
-                                  className={cn(
-                                    "font-bold",
-                                    r.position <= 3
-                                      ? "text-accent-green"
-                                      : r.position <= 10
-                                        ? "text-accent-cyan"
-                                        : r.position <= 20
-                                          ? "text-accent-amber"
-                                          : "text-accent-red",
-                                  )}
-                                >
-                                  {r.position}
-                                </td>
-                                <td className="max-w-[300px] truncate">
-                                  <a
-                                    href={r.url}
-                                    target="_blank"
-                                    className="text-accent-blue hover:underline"
-                                  >
-                                    {r.path}
-                                  </a>
-                                </td>
-                                <td className="text-accent-cyan">{r.clicks}</td>
-                                <td>{fmtNumber(r.impressions)}</td>
-                                <td>{fmtPercent(r.ctr)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
-                  );
-                })}
+                {domainKeywords.map((kw: any) => (
+                  <DomainKeywordRow
+                    key={kw.id}
+                    kw={kw}
+                    domainId={id!}
+                    onRemove={() => removeDomainKw.mutate(kw.id)}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -773,21 +681,7 @@ export function DomainDetailPage() {
               kliknij "Sync sitemap" i spróbuj ponownie.
             </div>
           </div>
-          {/* Check keywords button */}
-          {trackedPages && trackedPages.length > 0 && (
-            <div className="flex justify-end">
-              <button
-                className="btn btn-ghost text-xs"
-                onClick={() => checkKw.mutate()}
-                disabled={checkKw.isPending}
-              >
-                {checkKw.isPending ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" />
-                ) : null}
-                {checkKw.isPending ? "Sprawdzam..." : "Sprawdź pozycje fraz"}
-              </button>
-            </div>
-          )}
+
           {/* Tracked pages list */}
           {!trackedPages?.length ? (
             <div className="bg-panel-card border border-panel-border rounded-lg p-8 text-center text-panel-muted text-sm">
@@ -1410,6 +1304,443 @@ export function DomainDetailPage() {
             </>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function DomainKeywordRow({
+  kw,
+  domainId,
+  onRemove,
+}: {
+  kw: any;
+  domainId: string;
+  onRemove: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [days, setDays] = useState(30);
+  const [compare, setCompare] = useState(false);
+  const results = (kw.results || []) as any[];
+
+  const { data: dailyData, isLoading } = useQuery({
+    queryKey: ["domain-kw-daily", domainId, kw.id, days],
+    queryFn: () => api.getDomainKeywordDaily(domainId, kw.id, days),
+    enabled: expanded,
+  });
+
+  // Previous period for comparison
+  const { data: prevData } = useQuery({
+    queryKey: ["domain-kw-daily-prev", domainId, kw.id, days],
+    queryFn: () => api.getDomainKeywordDaily(domainId, kw.id, days * 2),
+    enabled: expanded && compare,
+  });
+
+  // Calculate comparison stats
+  const currentStats = dailyData?.daily?.length
+    ? {
+        clicks: dailyData.daily.reduce((s: number, d: any) => s + d.clicks, 0),
+        impressions: dailyData.daily.reduce(
+          (s: number, d: any) => s + d.impressions,
+          0,
+        ),
+        avgPosition:
+          dailyData.daily.reduce((s: number, d: any) => s + d.position, 0) /
+          dailyData.daily.length,
+      }
+    : null;
+
+  const prevStats =
+    compare && prevData?.daily?.length
+      ? (() => {
+          const allDays = prevData.daily;
+          const prevDays = allDays.slice(
+            0,
+            allDays.length - (dailyData?.daily?.length || 0),
+          );
+          if (!prevDays.length) return null;
+          return {
+            clicks: prevDays.reduce((s: number, d: any) => s + d.clicks, 0),
+            impressions: prevDays.reduce(
+              (s: number, d: any) => s + d.impressions,
+              0,
+            ),
+            avgPosition:
+              prevDays.reduce((s: number, d: any) => s + d.position, 0) /
+              prevDays.length,
+          };
+        })()
+      : null;
+
+  const pctChange = (curr: number, prev: number) => {
+    if (!prev) return null;
+    return Math.round(((curr - prev) / prev) * 100);
+  };
+
+  const posChange = (curr: number, prev: number) => {
+    if (!prev) return null;
+    return Math.round((prev - curr) * 10) / 10; // positive = improved
+  };
+
+  return (
+    <div className="border border-panel-border rounded overflow-hidden">
+      <div
+        className="px-3 py-2 flex items-center gap-2 bg-panel-bg/30 cursor-pointer hover:bg-panel-hover/20 transition-all"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="text-[10px] text-panel-muted">
+          {expanded ? "▼" : "▶"}
+        </span>
+        <span className="font-mono text-accent-amber font-semibold text-xs">
+          "{kw.keyword}"
+        </span>
+        <div className="ml-auto flex items-center gap-3 text-[11px]">
+          {kw.bestPosition && (
+            <span className="text-panel-muted">
+              poz.{" "}
+              <strong
+                className={cn(
+                  kw.bestPosition <= 3
+                    ? "text-accent-green"
+                    : kw.bestPosition <= 10
+                      ? "text-accent-cyan"
+                      : kw.bestPosition <= 20
+                        ? "text-accent-amber"
+                        : "text-accent-red",
+                )}
+              >
+                {kw.bestPosition.toFixed(1)}
+              </strong>
+            </span>
+          )}
+          <span className="text-panel-muted">
+            <strong className="text-panel-text">{kw.totalPages}</strong> stron
+          </span>
+          <span className="text-accent-cyan font-semibold">
+            {kw.totalClicks} klik.
+          </span>
+          {kw.lastChecked && (
+            <span className="text-[10px] text-panel-muted">
+              {fmtDate(kw.lastChecked)}
+            </span>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="text-panel-muted hover:text-accent-red"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-panel-border">
+          {/* Period selector */}
+          <div className="px-3 py-2 flex items-center gap-2 border-b border-panel-border/50 bg-panel-card/50">
+            <span className="text-[9px] text-panel-muted uppercase tracking-wider">
+              Okres:
+            </span>
+            {[7, 14, 30, 90].map((d) => (
+              <button
+                key={d}
+                onClick={() => setDays(d)}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[10px] font-mono transition-all",
+                  days === d
+                    ? "bg-accent-blue/20 text-accent-blue font-semibold"
+                    : "text-panel-muted hover:text-panel-text",
+                )}
+              >
+                {d}d
+              </button>
+            ))}
+            <div className="ml-3 border-l border-panel-border pl-3">
+              <button
+                onClick={() => setCompare(!compare)}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[10px] transition-all",
+                  compare
+                    ? "bg-accent-purple/20 text-accent-purple font-semibold"
+                    : "text-panel-muted hover:text-panel-text",
+                )}
+              >
+                vs poprzedni okres
+              </button>
+            </div>
+            {isLoading && (
+              <RefreshCw className="w-3 h-3 animate-spin text-panel-muted ml-auto" />
+            )}
+          </div>
+
+          {/* Comparison stats */}
+          {currentStats && (
+            <div className="px-3 py-2 flex gap-4 text-[10px] border-b border-panel-border/50">
+              <StatWithDelta
+                label="Kliknięcia"
+                value={currentStats.clicks}
+                prev={prevStats?.clicks}
+                compare={compare}
+                color="text-accent-cyan"
+                positiveGood
+              />
+              <StatWithDelta
+                label="Wyświetlenia"
+                value={currentStats.impressions}
+                prev={prevStats?.impressions}
+                compare={compare}
+                color="text-panel-text"
+                positiveGood
+              />
+              <StatWithDelta
+                label="Śr. pozycja"
+                value={parseFloat(currentStats.avgPosition.toFixed(1))}
+                prev={
+                  prevStats
+                    ? parseFloat(prevStats.avgPosition.toFixed(1))
+                    : undefined
+                }
+                compare={compare}
+                color="text-accent-blue"
+                positiveGood={false}
+                isPosition
+              />
+              <span className="text-panel-muted ml-auto">
+                {dailyData?.startDate} → {dailyData?.endDate}
+              </span>
+            </div>
+          )}
+
+          {/* Charts */}
+          {dailyData?.daily?.length > 0 && (
+            <div className="p-3 border-b border-panel-border">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-1">
+                    Pozycja — {days} dni
+                  </div>
+                  <ResponsiveContainer width="100%" height={100}>
+                    <AreaChart data={dailyData.daily}>
+                      <defs>
+                        <linearGradient
+                          id={`dkp-${kw.id}`}
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="#3b82f6"
+                            stopOpacity={0.2}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="#3b82f6"
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 7, fill: "#64748b" }}
+                        tickFormatter={(d: string) => d.slice(5)}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        reversed
+                        tick={{ fontSize: 7, fill: "#64748b" }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={25}
+                        domain={["dataMin - 1", "dataMax + 1"]}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#1a2235",
+                          border: "1px solid #1e2a3a",
+                          borderRadius: "4px",
+                          fontSize: "9px",
+                        }}
+                        formatter={(v: number) => [v?.toFixed(1), "Pozycja"]}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="position"
+                        stroke="#3b82f6"
+                        fill={`url(#dkp-${kw.id})`}
+                        strokeWidth={1.5}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div>
+                  <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-1">
+                    Kliknięcia — {days} dni
+                  </div>
+                  <ResponsiveContainer width="100%" height={100}>
+                    <AreaChart data={dailyData.daily}>
+                      <defs>
+                        <linearGradient
+                          id={`dkc-${kw.id}`}
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="#06b6d4"
+                            stopOpacity={0.2}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="#06b6d4"
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 7, fill: "#64748b" }}
+                        tickFormatter={(d: string) => d.slice(5)}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 7, fill: "#64748b" }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={25}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#1a2235",
+                          border: "1px solid #1e2a3a",
+                          borderRadius: "4px",
+                          fontSize: "9px",
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="clicks"
+                        stroke="#06b6d4"
+                        fill={`url(#dkc-${kw.id})`}
+                        strokeWidth={1.5}
+                        name="Kliknięcia"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pages table */}
+          {results.length > 0 && (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Pozycja</th>
+                  <th>URL</th>
+                  <th>Kliknięcia</th>
+                  <th>Wyświetlenia</th>
+                  <th>CTR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((r: any, i: number) => (
+                  <tr key={i}>
+                    <td
+                      className={cn(
+                        "font-bold",
+                        r.position <= 3
+                          ? "text-accent-green"
+                          : r.position <= 10
+                            ? "text-accent-cyan"
+                            : r.position <= 20
+                              ? "text-accent-amber"
+                              : "text-accent-red",
+                      )}
+                    >
+                      {r.position}
+                    </td>
+                    <td className="max-w-[300px] truncate">
+                      <a
+                        href={r.url}
+                        target="_blank"
+                        className="text-accent-blue hover:underline"
+                      >
+                        {r.path}
+                      </a>
+                    </td>
+                    <td className="text-accent-cyan">{r.clicks}</td>
+                    <td>{fmtNumber(r.impressions)}</td>
+                    <td>{fmtPercent(r.ctr)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {results.length === 0 && (
+            <div className="p-3 text-center text-panel-muted text-xs">
+              Brak stron rankujących
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatWithDelta({
+  label,
+  value,
+  prev,
+  compare,
+  color,
+  positiveGood,
+  isPosition,
+}: {
+  label: string;
+  value: number;
+  prev?: number;
+  compare: boolean;
+  color: string;
+  positiveGood: boolean;
+  isPosition?: boolean;
+}) {
+  const delta =
+    compare && prev != null ? (isPosition ? prev - value : value - prev) : null;
+  const pct =
+    compare && prev
+      ? Math.round(((isPosition ? prev - value : value - prev) / prev) * 100)
+      : null;
+  const isGood = delta != null ? (positiveGood ? delta > 0 : delta > 0) : null;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-panel-muted">{label}:</span>
+      <strong className={color}>{isPosition ? value.toFixed(1) : value}</strong>
+      {delta != null && pct != null && (
+        <span
+          className={cn(
+            "text-[9px] font-mono",
+            isGood
+              ? "text-accent-green"
+              : delta === 0
+                ? "text-panel-muted"
+                : "text-accent-red",
+          )}
+        >
+          {delta > 0 ? "+" : ""}
+          {isPosition ? delta.toFixed(1) : delta} ({pct > 0 ? "+" : ""}
+          {pct}%)
+        </span>
       )}
     </div>
   );
