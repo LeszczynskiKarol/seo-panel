@@ -64,6 +64,10 @@ export function AILinksPage() {
     },
   });
 
+  const triggerDeploy = useMutation({
+    mutationFn: (domainId: string) => api.triggerDeploy(domainId),
+  });
+
   const reject = useMutation({
     mutationFn: (id: string) => api.rejectProposal(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-proposals"] }),
@@ -143,6 +147,16 @@ export function AILinksPage() {
                 <Unlink className="w-3.5 h-3.5 mr-1" />
               )}
               Analizuj linki wewnętrzne
+            </button>
+            <button
+              className="btn btn-ghost text-xs border border-accent-green/30 text-accent-green hover:bg-accent-green/10"
+              onClick={() => triggerDeploy.mutate(selectedDomain)}
+              disabled={triggerDeploy.isPending}
+            >
+              {triggerDeploy.isPending ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" />
+              ) : null}
+              {triggerDeploy.isPending ? "Deploying..." : "Deploy"}
             </button>
           </>
         )}

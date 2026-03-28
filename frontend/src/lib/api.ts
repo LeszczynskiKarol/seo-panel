@@ -219,6 +219,9 @@ export const api = {
   getApiLogs: (params?: string) =>
     request<any>(`/analytics/api-logs${params ? `?${params}` : ""}`),
 
+  triggerDeploy: (domainId: string) =>
+    request<any>(`/ai/deploy/${domainId}`, { method: "POST" }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

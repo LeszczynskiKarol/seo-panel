@@ -71,4 +71,56 @@ export async function aiRoutes(fastify: FastifyInstance) {
       orderBy: { totalClicks: "desc" },
     });
   });
+
+  fastify.post("/deploy/:domainId", async (request) => {
+    const { domainId } = request.params as { domainId: string };
+    const domain = await prisma.domain.findUniqueOrThrow({
+      where: { id: domainId },
+    });
+    if (!domain.githubRepo) return { error: "No GitHub repo" };
+
+    const repoName = domain.githubRepo.includes("/")
+      ? domain.githubRepo.split("/")[1]
+      : domain.githubRepo;
+    const owner = process.env.GITHUB_OWNER || "LeszczynskiKarol";
+
+    // Find deploy workflow
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repoName}/actions/workflows`,
+      {
+        headers: {
+          Authorization: `token ${process.env.GITHUB_TOKEN}`,
+          Accept: "application/vnd.github.v3+json",
+        },
+      },
+    );
+    if (!res.ok) return { error: "Cannot list workflows" };
+
+    const data = await res.json();
+    const workflow = data.workflows?.find(
+      (w: any) =>
+        w.name.toLowerCase().includes("deploy") || w.path.includes("deploy"),
+    );
+    if (!workflow) return { error: "No deploy workflow found" };
+
+    // Trigger workflow_dispatch
+    const triggerRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repoName}/actions/workflows/${workflow.id}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `token ${process.env.GITHUB_TOKEN}`,
+          Accept: "application/vnd.github.v3+json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ref: "main" }),
+      },
+    );
+
+    return {
+      triggered: triggerRes.ok || triggerRes.status === 204,
+      workflow: workflow.name,
+      repo: repoName,
+    };
+  });
 }

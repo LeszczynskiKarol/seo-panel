@@ -580,8 +580,8 @@ export async function approveProposal(proposalId: string) {
 
   const commitMsg =
     proposal.type === "CROSSLINK"
-      ? `SEO: Add cross-link from ${proposal.sourcePath} to ${proposal.targetDomain}${proposal.targetPath}`
-      : `SEO: Add internal link from ${proposal.sourcePath} to ${proposal.targetPath}`;
+      ? `[skip ci] SEO: Add cross-link from ${proposal.sourcePath} to ${proposal.targetDomain}${proposal.targetPath}`
+      : `[skip ci] SEO: Add internal link from ${proposal.sourcePath} to ${proposal.targetPath}`;
 
   const sha = await githubCommit(
     repoName,
