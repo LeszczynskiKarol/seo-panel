@@ -123,4 +123,12 @@ export async function aiRoutes(fastify: FastifyInstance) {
       repo: repoName,
     };
   });
+
+  // ─── SITEMAP-BASED ANALYSIS (dynamic sites) ──────────────
+  fastify.post("/analyze-sitemap/:domainId", async (request) => {
+    const { domainId } = request.params as { domainId: string };
+    const { type } = request.body as { type: "CROSSLINK" | "INTERNAL" };
+    const { analyzeBySitemap } = await import("../services/ai.service.js");
+    return analyzeBySitemap(domainId, type || "INTERNAL");
+  });
 }

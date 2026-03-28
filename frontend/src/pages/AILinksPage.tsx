@@ -34,6 +34,18 @@ export function AILinksPage() {
     enabled: true,
   });
 
+  const analyzeSitemapInternal = useMutation({
+    mutationFn: (domainId: string) =>
+      api.analyzeBySitemap(domainId, "INTERNAL"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-proposals"] }),
+  });
+
+  const analyzeSitemapCross = useMutation({
+    mutationFn: (domainId: string) =>
+      api.analyzeBySitemap(domainId, "CROSSLINK"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-proposals"] }),
+  });
+
   const analyzeCross = useMutation({
     mutationFn: (domainId: string) => api.analyzeCrossLinks(domainId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-proposals"] }),
@@ -76,7 +88,11 @@ export function AILinksPage() {
   const selectedDomainConfig = domainsConfig?.find(
     (d: any) => d.id === selectedDomain,
   );
-  const isAnalyzing = analyzeCross.isPending || analyzeInternal.isPending;
+  const isAnalyzing =
+    analyzeCross.isPending ||
+    analyzeInternal.isPending ||
+    analyzeSitemapCross.isPending ||
+    analyzeSitemapInternal.isPending;
 
   const crossProposals = (proposals || []).filter(
     (p: any) => p.type === "CROSSLINK",
@@ -148,6 +164,36 @@ export function AILinksPage() {
               )}
               Analizuj linki wewnętrzne
             </button>
+            <span className="text-[9px] text-panel-muted">Dynamiczne:</span>
+            <button
+              className="btn btn-ghost text-xs border border-accent-amber/30 text-accent-amber hover:bg-accent-amber/10"
+              onClick={() => analyzeSitemapCross.mutate(selectedDomain)}
+              disabled={
+                isAnalyzing ||
+                analyzeSitemapCross.isPending ||
+                analyzeSitemapInternal.isPending
+              }
+            >
+              {analyzeSitemapCross.isPending ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" />
+              ) : null}
+              Cross (sitemap)
+            </button>
+            <button
+              className="btn btn-ghost text-xs border border-accent-amber/30 text-accent-amber hover:bg-accent-amber/10"
+              onClick={() => analyzeSitemapInternal.mutate(selectedDomain)}
+              disabled={
+                isAnalyzing ||
+                analyzeSitemapCross.isPending ||
+                analyzeSitemapInternal.isPending
+              }
+            >
+              {analyzeSitemapInternal.isPending ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" />
+              ) : null}
+              Wewnętrzne (sitemap)
+            </button>
+
             <button
               className="btn btn-ghost text-xs border border-accent-green/30 text-accent-green hover:bg-accent-green/10"
               onClick={() => triggerDeploy.mutate(selectedDomain)}
@@ -170,7 +216,7 @@ export function AILinksPage() {
 
       {/* Status filter */}
       <div className="flex gap-1">
-        {["PENDING", "COMMITTED", "REJECTED", ""].map((s) => (
+        {["PENDING", "MANUAL", "COMMITTED", "REJECTED", ""].map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
@@ -183,12 +229,11 @@ export function AILinksPage() {
               ? "Wszystkie"
               : s === "PENDING"
                 ? "Oczekujące"
-                : s === "COMMITTED"
-                  ? "Zatwierdzone"
-                  : "Odrzucone"}
-            {s === "PENDING" &&
-              proposals &&
-              ` (${(proposals || []).filter((p: any) => p.status === "PENDING").length})`}
+                : s === "MANUAL"
+                  ? "Do ręcznego wdrożenia"
+                  : s === "COMMITTED"
+                    ? "Zatwierdzone"
+                    : "Odrzucone"}
           </button>
         ))}
       </div>
@@ -336,7 +381,14 @@ function ProposalCard({
           </div>
 
           <div className="mt-1 text-[10px] text-panel-dim">{p.reason}</div>
-
+          {p.context && (
+            <div className="mt-1.5 text-[10px] bg-accent-amber/5 border border-accent-amber/20 rounded px-2 py-1.5">
+              <span className="text-accent-amber font-semibold">
+                Jak wdrożyć:{" "}
+              </span>
+              <span className="text-panel-text">{p.context}</span>
+            </div>
+          )}
           <div className="mt-2 flex items-center gap-2 text-[9px] text-panel-muted">
             <span>
               <GitBranch className="w-3 h-3 inline" /> {p.githubRepo}
@@ -365,12 +417,22 @@ function ProposalCard({
               </button>
             </>
           )}
-          <button
-            onClick={() => setShowDiff(!showDiff)}
-            className="btn btn-ghost text-[10px] py-1 px-2"
-          >
-            {showDiff ? "Ukryj diff" : "Pokaż diff"}
-          </button>
+          {p.status === "MANUAL" && (
+            <button
+              onClick={onReject}
+              className="btn btn-ghost text-[10px] py-1 px-2 flex items-center gap-1"
+            >
+              <Check className="w-3 h-3" /> Zrobione
+            </button>
+          )}
+          {p.filePath !== "manual" && (
+            <button
+              onClick={() => setShowDiff(!showDiff)}
+              className="btn btn-ghost text-[10px] py-1 px-2"
+            >
+              {showDiff ? "Ukryj diff" : "Pokaż diff"}
+            </button>
+          )}
         </div>
       </div>
 

@@ -222,6 +222,12 @@ export const api = {
   triggerDeploy: (domainId: string) =>
     request<any>(`/ai/deploy/${domainId}`, { method: "POST" }),
 
+  analyzeBySitemap: (domainId: string, type: "CROSSLINK" | "INTERNAL") =>
+    request<any>(`/ai/analyze-sitemap/${domainId}`, {
+      method: "POST",
+      body: JSON.stringify({ type }),
+    }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

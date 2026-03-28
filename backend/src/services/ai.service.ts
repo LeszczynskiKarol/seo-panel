@@ -198,11 +198,50 @@ export async function analyzeCrossLinks(domainId: string) {
       label: true,
       siteUrl: true,
       githubRepo: true,
+      category: true,
     },
   });
 
+  // Pre-filter: ask Claude which domains are thematically relevant
+  const filterPrompt = `Masz listę domen. Wskaż TYLKO te, które mają tematyczny związek z domeną "${source.domain.label || source.domain.domain}" (${source.domain.category}).
+
+Domeny:
+${otherDomains.map((d) => `- ${d.label || d.domain} (${d.category})`).join("\n")}
+
+Odpowiedz TYLKO listą nazw domen które pasują tematycznie (jedna per linia, bez numeracji):`;
+
+  const filterMsg = await aiCall({
+    messages: [{ role: "user", content: filterPrompt }],
+    max_tokens: 500,
+    feature: "crosslink_filter",
+    domainId,
+    domainLabel: source.domain.label || source.domain.domain,
+  });
+
+  const filterText =
+    filterMsg.content.find((c) => c.type === "text")?.text || "";
+  const relevantNames = filterText
+    .split("\n")
+    .map((l) =>
+      l
+        .replace(/^[-•*]\s*/, "")
+        .trim()
+        .toLowerCase(),
+    )
+    .filter(Boolean);
+
+  // Filter domains by Claude's recommendation
+  const relevantDomains = otherDomains.filter((d) => {
+    const name = (d.label || d.domain).toLowerCase();
+    return relevantNames.some((r) => name.includes(r) || r.includes(name));
+  });
+
+  console.log(
+    `Cross-link filter: ${otherDomains.length} domains → ${relevantDomains.length} relevant`,
+  );
+
   const otherPagesData = [];
-  for (const od of otherDomains) {
+  for (const od of relevantDomains) {
     const pages = await prisma.page.findMany({
       where: { domainId: od.id, inSitemap: true, clicks: { gt: 0 } },
       orderBy: { clicks: "desc" },
@@ -647,4 +686,317 @@ export async function getProposals(domainId?: string, status?: string) {
     orderBy: { createdAt: "desc" },
     take: 100,
   });
+}
+
+// ─── SITEMAP-BASED ANALYSIS (for dynamic sites) ─────────────
+
+export async function analyzeBySitemap(
+  domainId: string,
+  type: "CROSSLINK" | "INTERNAL",
+) {
+  const domain = await prisma.domain.findUniqueOrThrow({
+    where: { id: domainId },
+  });
+
+  // Fetch sitemap
+  const sitemapUrls = await fetchSitemapUrls(
+    domain.siteUrl,
+    domain.sitemapPath,
+  );
+
+  // Get pages with GSC data
+  const pages = await prisma.page.findMany({
+    where: { domainId, inSitemap: true },
+    orderBy: { clicks: "desc" },
+    take: 100,
+    select: {
+      path: true,
+      url: true,
+      clicks: true,
+      impressions: true,
+      position: true,
+      internalLinksIn: true,
+      internalLinksOut: true,
+    },
+  });
+
+  // Get domain keywords
+  const domainKeywords = await prisma.domainKeyword.findMany({
+    where: { domainId },
+    select: { keyword: true, bestPosition: true, totalClicks: true },
+  });
+
+  // Get existing links
+  const existingLinks = await prisma.link.findMany({
+    where: { fromPage: { domainId } },
+    select: {
+      toUrl: true,
+      fromPage: { select: { path: true } },
+      isInternal: true,
+    },
+    take: 500,
+  });
+
+  let otherDomainsContext = "";
+  if (type === "CROSSLINK") {
+    const otherDomains = await prisma.domain.findMany({
+      where: { isActive: true, id: { not: domainId } },
+      select: { domain: true, label: true, siteUrl: true },
+    });
+    const otherPages = [];
+    for (const od of otherDomains) {
+      const op = await prisma.page.findMany({
+        where: { domainId: od.domain, inSitemap: true, clicks: { gt: 0 } },
+        orderBy: { clicks: "desc" },
+        take: 15,
+        select: { path: true, clicks: true, position: true },
+      });
+      // Fallback — query by domain record
+      const opByDomain = op.length
+        ? op
+        : await prisma.page.findMany({
+            where: {
+              domain: { domain: od.domain },
+              inSitemap: true,
+              clicks: { gt: 0 },
+            },
+            orderBy: { clicks: "desc" },
+            take: 15,
+            select: { path: true, clicks: true, position: true },
+          });
+      if (opByDomain.length) otherPages.push({ ...od, pages: opByDomain });
+    }
+    otherDomainsContext = otherPages
+      .map(
+        (od) =>
+          `--- ${od.label || od.domain} (${od.siteUrl}) ---\n${od.pages.map((p) => `  ${p.path} | ${p.clicks} klik. | poz. ${p.position?.toFixed(1) || "—"}`).join("\n")}`,
+      )
+      .join("\n\n");
+  }
+
+  const prompt =
+    type === "CROSSLINK"
+      ? buildCrosslinkSitemapPrompt(
+          domain,
+          pages,
+          sitemapUrls,
+          domainKeywords,
+          existingLinks,
+          otherDomainsContext,
+        )
+      : buildInternalSitemapPrompt(
+          domain,
+          pages,
+          sitemapUrls,
+          domainKeywords,
+          existingLinks,
+        );
+
+  const msg = await aiCall({
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 4000,
+    feature: type === "CROSSLINK" ? "crosslink_sitemap" : "internal_sitemap",
+    domainId,
+    domainLabel: domain.label || domain.domain,
+  });
+
+  const text = msg.content.find((c) => c.type === "text")?.text || "[]";
+  let recommendations: any[];
+  try {
+    recommendations = JSON.parse(text.replace(/```json\n?|```/g, "").trim());
+  } catch {
+    return {
+      recommendations: [],
+      raw: text.slice(0, 2000),
+      error: "Failed to parse",
+    };
+  }
+
+  // Save as proposals with type MANUAL
+  const saved = [];
+  for (const rec of recommendations) {
+    const created = await prisma.linkProposal.create({
+      data: {
+        domainId,
+        type: type === "CROSSLINK" ? "CROSSLINK_MANUAL" : "INTERNAL_MANUAL",
+        sourceUrl: rec.sourceUrl || `${domain.siteUrl}${rec.sourcePath}`,
+        sourcePath: rec.sourcePath,
+        sourceDomain: domain.domain,
+        targetUrl: rec.targetUrl || `${domain.siteUrl}${rec.targetPath || ""}`,
+        targetPath:
+          rec.targetPath || new URL(rec.targetUrl || domain.siteUrl).pathname,
+        targetDomain: rec.targetDomain || domain.domain,
+        anchorText: rec.anchorText,
+        reason: rec.reason,
+        context: rec.implementation || null,
+        githubRepo: domain.githubRepo || "manual",
+        filePath: "manual",
+        originalCode: "",
+        proposedCode: "",
+        status: "MANUAL",
+      },
+    });
+    saved.push(created);
+  }
+
+  return { recommendations: saved, total: recommendations.length };
+}
+
+async function fetchSitemapUrls(
+  siteUrl: string,
+  sitemapPath: string,
+): Promise<string[]> {
+  const urls: string[] = [];
+  const tryPaths = [
+    sitemapPath,
+    "/sitemap-index.xml",
+    "/sitemap_index.xml",
+    "/sitemap.xml",
+  ];
+
+  for (const path of tryPaths) {
+    try {
+      const res = await fetch(`${siteUrl}${path}`);
+      if (!res.ok) continue;
+      const xml = await res.text();
+
+      // Extract URLs from sitemap
+      const urlMatches = xml.match(/<loc>([^<]+)<\/loc>/g) || [];
+      const extractedUrls = urlMatches.map((m) => m.replace(/<\/?loc>/g, ""));
+
+      // Check if sitemap index
+      if (xml.includes("<sitemapindex") || xml.includes("<sitemap>")) {
+        for (const subUrl of extractedUrls) {
+          try {
+            const subRes = await fetch(subUrl);
+            if (!subRes.ok) continue;
+            const subXml = await subRes.text();
+            const subMatches = subXml.match(/<loc>([^<]+)<\/loc>/g) || [];
+            urls.push(...subMatches.map((m) => m.replace(/<\/?loc>/g, "")));
+          } catch {}
+        }
+      } else {
+        urls.push(...extractedUrls);
+      }
+
+      if (urls.length > 0) break;
+    } catch {}
+  }
+
+  return urls;
+}
+
+function buildInternalSitemapPrompt(
+  domain: any,
+  pages: any[],
+  sitemapUrls: string[],
+  keywords: any[],
+  existingLinks: any[],
+): string {
+  const internalLinks = existingLinks
+    .filter((l) => l.isInternal)
+    .map((l) => `${l.fromPage.path} → ${l.toUrl}`);
+
+  return `Jesteś ekspertem SEO. Analizujesz stronę DYNAMICZNĄ (SSR/e-commerce) pod kątem linkowania wewnętrznego.
+UWAGA: To jest strona dynamiczna — NIE masz dostępu do kodu źródłowego. Podajesz rekomendacje do RĘCZNEGO wdrożenia.
+
+DOMENA: ${domain.label || domain.domain} (${domain.siteUrl})
+Kategoria: ${domain.category}
+
+MAPA STRONY (${sitemapUrls.length} URL-i, pierwsze 200):
+${sitemapUrls
+  .slice(0, 200)
+  .map((u) => {
+    try {
+      return new URL(u).pathname;
+    } catch {
+      return u;
+    }
+  })
+  .join("\n")}
+
+STRONY Z RUCHEM (GSC):
+${pages.map((p) => `- ${p.path} | ${p.clicks} klik. | ${p.impressions} imp. | poz. ${p.position?.toFixed(1) || "—"} | IN: ${p.internalLinksIn} | OUT: ${p.internalLinksOut}`).join("\n")}
+
+ŚLEDZONE FRAZY: ${keywords.map((k) => `${k.keyword} (poz. ${k.bestPosition?.toFixed(1)}, ${k.totalClicks} klik.)`).join(", ") || "brak"}
+
+ISTNIEJĄCE LINKI WEWNĘTRZNE (${internalLinks.length}):
+${internalLinks.slice(0, 100).join("\n") || "BRAK"}
+
+ZADANIE:
+1. Przeanalizuj strukturę URL-i z sitemapy — zidentyfikuj kategorie, produkty, artykuły, strony informacyjne.
+2. Znajdź 10-20 najlepszych okazji do linkowania wewnętrznego.
+3. Priorytet: orphan pages z ruchem, strony kategorii → produkty, blog → usługi, cross-kategorie.
+4. Dla każdej propozycji podaj KONKRETNE wskazówki implementacji (np. "na stronie /kategoria dodaj sekcję 'Polecane produkty' z linkami do X, Y, Z").
+5. Nie proponuj linków które już istnieją.
+
+Format JSON:
+[
+  {
+    "sourcePath": "/strona-zrodlowa",
+    "targetPath": "/strona-docelowa",
+    "anchorText": "tekst linku",
+    "reason": "uzasadnienie SEO",
+    "implementation": "Konkretna wskazówka gdzie i jak dodać link — np. 'W sekcji opisu produktu dodaj paragraf z linkiem' lub 'Dodaj sidebar z powiązanymi kategoriami'"
+  }
+]`;
+}
+
+function buildCrosslinkSitemapPrompt(
+  domain: any,
+  pages: any[],
+  sitemapUrls: string[],
+  keywords: any[],
+  existingLinks: any[],
+  otherDomainsContext: string,
+): string {
+  const externalLinks = existingLinks
+    .filter((l) => !l.isInternal)
+    .map((l) => `${l.fromPage.path} → ${l.toUrl}`);
+
+  return `Jesteś ekspertem SEO. Analizujesz stronę DYNAMICZNĄ pod kątem cross-linkowania z innymi domenami.
+UWAGA: To jest strona dynamiczna — podajesz rekomendacje do RĘCZNEGO wdrożenia.
+
+DOMENA ŹRÓDŁOWA: ${domain.label || domain.domain} (${domain.siteUrl})
+Kategoria: ${domain.category}
+
+MAPA STRONY (${sitemapUrls.length} URL-i, pierwsze 200):
+${sitemapUrls
+  .slice(0, 200)
+  .map((u) => {
+    try {
+      return new URL(u).pathname;
+    } catch {
+      return u;
+    }
+  })
+  .join("\n")}
+
+STRONY Z RUCHEM:
+${pages.map((p) => `- ${p.path} | ${p.clicks} klik. | poz. ${p.position?.toFixed(1) || "—"}`).join("\n")}
+
+ŚLEDZONE FRAZY: ${keywords.map((k) => `${k.keyword} (poz. ${k.bestPosition?.toFixed(1)}, ${k.totalClicks} klik.)`).join(", ") || "brak"}
+
+ISTNIEJĄCE LINKI WYCHODZĄCE:
+${externalLinks.slice(0, 50).join("\n") || "BRAK"}
+
+INNE NASZE DOMENY:
+${otherDomainsContext || "brak danych"}
+
+ZADANIE:
+1. Znajdź 5-10 okazji do cross-linkowania Z tej domeny DO innych naszych domen.
+2. Podaj konkretne wskazówki implementacji dla strony dynamicznej.
+3. Skup się na tematycznych powiązaniach.
+
+Format JSON:
+[
+  {
+    "sourcePath": "/strona-zrodlowa",
+    "targetUrl": "https://domena.pl/strona-docelowa",
+    "targetDomain": "domena.pl",
+    "anchorText": "tekst linku",
+    "reason": "uzasadnienie SEO",
+    "implementation": "Konkretna wskazówka — np. 'Na stronie produktu w sekcji footer dodaj link w kontekście powiązanych zasobów'"
+  }
+]`;
 }
