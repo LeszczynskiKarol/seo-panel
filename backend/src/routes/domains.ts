@@ -572,7 +572,13 @@ export async function domainRoutes(fastify: FastifyInstance) {
             dimensions: ["page"],
             dimensionFilterGroups: [
               {
-                filters: [{ dimension: "query", expression: kw.keyword }],
+                filters: [
+                  {
+                    dimension: "query",
+                    operator: "contains",
+                    expression: kw.keyword,
+                  },
+                ],
               },
             ],
             rowLimit: 20,
