@@ -540,6 +540,8 @@ function GitHubConfigPanel({ domains }: { domains: any[] }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<string | null>(null);
   const [repoValue, setRepoValue] = useState("");
+  const [groupValue, setGroupValue] = useState("");
+  const [roleValue, setRoleValue] = useState("");
 
   const updateRepo = useMutation({
     mutationFn: ({ id, repo }: { id: string; repo: string }) =>
@@ -550,73 +552,174 @@ function GitHubConfigPanel({ domains }: { domains: any[] }) {
     },
   });
 
+  const updateStrategy = useMutation({
+    mutationFn: ({
+      id,
+      group,
+      role,
+    }: {
+      id: string;
+      group: string;
+      role: string;
+    }) => api.updateDomainStrategy(id, group, role),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-domains-config"] }),
+  });
+
+  const groups = ["EDU", "COPY", "MOTORS", "PERSONAL", "OTHER"];
+  const roles = ["MAIN", "SATELLITE", "SUPPORT"];
+  const groupColors: Record<string, string> = {
+    EDU: "text-accent-blue",
+    COPY: "text-accent-purple",
+    MOTORS: "text-accent-amber",
+    PERSONAL: "text-accent-cyan",
+    OTHER: "text-panel-muted",
+  };
+  const roleColors: Record<string, string> = {
+    MAIN: "badge-pass",
+    SATELLITE: "badge-neutral",
+    SUPPORT: "bg-accent-amber/20 text-accent-amber",
+  };
+
+  // Group domains
+  const grouped = new Map<string, any[]>();
+  for (const d of domains) {
+    const g = d.linkGroup || "OTHER";
+    if (!grouped.has(g)) grouped.set(g, []);
+    grouped.get(g)!.push(d);
+  }
+
   return (
-    <div className="bg-panel-card border border-panel-border rounded-lg p-4">
-      <div className="text-xs font-semibold mb-3 flex items-center gap-2">
+    <div className="bg-panel-card border border-panel-border rounded-lg p-4 space-y-4">
+      <div className="text-xs font-semibold flex items-center gap-2">
         <GitBranch className="w-3.5 h-3.5 text-accent-blue" /> Konfiguracja
-        repozytoriów GitHub
+        domen — grupy, role, repozytoria
       </div>
-      <div className="text-[10px] text-panel-muted mb-3">
-        Podaj nazwy repozytoriów (bez właściciela) dla każdej domeny. Wymagane
-        do analizy i commitów.
-      </div>
-      <div className="space-y-1.5">
-        {domains.map((d: any) => (
-          <div key={d.id} className="flex items-center gap-2 text-[11px]">
-            <span className="font-mono text-panel-text w-[200px] truncate">
-              {d.label || d.domain}
-            </span>
-            {editing === d.id ? (
-              <div className="flex gap-1 flex-1">
-                <input
-                  className="input text-[11px] py-0.5 flex-1 font-mono"
-                  placeholder="nazwa-repo"
-                  value={repoValue}
-                  onChange={(e) => setRepoValue(e.target.value)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" &&
-                    updateRepo.mutate({ id: d.id, repo: repoValue })
-                  }
-                />
-                <button
-                  className="btn btn-primary text-[10px] py-0.5 px-2"
-                  onClick={() =>
-                    updateRepo.mutate({ id: d.id, repo: repoValue })
-                  }
-                >
-                  Zapisz
-                </button>
-                <button
-                  className="btn btn-ghost text-[10px] py-0.5 px-2"
-                  onClick={() => setEditing(null)}
-                >
-                  Anuluj
-                </button>
-              </div>
-            ) : (
-              <>
-                <span
-                  className={cn(
-                    "font-mono flex-1",
-                    d.githubRepo ? "text-accent-green" : "text-panel-muted",
-                  )}
-                >
-                  {d.githubRepo || "nie skonfigurowane"}
-                </span>
-                <button
-                  className="btn btn-ghost text-[10px] py-0.5 px-1"
-                  onClick={() => {
-                    setEditing(d.id);
-                    setRepoValue(d.githubRepo || "");
-                  }}
-                >
-                  Edytuj
-                </button>
-              </>
-            )}
+
+      {Array.from(grouped.entries())
+        .sort()
+        .map(([group, gDomains]) => (
+          <div key={group}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span
+                className={cn(
+                  "text-[10px] font-bold uppercase tracking-wider",
+                  groupColors[group] || "text-panel-muted",
+                )}
+              >
+                {group}
+              </span>
+              <div className="flex-1 h-px bg-panel-border" />
+              <span className="text-[9px] text-panel-muted">
+                {gDomains.filter((d) => d.linkRole === "MAIN").length} głównych,{" "}
+                {gDomains.filter((d) => d.linkRole === "SATELLITE").length}{" "}
+                satelitów
+              </span>
+            </div>
+            <div className="space-y-1">
+              {gDomains
+                .sort((a: any, b: any) => (a.linkRole === "MAIN" ? -1 : 1))
+                .map((d: any) => (
+                  <div
+                    key={d.id}
+                    className="flex items-center gap-2 text-[11px] py-0.5"
+                  >
+                    <span
+                      className={cn(
+                        "badge text-[8px]",
+                        roleColors[d.linkRole] || "badge-unknown",
+                      )}
+                    >
+                      {d.linkRole || "?"}
+                    </span>
+                    <span className="font-mono text-panel-text truncate w-[180px]">
+                      {d.label || d.domain}
+                    </span>
+                    <select
+                      className="input text-[9px] py-0 px-1 w-20"
+                      value={d.linkGroup || ""}
+                      onChange={(e) =>
+                        updateStrategy.mutate({
+                          id: d.id,
+                          group: e.target.value,
+                          role: d.linkRole || "SATELLITE",
+                        })
+                      }
+                    >
+                      <option value="">—</option>
+                      {groups.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="input text-[9px] py-0 px-1 w-24"
+                      value={d.linkRole || ""}
+                      onChange={(e) =>
+                        updateStrategy.mutate({
+                          id: d.id,
+                          group: d.linkGroup || "OTHER",
+                          role: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="">—</option>
+                      {roles.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                    <span
+                      className={cn(
+                        "font-mono text-[9px] truncate flex-1",
+                        d.githubRepo ? "text-accent-green" : "text-panel-muted",
+                      )}
+                    >
+                      {d.githubRepo || "brak repo"}
+                    </span>
+                    <button
+                      className="text-[9px] text-panel-muted hover:text-panel-text"
+                      onClick={() => {
+                        setEditing(d.id);
+                        setRepoValue(d.githubRepo || "");
+                      }}
+                    >
+                      ✎
+                    </button>
+                    {editing === d.id && (
+                      <div className="flex gap-1">
+                        <input
+                          className="input text-[9px] py-0 px-1 w-32 font-mono"
+                          value={repoValue}
+                          onChange={(e) => setRepoValue(e.target.value)}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" &&
+                            updateRepo.mutate({ id: d.id, repo: repoValue })
+                          }
+                          placeholder="repo-name"
+                        />
+                        <button
+                          className="text-[9px] text-accent-green"
+                          onClick={() =>
+                            updateRepo.mutate({ id: d.id, repo: repoValue })
+                          }
+                        >
+                          ✓
+                        </button>
+                        <button
+                          className="text-[9px] text-panel-muted"
+                          onClick={() => setEditing(null)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
           </div>
         ))}
-      </div>
     </div>
   );
 }

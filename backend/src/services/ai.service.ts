@@ -6,6 +6,15 @@ import { aiCall } from "../lib/ai-client.js";
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER = process.env.GITHUB_OWNER || "LeszczynskiKarol";
 
+const LINK_DENSITY_RULES = `
+LIMITY LINKÓW NA STRONĘ:
+- Strona z < 500 słów: max 3-5 linków wychodzących
+- Strona z 500-1500 słów: max 5-10 linków
+- Strona z > 1500 słów: max 10-15 linków
+- NIGDY nie dodawaj linka do strony która już ma >15 linków OUT
+- Jeśli strona ma już dużo linków — POMIŃ ją jako źródło
+- Jeden link na akapit max`;
+
 // ─── GITHUB HELPERS ──────────────────────────────────────────
 
 async function githubGet(repo: string, path: string): Promise<any> {
@@ -266,36 +275,110 @@ Odpowiedz TYLKO listą nazw domen które pasują tematycznie (jedna per linia, b
     );
   });
 
-  // Ask Claude to find opportunities
+  // Existing cross-links
+  const existingCrossLinks = source.outLinks.filter((l) => {
+    return otherDomains.some((od) =>
+      l.to.includes(od.domain.replace("www.", "")),
+    );
+  });
+
+  // Build strategy context
+  const allDomains = await prisma.domain.findMany({
+    where: { isActive: true },
+    select: {
+      domain: true,
+      label: true,
+      linkGroup: true,
+      linkRole: true,
+      siteUrl: true,
+    },
+  });
+
+  const groups = new Map<string, any[]>();
+  for (const d of allDomains) {
+    const g = d.linkGroup || "INNE";
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g)!.push(d);
+  }
+
+  const strategyContext = Array.from(groups.entries())
+    .map(([group, domains]) => {
+      const main = domains
+        .filter((d) => d.linkRole === "MAIN")
+        .map((d) => d.label || d.domain)
+        .join(", ");
+      const satellites = domains
+        .filter((d) => d.linkRole === "SATELLITE")
+        .map((d) => d.label || d.domain)
+        .join(", ");
+      const support = domains
+        .filter((d) => d.linkRole === "SUPPORT")
+        .map((d) => d.label || d.domain)
+        .join(", ");
+      return `GRUPA ${group}:
+  Główne (money sites): ${main || "brak"}
+  Satelity (linkują do głównych): ${satellites || "brak"}
+  Wsparcie: ${support || "brak"}`;
+    })
+    .join("\n\n");
+
+  const sourceRole = source.domain.linkRole || "UNKNOWN";
+  const sourceGroup = source.domain.linkGroup || "INNE";
+
+  // Group existing links per page
+  const linksByPage = new Map<string, string[]>();
+  for (const l of existingCrossLinks) {
+    if (!linksByPage.has(l.from)) linksByPage.set(l.from, []);
+    linksByPage.get(l.from)!.push(l.to);
+  }
+  const existingLinksFormatted = Array.from(linksByPage.entries())
+    .map(
+      ([page, links]) =>
+        `${page} (${links.length} linków OUT):\n${links.map((l) => `  → ${l}`).join("\n")}`,
+    )
+    .join("\n\n");
+
   const prompt = `Jesteś ekspertem SEO. Analizujesz domeny pod kątem wzajemnego linkowania (cross-linking).
 
-DOMENA ŹRÓDŁOWA: ${source.domain.label || source.domain.domain} (${source.domain.siteUrl})
-Repo GitHub: ${source.domain.githubRepo}
+STRATEGIA LINKOWANIA — STRUKTURA SIECI DOMEN:
+${strategyContext}
+
+ZASADY STRATEGICZNE:
+- Satelity linkują DO domen głównych (money sites) w swojej grupie — to ich główna rola SEO.
+- Domeny główne mogą linkować do siebie nawzajem JEŚLI jest tematyczny związek.
+- Satelity mogą linkować do satelitów w tej samej grupie jeśli to naturalne.
+- Cross-group linkowanie (np. MOTORS → EDU) — tylko gdy jest wyraźny tematyczny kontekst.
+- Linki muszą wyglądać naturalnie — nie spam, nie footerowe, nie w sidebarze. W treści artykułów.
+
+ANALIZOWANA DOMENA: ${source.domain.label || source.domain.domain} (${source.domain.siteUrl})
+Rola: ${sourceRole} | Grupa: ${sourceGroup}
+${sourceRole === "SATELLITE" ? `→ Priorytet: linkowanie DO domeny głównej w grupie ${sourceGroup}` : ""}
+${sourceRole === "MAIN" ? `→ Ta domena OTRZYMUJE linki z satelitów. Cross-linkuj do innych domen głównych jeśli pasuje tematycznie.` : ""}
 
 STRONY ŹRÓDŁOWE (z kliknięciami i frazami):
-${source.pages.map((p) => `- ${p.path} | ${p.clicks} klik. | poz. ${p.position?.toFixed(1) || "—"} | frazy: ${p.queries.join(", ") || "brak"}`).join("\n")}
+${source.pages.map((p) => `- ${p.path} | ${p.clicks} klik. | poz. ${p.position?.toFixed(1) || "—"} | OUT: ${p.internalLinksOut + (linksByPage.get(p.path)?.length || 0)} | frazy: ${p.queries.join(", ") || "brak"}`).join("\n")}
 
 ŚLEDZONE FRAZY: ${source.domainKeywords.map((k) => `${k.keyword} (poz. ${k.bestPosition?.toFixed(1)}, ${k.totalClicks} klik.)`).join(", ") || "brak"}
 
-ISTNIEJĄCE LINKI WYCHODZĄCE DO NASZYCH DOMEN:
-${existingCrossLinks.map((l) => `${l.from} → ${l.to}`).join("\n") || "BRAK — żadne cross-linki nie istnieją!"}
+ISTNIEJĄCE LINKI WYCHODZĄCE (pogrupowane per strona):
+${existingLinksFormatted || "BRAK — żadne cross-linki nie istnieją!"}
 
-INNE NASZE DOMENY (potencjalne cele linków):
+INNE NASZE DOMENY (potencjalne cele):
 ${otherPagesData
-  .map(
-    (od) => `
---- ${od.label || od.domain} (${od.siteUrl}) ---
-${od.pages.map((p) => `  ${p.path} | ${p.clicks} klik. | poz. ${p.position?.toFixed(1) || "—"}`).join("\n")}
-`,
-  )
-  .join("\n")}
+  .map((od) => {
+    const odDomain = allDomains.find((d) => d.domain === od.domain);
+    return `--- ${od.label || od.domain} [${odDomain?.linkRole || "?"}/${odDomain?.linkGroup || "?"}] (${od.siteUrl}) ---
+${od.pages.map((p) => `  ${p.path} | ${p.clicks} klik. | poz. ${p.position?.toFixed(1) || "—"}`).join("\n")}`;
+  })
+  .join("\n\n")}
 
 ZADANIE:
-1. Znajdź 5-10 najlepszych okazji do cross-linkowania Z domeny źródłowej DO innych domen.
-2. Dla każdej propozycji podaj: stronę źródłową (path), stronę docelową (pełny URL), proponowany anchor text, i uzasadnienie dlaczego ten link ma sens SEO.
-3. Skup się na tematycznych powiązaniach — linkuj tylko tam gdzie jest sensowny kontekst.
-4. Unikaj linkowania do stron bez ruchu.
-5. Sprawdź czy dany link już nie istnieje w ISTNIEJĄCYCH LINKACH.
+1. Znajdź 5-10 najlepszych okazji do cross-linkowania, zgodnych ze STRATEGIĄ powyżej.
+2. ${sourceRole === "SATELLITE" ? "PRIORYTET: linki do domeny głównej w grupie " + sourceGroup : "Szukaj naturalnych powiązań tematycznych."}
+3. Anchor text musi być naturalny — nie "kliknij tutaj", nie exact match keyword.
+4. Nie proponuj linków które już istnieją.
+
+${LINK_DENSITY_RULES}
 
 Odpowiedz TYLKO w formacie JSON (bez markdown, bez backticks):
 [
@@ -304,7 +387,7 @@ Odpowiedz TYLKO w formacie JSON (bez markdown, bez backticks):
     "targetUrl": "https://domena.pl/strona-docelowa",
     "targetDomain": "domena.pl",
     "anchorText": "tekst linku",
-    "reason": "uzasadnienie po polsku"
+    "reason": "uzasadnienie po polsku, z odniesieniem do strategii grupy"
   }
 ]`;
 
@@ -426,7 +509,9 @@ ZADANIE:
    - Strony z ruchem które mogą przekazać link juice do ważnych stron
    - Tematyczne powiązania (np. strona kategorii → produkty, blog → usługi)
 3. Dla każdej propozycji: strona źródłowa, strona docelowa (path), anchor text, uzasadnienie.
-4. Nie proponuj linków które JUŻ ISTNIEJĄ.
+4. Nie proponuj linków które JUŻ ISTNIEJĄ. 
+
+${LINK_DENSITY_RULES}
 
 Odpowiedz TYLKO w formacie JSON:
 [
@@ -923,12 +1008,17 @@ ${pages.map((p) => `- ${p.path} | ${p.clicks} klik. | ${p.impressions} imp. | po
 ISTNIEJĄCE LINKI WEWNĘTRZNE (${internalLinks.length}):
 ${internalLinks.slice(0, 100).join("\n") || "BRAK"}
 
+
 ZADANIE:
 1. Przeanalizuj strukturę URL-i z sitemapy — zidentyfikuj kategorie, produkty, artykuły, strony informacyjne.
 2. Znajdź 10-20 najlepszych okazji do linkowania wewnętrznego.
 3. Priorytet: orphan pages z ruchem, strony kategorii → produkty, blog → usługi, cross-kategorie.
 4. Dla każdej propozycji podaj KONKRETNE wskazówki implementacji (np. "na stronie /kategoria dodaj sekcję 'Polecane produkty' z linkami do X, Y, Z").
 5. Nie proponuj linków które już istnieją.
+
+${LINK_DENSITY_RULES}
+
+
 
 Format JSON:
 [
@@ -987,6 +1077,11 @@ ZADANIE:
 1. Znajdź 5-10 okazji do cross-linkowania Z tej domeny DO innych naszych domen.
 2. Podaj konkretne wskazówki implementacji dla strony dynamicznej.
 3. Skup się na tematycznych powiązaniach.
+
+5. Nie proponuj linków które już istnieją.
+
+${LINK_DENSITY_RULES}
+
 
 Format JSON:
 [

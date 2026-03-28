@@ -67,6 +67,8 @@ export async function aiRoutes(fastify: FastifyInstance) {
         label: true,
         githubRepo: true,
         category: true,
+        linkGroup: true,
+        linkRole: true,
       },
       orderBy: { totalClicks: "desc" },
     });
@@ -130,5 +132,17 @@ export async function aiRoutes(fastify: FastifyInstance) {
     const { type } = request.body as { type: "CROSSLINK" | "INTERNAL" };
     const { analyzeBySitemap } = await import("../services/ai.service.js");
     return analyzeBySitemap(domainId, type || "INTERNAL");
+  });
+
+  fastify.patch("/domains/:id/link-strategy", async (request) => {
+    const { id } = request.params as { id: string };
+    const { linkGroup, linkRole } = request.body as {
+      linkGroup: string;
+      linkRole: string;
+    };
+    return prisma.domain.update({
+      where: { id },
+      data: { linkGroup, linkRole },
+    });
   });
 }

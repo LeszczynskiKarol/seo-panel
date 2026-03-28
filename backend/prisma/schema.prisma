@@ -26,6 +26,9 @@ model Domain {
   label           String?   // friendly name e.g. "Matura Polski"
   category        DomainCategory @default(OTHER)
   isActive        Boolean   @default(true)
+
+  linkGroup       String?   // e.g. "EDU", "COPY", "MOTORS", "PERSONAL"
+  linkRole        String?   // "MAIN" | "SATELLITE" | "SUPPORT"
   
   // Cached stats (updated by jobs)
   totalPages      Int       @default(0)

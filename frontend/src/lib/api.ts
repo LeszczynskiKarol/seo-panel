@@ -228,6 +228,12 @@ export const api = {
       body: JSON.stringify({ type }),
     }),
 
+  updateDomainStrategy: (id: string, linkGroup: string, linkRole: string) =>
+    request<any>(`/ai/domains/${id}/link-strategy`, {
+      method: "PATCH",
+      body: JSON.stringify({ linkGroup, linkRole }),
+    }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };
