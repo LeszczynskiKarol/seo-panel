@@ -33,7 +33,7 @@ model Domain {
   avgPosition     Float?
   totalClicks     Int       @default(0)
   totalImpressions Int      @default(0)
-  
+  githubRepo      String?   // e.g. "LeszczynskiKarol/silnik-elektryczny-pl"
   lastGscPull     DateTime?
   lastCrawl       DateTime?
   lastSitemapSync DateTime?
@@ -399,6 +399,41 @@ model DomainKeyword {
   @@index([domainId])
 }
 
+
+model LinkProposal {
+  id            String    @id @default(cuid())
+  domainId      String
+  type          String    // CROSSLINK | INTERNAL
+  
+  sourceUrl     String
+  sourcePath    String
+  sourceDomain  String
+  
+  targetUrl     String
+  targetPath    String
+  targetDomain  String
+  
+  anchorText    String
+  context       String?   @db.Text
+  reason        String    @db.Text
+  
+  githubRepo    String
+  filePath      String
+  originalCode  String    @db.Text
+  proposedCode  String    @db.Text
+  
+  status        String    @default("PENDING")
+  
+  approvedAt    DateTime?
+  committedAt   DateTime?
+  commitSha     String?
+  
+  createdAt     DateTime  @default(now())
+  
+  @@index([domainId, status])
+  @@index([status, createdAt(sort: Desc)])
+}
+
 // Backlink snapshots — track external links pointing to our domains
 model BacklinkSnapshot {
   id              String    @id @default(cuid())
@@ -430,6 +465,39 @@ model BacklinkSnapshot {
   @@index([domainId, isLive])
   @@index([domainId, firstSeen(sort: Desc)])
   @@index([sourceDomain])
+}
+
+
+model ApiLog {
+  id            String    @id @default(cuid())
+  provider      String    @default("anthropic")
+  model         String
+  endpoint      String
+  
+  inputTokens   Int       @default(0)
+  outputTokens  Int       @default(0)
+  totalTokens   Int       @default(0)
+  
+  costUsd       Float     @default(0)
+  durationMs    Int       @default(0)
+  
+  feature       String?   // "crosslink_analysis", "internal_analysis", "code_generation"
+  domainId      String?
+  domainLabel   String?
+  
+  promptPreview String?   @db.Text
+  responsePreview String? @db.Text
+  
+  status        String    @default("OK")
+  error         String?
+  
+  metadata      Json?
+  
+  createdAt     DateTime  @default(now())
+  
+  @@index([createdAt(sort: Desc)])
+  @@index([feature, createdAt(sort: Desc)])
+  @@index([domainId])
 }
 
 enum JobStatus {

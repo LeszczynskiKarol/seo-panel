@@ -4,8 +4,9 @@ import {
   Globe,
   Eye,
   Bell,
-  Activity,
+  Zap,
   Lightbulb,
+  Activity,
   Clock,
 } from "lucide-react";
 
@@ -17,6 +18,8 @@ const NAV = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/insights", icon: Lightbulb, label: "Insights" },
   { to: "/timeline", icon: Clock, label: "Timeline" },
+  { to: "/ai-links", icon: Zap, label: "AI Links" },
+  { to: "/api-analytics", icon: Activity, label: "API Claude" },
   { to: "/watchlist", icon: Eye, label: "Watchlist" },
   { to: "/alerts", icon: Bell, label: "Alerty" },
 ];

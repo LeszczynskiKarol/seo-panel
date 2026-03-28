@@ -4,6 +4,8 @@ import { Layout } from "./components/Layout";
 import { WatchlistPage } from "./pages/WatchlistPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DomainDetailPage } from "./pages/DomainDetailPage";
+import { AILinksPage } from "./pages/AILinksPage";
+import { APIAnalyticsPage } from "./pages/AnalyticsPage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { TimelinePage } from "./pages/TimelinePage";
@@ -24,6 +26,8 @@ export default function App() {
         <Route path="/domains/:id" element={<DomainDetailPage />} />
         <Route path="/insights" element={<InsightsPage />} />
         <Route path="/timeline" element={<TimelinePage />} />
+        <Route path="/ai-links" element={<AILinksPage />} />
+        <Route path="/api-analytics" element={<APIAnalyticsPage />} />
         <Route path="/watchlist" element={<WatchlistPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

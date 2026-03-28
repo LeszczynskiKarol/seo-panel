@@ -4,26 +4,23 @@ import { GscService } from "../services/gsc.service.js";
 import { SitemapService } from "../services/sitemap.service.js";
 import { IndexingService } from "../services/indexing.service.js";
 import { LinkCrawlerService } from "../services/link-crawler.service.js";
+import { TimelineService } from "../services/timeline.service.js";
 
 const gsc = new GscService();
 const sitemap = new SitemapService();
 const indexing = new IndexingService();
 const crawler = new LinkCrawlerService();
+const timeline = new TimelineService();
 
 async function runJob(jobName: string, fn: () => Promise<any>) {
   const job = await prisma.jobRun.create({
     data: { jobName, status: "RUNNING" },
   });
-
   try {
     const result = await fn();
     await prisma.jobRun.update({
       where: { id: job.id },
-      data: {
-        status: "COMPLETED",
-        finishedAt: new Date(),
-        details: result,
-      },
+      data: { status: "COMPLETED", finishedAt: new Date(), details: result },
     });
     console.log(`✅ Job ${jobName} completed`);
   } catch (error: any) {
@@ -39,10 +36,112 @@ async function runJob(jobName: string, fn: () => Promise<any>) {
   }
 }
 
+async function checkDomainKeywordsAll() {
+  const { getSearchConsole } = await import("../lib/google-auth.js");
+  const sc = await getSearchConsole();
+  const endDate = new Date().toISOString().split("T")[0];
+  const startDate = new Date(Date.now() - 30 * 86400000)
+    .toISOString()
+    .split("T")[0];
+
+  const keywords = await prisma.domainKeyword.findMany({
+    include: { domain: { select: { gscProperty: true, domain: true } } },
+  });
+
+  let checked = 0;
+  for (const kw of keywords) {
+    if (!kw.domain.gscProperty) continue;
+    try {
+      const res = await sc.searchanalytics.query({
+        siteUrl: kw.domain.gscProperty,
+        requestBody: {
+          startDate,
+          endDate,
+          dimensions: ["page"],
+          dimensionFilterGroups: [
+            {
+              filters: [
+                {
+                  dimension: "query",
+                  operator: "contains",
+                  expression: kw.keyword,
+                },
+              ],
+            },
+          ],
+          rowLimit: 20,
+        },
+      });
+
+      const results = (res.data.rows || [])
+        .map((r: any) => {
+          let path: string;
+          try {
+            path = new URL(r.keys![0]).pathname;
+          } catch {
+            path = r.keys![0];
+          }
+          return {
+            url: r.keys![0],
+            path,
+            position: Math.round((r.position || 0) * 10) / 10,
+            clicks: r.clicks || 0,
+            impressions: r.impressions || 0,
+            ctr: r.ctr || 0,
+          };
+        })
+        .sort((a: any, b: any) => a.position - b.position);
+
+      const best = results[0];
+      const history = (kw.positionHistory as any[]) || [];
+      history.push({
+        date: endDate,
+        bestPosition: best?.position || null,
+        pages: results.length,
+      });
+      if (history.length > 90) history.splice(0, history.length - 90);
+
+      await prisma.domainKeyword.update({
+        where: { id: kw.id },
+        data: {
+          results,
+          bestPosition: best?.position || null,
+          totalClicks: results.reduce((s: number, r: any) => s + r.clicks, 0),
+          totalPages: results.length,
+          positionHistory: history,
+          lastChecked: new Date(),
+        },
+      });
+      checked++;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return { checked, total: keywords.length };
+}
+
 export function startScheduler() {
   console.log("⏰ Starting SEO Panel scheduler...");
 
-  // Daily 06:00 — Pull GSC data (yesterday + today)
+  // 03:00 — Link crawl (daily, all domains)
+  cron.schedule("0 3 * * *", () => {
+    runJob("link_crawl", async () => {
+      const domains = await prisma.domain.findMany({
+        where: { isActive: true },
+      });
+      const results = [];
+      for (const domain of domains) {
+        try {
+          const r = await crawler.crawlDomain(domain.id);
+          results.push({ domain: domain.domain, ...r });
+        } catch (e: any) {
+          results.push({ domain: domain.domain, error: e.message });
+        }
+      }
+      return results;
+    });
+  });
+
+  // 06:00 — Pull GSC data (last 3 days)
   cron.schedule("0 6 * * *", () => {
     runJob("gsc_pull", async () => {
       const end = new Date().toISOString().split("T")[0];
@@ -53,12 +152,12 @@ export function startScheduler() {
     });
   });
 
-  // Daily 07:00 — Sync sitemaps
+  // 07:00 — Sync sitemaps
   cron.schedule("0 7 * * *", () => {
     runJob("sitemap_sync", () => sitemap.syncAll());
   });
 
-  // Daily 08:00 — Check indexing for non-PASS pages
+  // 08:00 — Check indexing
   cron.schedule("0 8 * * *", () => {
     runJob("indexing_check", async () => {
       const domains = await prisma.domain.findMany({
@@ -77,27 +176,39 @@ export function startScheduler() {
     });
   });
 
-  // Weekly Sunday 03:00 — Full link crawl
-  cron.schedule("0 3 * * 0", () => {
-    runJob("link_crawl", async () => {
+  // 09:00 — Detect position changes + sync backlinks from crawl data
+  cron.schedule("0 9 * * *", () => {
+    runJob("detect_changes", async () => {
       const domains = await prisma.domain.findMany({
         where: { isActive: true },
       });
       const results = [];
-      for (const domain of domains) {
+      for (const d of domains) {
         try {
-          const r = await crawler.crawlDomain(domain.id);
-          results.push({ domain: domain.domain, ...r });
+          const positions = await timeline.detectPositionChanges(d.id);
+          const backlinks = await timeline.syncBacklinks(d.id);
+          results.push({
+            domain: d.domain,
+            positionEvents: positions,
+            ...backlinks,
+          });
         } catch (e: any) {
-          results.push({ domain: domain.domain, error: e.message });
+          results.push({ domain: d.domain, error: e.message });
         }
       }
       return results;
     });
   });
 
-  console.log("  📊 GSC pull: daily 06:00");
-  console.log("  🗺️  Sitemap sync: daily 07:00");
-  console.log("  🔍 Indexing check: daily 08:00");
-  console.log("  🔗 Link crawl: weekly Sunday 03:00");
+  // 10:00 — Check domain keywords
+  cron.schedule("0 10 * * *", () => {
+    runJob("domain_keywords_check", checkDomainKeywordsAll);
+  });
+
+  console.log("  🕷️  Link crawl:      daily 03:00");
+  console.log("  📊 GSC pull:         daily 06:00");
+  console.log("  🗺️  Sitemap sync:    daily 07:00");
+  console.log("  🔍 Indexing check:   daily 08:00");
+  console.log("  📈 Detect changes:   daily 09:00");
+  console.log("  🎯 Domain keywords:  daily 10:00");
 }

@@ -189,6 +189,36 @@ export const api = {
       `/domains/${domainId}/pages/${pageId}/query-daily?query=${encodeURIComponent(query)}&days=${days}`,
     ),
 
+  analyzeCrossLinks: (domainId: string) =>
+    request<any>(`/ai/analyze-crosslinks/${domainId}`, { method: "POST" }),
+
+  analyzeInternalLinks: (domainId: string) =>
+    request<any>(`/ai/analyze-internal/${domainId}`, { method: "POST" }),
+
+  getAIProposals: (domainId?: string, status?: string) => {
+    const params = new URLSearchParams();
+    if (domainId) params.set("domainId", domainId);
+    if (status) params.set("status", status);
+    return request<any[]>(`/ai/proposals?${params.toString()}`);
+  },
+
+  approveProposal: (id: string) =>
+    request<any>(`/ai/proposals/${id}/approve`, { method: "POST" }),
+
+  rejectProposal: (id: string) =>
+    request<any>(`/ai/proposals/${id}/reject`, { method: "POST" }),
+
+  updateDomainGithub: (id: string, githubRepo: string) =>
+    request<any>(`/ai/domains/${id}/github`, {
+      method: "PATCH",
+      body: JSON.stringify({ githubRepo }),
+    }),
+
+  getDomainsConfig: () => request<any[]>(`/ai/domains-config`),
+
+  getApiLogs: (params?: string) =>
+    request<any>(`/analytics/api-logs${params ? `?${params}` : ""}`),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };
