@@ -30,6 +30,8 @@ import {
   Star,
   ArrowDown,
   FileWarning,
+  Clock,
+  Globe,
 } from "lucide-react";
 
 type Tab = "pages" | "queries" | "tracked" | "links" | "broken" | "orphans";
@@ -1008,17 +1010,17 @@ export function DomainDetailPage() {
       )}
 
       {tab === "links" && linksData && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Link stats */}
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-5 gap-2">
             <div
               className="stat-card"
               style={{ "--stat-accent": "#3b82f6" } as any}
             >
-              <div className="text-lg font-bold font-mono text-accent-blue">
+              <div className="text-base font-bold font-mono text-accent-blue">
                 {linksData.totalInternal}
               </div>
-              <div className="text-[10px] text-panel-muted">
+              <div className="text-[9px] text-panel-muted">
                 Linki wewnętrzne
               </div>
             </div>
@@ -1026,10 +1028,10 @@ export function DomainDetailPage() {
               className="stat-card"
               style={{ "--stat-accent": "#a855f7" } as any}
             >
-              <div className="text-lg font-bold font-mono text-accent-purple">
+              <div className="text-base font-bold font-mono text-accent-purple">
                 {linksData.totalExternal}
               </div>
-              <div className="text-[10px] text-panel-muted">
+              <div className="text-[9px] text-panel-muted">
                 Linki zewnętrzne
               </div>
             </div>
@@ -1037,10 +1039,10 @@ export function DomainDetailPage() {
               className="stat-card"
               style={{ "--stat-accent": "#06b6d4" } as any}
             >
-              <div className="text-lg font-bold font-mono text-accent-cyan">
+              <div className="text-base font-bold font-mono text-accent-cyan">
                 {linksData.avgInbound}
               </div>
-              <div className="text-[10px] text-panel-muted">
+              <div className="text-[9px] text-panel-muted">
                 Śr. linków IN/stronę
               </div>
             </div>
@@ -1048,32 +1050,34 @@ export function DomainDetailPage() {
               className="stat-card"
               style={{ "--stat-accent": "#ef4444" } as any}
             >
-              <div className="text-lg font-bold font-mono text-accent-red">
+              <div className="text-base font-bold font-mono text-accent-red">
                 {linksData.orphans}
               </div>
-              <div className="text-[10px] text-panel-muted">Orphan pages</div>
+              <div className="text-[9px] text-panel-muted">Orphan pages</div>
             </div>
             <div
               className="stat-card"
               style={{ "--stat-accent": "#22c55e" } as any}
             >
-              <div className="text-lg font-bold font-mono text-accent-green">
+              <div className="text-base font-bold font-mono text-accent-green">
                 {linksData.total}
               </div>
-              <div className="text-[10px] text-panel-muted">
+              <div className="text-[9px] text-panel-muted">
                 Stron w sitemapie
               </div>
             </div>
           </div>
 
-          {/* Link magnets */}
-          <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
-            <div className="px-4 py-2.5 border-b border-panel-border flex items-center gap-2">
-              <ArrowDown className="w-3.5 h-3.5 text-accent-green" />
-              <span className="text-xs font-semibold">
-                Link Magnets — strony z największą liczbą linków przychodzących
+          {/* Link Magnets - collapsed */}
+          <CollapsibleSection
+            title="Link Magnets — strony z największą liczbą linków przychodzących"
+            icon={<ArrowDown className="w-3.5 h-3.5 text-accent-green" />}
+            badge={
+              <span className="text-[10px] text-panel-muted">
+                {linksData.byInbound.length} stron
               </span>
-            </div>
+            }
+          >
             <table className="data-table">
               <thead>
                 <tr>
@@ -1081,7 +1085,7 @@ export function DomainDetailPage() {
                   <th>Linki IN</th>
                   <th>Linki OUT</th>
                   <th>Kliknięcia</th>
-                  <th>Wyświetlenia</th>
+                  <th>Wyświetl.</th>
                   <th>Pozycja</th>
                   <th>Status</th>
                 </tr>
@@ -1116,25 +1120,26 @@ export function DomainDetailPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </CollapsibleSection>
 
-          {/* Need more links */}
+          {/* Need more links - collapsed */}
           {linksData.needLinks.length > 0 && (
-            <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
-              <div className="px-4 py-2.5 border-b border-panel-border flex items-center gap-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-accent-amber" />
-                <span className="text-xs font-semibold">
-                  Potrzebują linkowania — strony z ruchem ale mało/brak linków
-                  wewnętrznych
+            <CollapsibleSection
+              title="Potrzebują linkowania — strony z ruchem ale mało/brak linków"
+              icon={<AlertTriangle className="w-3.5 h-3.5 text-accent-amber" />}
+              badge={
+                <span className="text-[10px] text-accent-amber font-semibold">
+                  {linksData.needLinks.length} stron
                 </span>
-              </div>
+              }
+            >
               <table className="data-table">
                 <thead>
                   <tr>
                     <th>URL</th>
                     <th>Linki IN</th>
                     <th>Kliknięcia</th>
-                    <th>Wyświetlenia</th>
+                    <th>Wyświetl.</th>
                     <th>Pozycja</th>
                     <th>Rekomendacja</th>
                   </tr>
@@ -1166,24 +1171,26 @@ export function DomainDetailPage() {
                       <td>{fmtPosition(p.position)}</td>
                       <td className="text-[10px] text-panel-dim">
                         {p.internalLinksIn === 0
-                          ? "🔴 Brak linków! Dodaj z powiązanych stron"
-                          : "🟡 Mało linków — wzmocnij linkowanie"}
+                          ? "🔴 Brak linków!"
+                          : "🟡 Mało linków"}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </CollapsibleSection>
           )}
 
-          {/* Most outbound links */}
-          <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
-            <div className="px-4 py-2.5 border-b border-panel-border flex items-center gap-2">
-              <ArrowUp className="w-3.5 h-3.5 text-accent-purple" />
-              <span className="text-xs font-semibold">
-                Najwięcej linków wychodzących — strony rozsyłające link equity
+          {/* Most outbound - collapsed */}
+          <CollapsibleSection
+            title="Najwięcej linków wychodzących — strony rozsyłające link equity"
+            icon={<ArrowUp className="w-3.5 h-3.5 text-accent-purple" />}
+            badge={
+              <span className="text-[10px] text-panel-muted">
+                {linksData.byOutbound.length} stron
               </span>
-            </div>
+            }
+          >
             <table className="data-table">
               <thead>
                 <tr>
@@ -1222,7 +1229,13 @@ export function DomainDetailPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </CollapsibleSection>
+
+          {/* External backlinks */}
+          <ExternalBacklinksTable domainId={id!} />
+
+          {/* Backlink timeline */}
+          <BacklinkTimeline domainId={id!} />
         </div>
       )}
 
@@ -1889,6 +1902,519 @@ function ClickableQuery({
           Brak danych dziennych
         </div>
       )}
+    </div>
+  );
+}
+
+function ExternalBacklinksTable({ domainId }: { domainId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["domain-backlinks-table", domainId],
+    queryFn: () => api.getDomainBacklinks(domainId),
+  });
+
+  if (isLoading || !data?.backlinks?.length) return null;
+
+  return (
+    <CollapsibleSection
+      title="Domeny linkujące do nas"
+      icon={<ExternalLink className="w-3.5 h-3.5 text-accent-cyan" />}
+      badge={
+        <div className="flex gap-3 text-[10px] text-panel-muted">
+          <span>
+            Aktywne:{" "}
+            <strong className="text-accent-green">{data.stats.live}</strong>
+          </span>
+          <span>
+            Utracone:{" "}
+            <strong className="text-accent-red">{data.stats.lost}</strong>
+          </span>
+          <span>
+            Domeny:{" "}
+            <strong className="text-panel-text">
+              {data.stats.uniqueDomains}
+            </strong>
+          </span>
+        </div>
+      }
+    >
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Domena źródłowa</th>
+            <th>Linków</th>
+            <th>Cel</th>
+            <th>Anchor</th>
+            <th>Typ</th>
+            <th>Status</th>
+            <th>Wykryto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.byDomain.map((group: any) =>
+            group.links.map((bl: any, i: number) => (
+              <tr key={bl.id}>
+                {i === 0 && (
+                  <td
+                    rowSpan={group.links.length}
+                    className="align-top border-r border-panel-border/30"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Globe className="w-3 h-3 text-accent-cyan shrink-0" />
+                      <a
+                        href={`https://${group.domain}`}
+                        target="_blank"
+                        className="text-accent-blue hover:underline font-semibold"
+                      >
+                        {group.domain}
+                      </a>
+                    </div>
+                    <div className="text-[9px] text-panel-muted mt-0.5">
+                      {group.count} linków
+                    </div>
+                  </td>
+                )}
+                <td className="text-center font-semibold text-accent-cyan">
+                  {i === 0 ? group.count : ""}
+                </td>
+                <td className="max-w-[200px] truncate">
+                  <a
+                    href={bl.targetUrl}
+                    target="_blank"
+                    className="text-accent-blue hover:underline"
+                  >
+                    {bl.page?.path ||
+                      bl.targetUrl.replace(/^https?:\/\/[^/]+/, "")}
+                  </a>
+                </td>
+                <td className="text-panel-muted max-w-[120px] truncate">
+                  {bl.anchorText || "—"}
+                </td>
+                <td>
+                  <span
+                    className={cn(
+                      "badge",
+                      bl.isDofollow ? "badge-pass" : "badge-neutral",
+                    )}
+                  >
+                    {bl.isDofollow ? "do" : "no"}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    className={cn(
+                      "badge",
+                      bl.isLive ? "badge-pass" : "badge-fail",
+                    )}
+                  >
+                    {bl.isLive ? "live" : "lost"}
+                  </span>
+                </td>
+                <td className="text-panel-muted">{fmtDate(bl.firstSeen)}</td>
+              </tr>
+            )),
+          )}
+        </tbody>
+      </table>
+    </CollapsibleSection>
+  );
+}
+
+function BacklinkTimeline({ domainId }: { domainId: string }) {
+  const [viewMode, setViewMode] = useState<"list" | "visual">("visual");
+  const { data, isLoading } = useQuery({
+    queryKey: ["domain-backlinks-timeline", domainId],
+    queryFn: () => api.getDomainBacklinks(domainId),
+  });
+
+  if (isLoading || !data?.backlinks?.length) return null;
+
+  // Group by date
+  const byDate = new Map<
+    string,
+    { newCount: number; lostCount: number; links: any[] }
+  >();
+  for (const bl of data.backlinks) {
+    const date = new Date(bl.firstSeen).toISOString().split("T")[0];
+    if (!byDate.has(date))
+      byDate.set(date, { newCount: 0, lostCount: 0, links: [] });
+    const d = byDate.get(date)!;
+    d.newCount++;
+    d.links.push(bl);
+  }
+  for (const bl of data.backlinks.filter((b: any) => b.lostAt)) {
+    const date = new Date(bl.lostAt).toISOString().split("T")[0];
+    if (!byDate.has(date))
+      byDate.set(date, { newCount: 0, lostCount: 0, links: [] });
+    byDate.get(date)!.lostCount++;
+  }
+
+  const chartData = Array.from(byDate.entries())
+    .map(([date, d]) => ({
+      date,
+      new: d.newCount,
+      lost: d.lostCount,
+      cumulative: 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  let cum = 0;
+  for (const d of chartData) {
+    cum += d.new - d.lost;
+    d.cumulative = cum;
+  }
+
+  // Calendar heatmap (last 90 days)
+  const calendarDays = [];
+  for (let i = 89; i >= 0; i--) {
+    const date = new Date(Date.now() - i * 86400000)
+      .toISOString()
+      .split("T")[0];
+    const d = byDate.get(date);
+    calendarDays.push({
+      date,
+      count: d?.newCount || 0,
+      lost: d?.lostCount || 0,
+    });
+  }
+
+  // Visual timeline data (sorted by date, grouped)
+  const timelineEntries = Array.from(byDate.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 30);
+
+  // Domain colors for visual
+  const domainColors: Record<string, string> = {};
+  const colors = [
+    "#3b82f6",
+    "#22c55e",
+    "#f59e0b",
+    "#a855f7",
+    "#06b6d4",
+    "#ef4444",
+    "#ec4899",
+    "#14b8a6",
+  ];
+  let ci = 0;
+  for (const bl of data.backlinks) {
+    if (!domainColors[bl.sourceDomain]) {
+      domainColors[bl.sourceDomain] = colors[ci % colors.length];
+      ci++;
+    }
+  }
+
+  return (
+    <CollapsibleSection
+      title="Timeline backlinków"
+      icon={<Clock className="w-3.5 h-3.5 text-accent-green" />}
+      badge={
+        <div className="flex gap-3 text-[10px] text-panel-muted">
+          <span>
+            Łącznie:{" "}
+            <strong className="text-panel-text">{data.stats.total}</strong>
+          </span>
+          <span>
+            Aktywne:{" "}
+            <strong className="text-accent-green">{data.stats.live}</strong>
+          </span>
+          <span>
+            Utracone:{" "}
+            <strong className="text-accent-red">{data.stats.lost}</strong>
+          </span>
+        </div>
+      }
+    >
+      {/* View toggle */}
+      <div className="px-4 py-2 flex items-center gap-2 border-b border-panel-border/50 bg-panel-card/50">
+        {(["visual", "list"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setViewMode(v)}
+            className={cn(
+              "px-2 py-0.5 rounded text-[10px] transition-all",
+              viewMode === v
+                ? "bg-accent-blue/20 text-accent-blue font-semibold"
+                : "text-panel-muted hover:text-panel-text",
+            )}
+          >
+            {v === "visual" ? "Oś czasu" : "Lista"}
+          </button>
+        ))}
+      </div>
+
+      {/* Cumulative chart */}
+      {chartData.length > 1 && (
+        <div className="p-4 border-b border-panel-border">
+          <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
+            Backlinki kumulatywnie
+          </div>
+          <ResponsiveContainer width="100%" height={80}>
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="bl-cum-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#22c55e" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 7, fill: "#64748b" }}
+                tickFormatter={(d: string) => d.slice(5)}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 7, fill: "#64748b" }}
+                axisLine={false}
+                tickLine={false}
+                width={20}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "#1a2235",
+                  border: "1px solid #1e2a3a",
+                  borderRadius: "4px",
+                  fontSize: "9px",
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="cumulative"
+                stroke="#22c55e"
+                fill="url(#bl-cum-grad)"
+                strokeWidth={1.5}
+                name="Łącznie"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Calendar heatmap */}
+      <div className="px-4 py-3 border-b border-panel-border">
+        <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
+          Mapa aktywności — 90 dni
+        </div>
+        <div className="flex flex-wrap gap-[3px]">
+          {calendarDays.map((day) => (
+            <div
+              key={day.date}
+              title={`${day.date}: +${day.count} nowych${day.lost ? `, -${day.lost} utraconych` : ""}`}
+              className={cn(
+                "w-[12px] h-[12px] rounded-sm",
+                day.count === 0
+                  ? "bg-panel-border/30"
+                  : day.count <= 2
+                    ? "bg-accent-green/25"
+                    : day.count <= 5
+                      ? "bg-accent-green/45"
+                      : "bg-accent-green/65",
+              )}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-2 mt-1.5 text-[8px] text-panel-muted">
+          <span>0</span>
+          <div className="flex gap-[2px]">
+            <div className="w-[8px] h-[8px] rounded-sm bg-panel-border/30" />
+            <div className="w-[8px] h-[8px] rounded-sm bg-accent-green/25" />
+            <div className="w-[8px] h-[8px] rounded-sm bg-accent-green/45" />
+            <div className="w-[8px] h-[8px] rounded-sm bg-accent-green/65" />
+          </div>
+          <span>5+</span>
+        </div>
+      </div>
+
+      {/* VISUAL TIMELINE */}
+      {viewMode === "visual" && (
+        <div className="p-4">
+          <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-3">
+            Oś czasu
+          </div>
+          <div className="relative">
+            {/* Vertical line */}
+            <div className="absolute left-[60px] top-0 bottom-0 w-px bg-panel-border" />
+
+            {timelineEntries.map(([date, dayData]) => (
+              <div key={date} className="relative mb-4">
+                {/* Date label */}
+                <div className="flex items-start gap-0">
+                  <div className="w-[60px] text-[9px] font-mono text-panel-muted pt-0.5 text-right pr-3 shrink-0">
+                    {new Date(date).toLocaleDateString("pl-PL", {
+                      day: "2-digit",
+                      month: "2-digit",
+                    })}
+                  </div>
+                  {/* Dot on line */}
+                  <div className="relative z-10 w-3 h-3 rounded-full bg-accent-green border-2 border-panel-bg shrink-0 mt-0.5" />
+                  {/* Links */}
+                  <div className="ml-3 flex-1 space-y-1">
+                    {dayData.links.map((bl: any) => (
+                      <div
+                        key={bl.id}
+                        className="flex items-center gap-2 text-[10px] bg-panel-bg/40 rounded px-2 py-1"
+                      >
+                        <div
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{
+                            backgroundColor:
+                              domainColors[bl.sourceDomain] || "#64748b",
+                          }}
+                        />
+                        <a
+                          href={bl.sourceUrl}
+                          target="_blank"
+                          className="font-mono font-semibold hover:underline truncate"
+                          style={{
+                            color: domainColors[bl.sourceDomain] || "#64748b",
+                          }}
+                        >
+                          {bl.sourceDomain}
+                        </a>
+                        <span className="text-panel-muted">→</span>
+                        <a
+                          href={bl.targetUrl}
+                          target="_blank"
+                          className="text-accent-blue hover:underline truncate"
+                        >
+                          {bl.page?.path ||
+                            bl.targetUrl.replace(/^https?:\/\/[^/]+/, "")}
+                        </a>
+                        {bl.anchorText && (
+                          <span className="text-panel-dim truncate max-w-[120px]">
+                            "{bl.anchorText}"
+                          </span>
+                        )}
+                        <span
+                          className={cn(
+                            "badge ml-auto shrink-0",
+                            bl.isDofollow ? "badge-pass" : "badge-neutral",
+                          )}
+                        >
+                          {bl.isDofollow ? "do" : "no"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Domain legend */}
+          <div className="mt-3 pt-3 border-t border-panel-border flex flex-wrap gap-2">
+            {Object.entries(domainColors).map(([domain, color]) => (
+              <div key={domain} className="flex items-center gap-1 text-[9px]">
+                <div
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="text-panel-muted font-mono">{domain}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* LIST VIEW */}
+      {viewMode === "list" && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Domena źródłowa</th>
+              <th>Cel</th>
+              <th>Anchor</th>
+              <th>Typ</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...data.backlinks]
+              .sort(
+                (a: any, b: any) =>
+                  new Date(b.firstSeen).getTime() -
+                  new Date(a.firstSeen).getTime(),
+              )
+              .slice(0, 30)
+              .map((bl: any) => (
+                <tr key={bl.id}>
+                  <td className="text-panel-muted">{fmtDate(bl.firstSeen)}</td>
+                  <td>
+                    <a
+                      href={bl.sourceUrl}
+                      target="_blank"
+                      className="text-accent-blue hover:underline"
+                    >
+                      {bl.sourceDomain}
+                    </a>
+                  </td>
+                  <td className="max-w-[200px] truncate">
+                    <a
+                      href={bl.targetUrl}
+                      target="_blank"
+                      className="text-accent-cyan hover:underline"
+                    >
+                      {bl.page?.path ||
+                        bl.targetUrl.replace(/^https?:\/\/[^/]+/, "")}
+                    </a>
+                  </td>
+                  <td className="text-panel-muted max-w-[100px] truncate">
+                    {bl.anchorText || "—"}
+                  </td>
+                  <td>
+                    <span
+                      className={cn(
+                        "badge",
+                        bl.isDofollow ? "badge-pass" : "badge-neutral",
+                      )}
+                    >
+                      {bl.isDofollow ? "do" : "no"}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      className={cn(
+                        "badge",
+                        bl.isLive ? "badge-pass" : "badge-fail",
+                      )}
+                    >
+                      {bl.isLive ? "live" : "lost"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      )}
+    </CollapsibleSection>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  icon,
+  badge,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  badge?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-panel-card border border-panel-border rounded-lg overflow-hidden">
+      <div
+        className="px-4 py-2.5 flex items-center gap-2 cursor-pointer hover:bg-panel-hover/20 transition-all"
+        onClick={() => setOpen(!open)}
+      >
+        <span className="text-panel-muted">{open ? "▼" : "▶"}</span>
+        {icon}
+        <span className="text-xs font-semibold">{title}</span>
+        {badge && <div className="ml-auto">{badge}</div>}
+      </div>
+      {open && <div className="border-t border-panel-border">{children}</div>}
     </div>
   );
 }
