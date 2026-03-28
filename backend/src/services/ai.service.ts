@@ -275,13 +275,6 @@ Odpowiedz TYLKO listą nazw domen które pasują tematycznie (jedna per linia, b
     );
   });
 
-  // Existing cross-links
-  const existingCrossLinks = source.outLinks.filter((l) => {
-    return otherDomains.some((od) =>
-      l.to.includes(od.domain.replace("www.", "")),
-    );
-  });
-
   // Build strategy context
   const allDomains = await prisma.domain.findMany({
     where: { isActive: true },
