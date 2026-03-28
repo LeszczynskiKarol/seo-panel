@@ -139,6 +139,24 @@ export function DomainDetailPage() {
     enabled: !!id && tab === "orphans",
   });
 
+  const checkKw = useMutation({
+    mutationFn: () => api.checkKeywords(id!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tracked", id] }),
+  });
+
+  const removeKw = useMutation({
+    mutationFn: ({
+      domainId,
+      pageId,
+      kwId,
+    }: {
+      domainId: string;
+      pageId: string;
+      kwId: string;
+    }) => api.removeKeyword(domainId, pageId, kwId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tracked", id] }),
+  });
+
   const toggleTrack = useMutation({
     mutationFn: ({ domainId, pageId }: { domainId: string; pageId: string }) =>
       api.toggleTracked(domainId, pageId),
@@ -580,7 +598,21 @@ export function DomainDetailPage() {
               kliknij "Sync sitemap" i spróbuj ponownie.
             </div>
           </div>
-
+          {/* Check keywords button */}
+          {trackedPages && trackedPages.length > 0 && (
+            <div className="flex justify-end">
+              <button
+                className="btn btn-ghost text-xs"
+                onClick={() => checkKw.mutate()}
+                disabled={checkKw.isPending}
+              >
+                {checkKw.isPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" />
+                ) : null}
+                {checkKw.isPending ? "Sprawdzam..." : "Sprawdź pozycje fraz"}
+              </button>
+            </div>
+          )}
           {/* Tracked pages list */}
           {!trackedPages?.length ? (
             <div className="bg-panel-card border border-panel-border rounded-lg p-8 text-center text-panel-muted text-sm">
@@ -635,6 +667,7 @@ export function DomainDetailPage() {
                     </span>
                   </div>
                 </div>
+
                 <div className="grid grid-cols-2 gap-0 divide-x divide-panel-border">
                   {/* Position chart */}
                   <div className="p-4">
@@ -800,6 +833,73 @@ export function DomainDetailPage() {
                     </div>
                   </div>
                 )}
+                {/* Tracked Keywords */}
+                <div className="border-t border-panel-border p-4">
+                  <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
+                    Śledzone frazy
+                  </div>
+
+                  {/* Add keyword */}
+                  <KeywordInput
+                    domainId={id!}
+                    pageId={p.id}
+                    onAdded={() =>
+                      qc.invalidateQueries({ queryKey: ["tracked", id] })
+                    }
+                  />
+
+                  {p.trackedKeywords?.length > 0 && (
+                    <div className="mt-2 space-y-1.5">
+                      {p.trackedKeywords.map((kw: any) => (
+                        <div
+                          key={kw.id}
+                          className="flex items-center gap-2 text-[11px] bg-panel-bg/50 rounded px-2 py-1.5"
+                        >
+                          <span className="font-mono text-accent-amber font-semibold truncate flex-1">
+                            "{kw.keyword}"
+                          </span>
+                          {kw.position ? (
+                            <>
+                              <span className="text-panel-muted">poz.</span>
+                              <span className="font-mono text-accent-green font-semibold">
+                                {kw.position.toFixed(1)}
+                              </span>
+                              <span className="text-accent-cyan">
+                                {kw.clicks} klik.
+                              </span>
+                              <span className="text-panel-muted">
+                                {kw.impressions} imp.
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-panel-muted">
+                              nie sprawdzono
+                            </span>
+                          )}
+                          {kw.lastChecked && (
+                            <span className="text-[10px] text-panel-muted">
+                              {new Date(kw.lastChecked).toLocaleDateString(
+                                "pl-PL",
+                              )}
+                            </span>
+                          )}
+                          <button
+                            onClick={() =>
+                              removeKw.mutate({
+                                domainId: id!,
+                                pageId: p.id,
+                                kwId: kw.id,
+                              })
+                            }
+                            className="text-panel-muted hover:text-accent-red text-[10px]"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ))
           )}
@@ -1136,6 +1236,44 @@ export function DomainDetailPage() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function KeywordInput({
+  domainId,
+  pageId,
+  onAdded,
+}: {
+  domainId: string;
+  pageId: string;
+  onAdded: () => void;
+}) {
+  const [kw, setKw] = useState("");
+  const add = useMutation({
+    mutationFn: () => api.addKeyword(domainId, pageId, kw),
+    onSuccess: () => {
+      setKw("");
+      onAdded();
+    },
+  });
+
+  return (
+    <div className="flex gap-1.5">
+      <input
+        className="input text-xs py-1 flex-1"
+        placeholder="Dodaj frazę do śledzenia, np. silnik elektryczny 3kw"
+        value={kw}
+        onChange={(e) => setKw(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && kw && add.mutate()}
+      />
+      <button
+        className="btn btn-ghost text-[10px] py-1"
+        onClick={() => kw && add.mutate()}
+        disabled={add.isPending || !kw}
+      >
+        {add.isPending ? "..." : "+ Dodaj"}
+      </button>
     </div>
   );
 }

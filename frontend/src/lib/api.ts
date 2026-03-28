@@ -137,6 +137,18 @@ export const api = {
       method: "DELETE",
     }),
 
+  addKeyword: (domainId: string, pageId: string, keyword: string) =>
+    request<any>(`/domains/${domainId}/pages/${pageId}/keywords`, {
+      method: "POST",
+      body: JSON.stringify({ keyword }),
+    }),
+  removeKeyword: (domainId: string, pageId: string, kwId: string) =>
+    request<void>(`/domains/${domainId}/pages/${pageId}/keywords/${kwId}`, {
+      method: "DELETE",
+    }),
+  checkKeywords: (domainId: string) =>
+    request<any>(`/domains/${domainId}/check-keywords`, { method: "POST" }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

@@ -326,12 +326,19 @@ export async function domainRoutes(fastify: FastifyInstance) {
           take: 10,
         });
 
+        // Tracked keywords
+        const trackedKeywords = await prisma.trackedKeyword.findMany({
+          where: { pageId: page.id },
+          orderBy: { createdAt: "asc" },
+        });
+
         return {
           ...page,
           history,
           topQueries,
           events,
           backlinks,
+          trackedKeywords,
         };
       }),
     );
@@ -399,5 +406,111 @@ export async function domainRoutes(fastify: FastifyInstance) {
       where: { id: pageId },
       data: { isTracked: false },
     });
+  });
+
+  // ─── TRACKED KEYWORDS ──────────────────────────────────────
+
+  // Add keyword to track
+  fastify.post("/:domainId/pages/:pageId/keywords", async (request, reply) => {
+    const { pageId } = request.params as { pageId: string };
+    const { keyword } = request.body as { keyword: string };
+
+    if (!keyword?.trim())
+      return reply.status(400).send({ error: "Keyword is required" });
+
+    const existing = await prisma.trackedKeyword.findUnique({
+      where: {
+        pageId_keyword: { pageId, keyword: keyword.trim().toLowerCase() },
+      },
+    });
+    if (existing) return { ...existing, message: "already_exists" };
+
+    const created = await prisma.trackedKeyword.create({
+      data: { pageId, keyword: keyword.trim().toLowerCase() },
+    });
+
+    return created;
+  });
+
+  // Remove keyword
+  fastify.delete("/:domainId/pages/:pageId/keywords/:kwId", async (request) => {
+    const { kwId } = request.params as { kwId: string };
+    await prisma.trackedKeyword.delete({ where: { id: kwId } });
+    return { ok: true };
+  });
+
+  // Check positions for all tracked keywords of a domain
+  fastify.post("/:id/check-keywords", async (request) => {
+    const { id } = request.params as { id: string };
+    const domain = await prisma.domain.findUniqueOrThrow({ where: { id } });
+
+    if (!domain.gscProperty) return { error: "No GSC property" };
+
+    const { getSearchConsole } = await import("../lib/google-auth.js");
+    const sc = await getSearchConsole();
+    const endDate = new Date().toISOString().split("T")[0];
+    const startDate = new Date(Date.now() - 7 * 86400000)
+      .toISOString()
+      .split("T")[0];
+
+    const keywords = await prisma.trackedKeyword.findMany({
+      where: { page: { domainId: id } },
+      include: { page: { select: { url: true } } },
+    });
+
+    let checked = 0;
+    for (const kw of keywords) {
+      try {
+        const res = await sc.searchanalytics.query({
+          siteUrl: domain.gscProperty,
+          requestBody: {
+            startDate,
+            endDate,
+            dimensions: ["query"],
+            dimensionFilterGroups: [
+              {
+                filters: [
+                  { dimension: "page", expression: kw.page.url },
+                  { dimension: "query", expression: kw.keyword },
+                ],
+              },
+            ],
+            rowLimit: 1,
+          },
+        });
+
+        const row = res.data.rows?.[0];
+        const today = new Date().toISOString().split("T")[0];
+
+        // Update history
+        const history = (kw.positionHistory as any[]) || [];
+        history.push({
+          date: today,
+          position: row?.position || null,
+          clicks: row?.clicks || 0,
+          impressions: row?.impressions || 0,
+        });
+        // Keep last 90 entries
+        if (history.length > 90) history.splice(0, history.length - 90);
+
+        await prisma.trackedKeyword.update({
+          where: { id: kw.id },
+          data: {
+            position: row?.position || null,
+            clicks: row?.clicks || 0,
+            impressions: row?.impressions || 0,
+            ctr: row?.ctr || null,
+            positionHistory: history,
+            lastChecked: new Date(),
+          },
+        });
+        checked++;
+      } catch {}
+
+      // Rate limit
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    return { checked, total: keywords.length };
   });
 }

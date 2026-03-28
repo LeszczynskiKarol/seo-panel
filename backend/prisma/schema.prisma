@@ -119,11 +119,36 @@ model Page {
   alerts          Alert[]
   seoEvents       SeoEvent[]
   backlinks       BacklinkSnapshot[]
+  trackedKeywords TrackedKeyword[]
   
   @@unique([domainId, path])
   @@index([domainId, indexingVerdict])
   @@index([domainId, clicks(sort: Desc)])
   @@index([url])
+}
+
+
+model TrackedKeyword {
+  id              String    @id @default(cuid())
+  pageId          String
+  page            Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  
+  keyword         String
+  
+  // Latest position
+  position        Float?
+  clicks          Int       @default(0)
+  impressions     Int       @default(0)
+  ctr             Float?
+  
+  // History
+  positionHistory Json?     // [{date, position, clicks, impressions}]
+  
+  lastChecked     DateTime?
+  createdAt       DateTime  @default(now())
+  
+  @@unique([pageId, keyword])
+  @@index([pageId])
 }
 
 enum IndexingVerdict {
