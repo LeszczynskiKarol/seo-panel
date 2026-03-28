@@ -512,4 +512,117 @@ export async function domainRoutes(fastify: FastifyInstance) {
 
     return { checked, total: keywords.length };
   });
+
+  // ─── DOMAIN KEYWORDS (per-domain keyword tracking) ────────
+
+  fastify.get("/:id/domain-keywords", async (request) => {
+    const { id } = request.params as { id: string };
+    return prisma.domainKeyword.findMany({
+      where: { domainId: id },
+      orderBy: { totalClicks: "desc" },
+    });
+  });
+
+  fastify.post("/:id/domain-keywords", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { keyword } = request.body as { keyword: string };
+    if (!keyword?.trim())
+      return reply.status(400).send({ error: "Keyword required" });
+
+    const kw = keyword.trim().toLowerCase();
+    const existing = await prisma.domainKeyword.findUnique({
+      where: { domainId_keyword: { domainId: id, keyword: kw } },
+    });
+    if (existing) return { ...existing, message: "already_exists" };
+
+    return prisma.domainKeyword.create({ data: { domainId: id, keyword: kw } });
+  });
+
+  fastify.delete("/:id/domain-keywords/:kwId", async (request) => {
+    const { kwId } = request.params as { kwId: string };
+    await prisma.domainKeyword.delete({ where: { id: kwId } });
+    return { ok: true };
+  });
+
+  fastify.post("/:id/check-domain-keywords", async (request) => {
+    const { id } = request.params as { id: string };
+    const domain = await prisma.domain.findUniqueOrThrow({ where: { id } });
+    if (!domain.gscProperty) return { error: "No GSC property" };
+
+    const { getSearchConsole } = await import("../lib/google-auth.js");
+    const sc = await getSearchConsole();
+    const endDate = new Date().toISOString().split("T")[0];
+    const startDate = new Date(Date.now() - 7 * 86400000)
+      .toISOString()
+      .split("T")[0];
+    const today = endDate;
+
+    const keywords = await prisma.domainKeyword.findMany({
+      where: { domainId: id },
+    });
+    let checked = 0;
+
+    for (const kw of keywords) {
+      try {
+        const res = await sc.searchanalytics.query({
+          siteUrl: domain.gscProperty,
+          requestBody: {
+            startDate,
+            endDate,
+            dimensions: ["page"],
+            dimensionFilterGroups: [
+              {
+                filters: [{ dimension: "query", expression: kw.keyword }],
+              },
+            ],
+            rowLimit: 20,
+          },
+        });
+
+        const results = (res.data.rows || [])
+          .map((r: any) => {
+            let path: string;
+            try {
+              path = new URL(r.keys![0]).pathname;
+            } catch {
+              path = r.keys![0];
+            }
+            return {
+              url: r.keys![0],
+              path,
+              position: Math.round((r.position || 0) * 10) / 10,
+              clicks: r.clicks || 0,
+              impressions: r.impressions || 0,
+              ctr: r.ctr || 0,
+            };
+          })
+          .sort((a: any, b: any) => a.position - b.position);
+
+        const best = results[0];
+        const history = (kw.positionHistory as any[]) || [];
+        history.push({
+          date: today,
+          bestPosition: best?.position || null,
+          pages: results.length,
+        });
+        if (history.length > 90) history.splice(0, history.length - 90);
+
+        await prisma.domainKeyword.update({
+          where: { id: kw.id },
+          data: {
+            results,
+            bestPosition: best?.position || null,
+            totalClicks: results.reduce((s: number, r: any) => s + r.clicks, 0),
+            totalPages: results.length,
+            positionHistory: history,
+            lastChecked: new Date(),
+          },
+        });
+        checked++;
+      } catch {}
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    return { checked, total: keywords.length };
+  });
 }

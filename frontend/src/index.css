@@ -4,12 +4,11 @@
 
 @layer base {
   body {
-    @apply bg-panel-bg text-panel-text font-sans;
+    @apply bg-panel-bg text-panel-text font-sans text-sm;
   }
-
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
   ::-webkit-scrollbar-track {
     @apply bg-panel-bg;
@@ -21,33 +20,29 @@
 
 @layer components {
   .stat-card {
-    @apply bg-panel-card border border-panel-border rounded-lg p-5 relative overflow-hidden transition-all duration-200 hover:border-panel-hover;
+    @apply bg-panel-card border border-panel-border rounded px-3 py-2.5 relative overflow-hidden;
   }
-
   .stat-card::before {
     content: "";
     @apply absolute top-0 left-0 right-0 h-[2px];
     background: var(--stat-accent, theme("colors.accent.blue"));
   }
 
-  .table-wrap {
-    @apply overflow-x-auto -mx-px;
-  }
   .data-table {
-    @apply w-full text-sm min-w-[900px];
+    @apply w-full text-xs min-w-[800px];
   }
   .data-table th {
-    @apply text-left text-[10px] uppercase tracking-wider text-panel-muted font-semibold px-3 py-2 border-b border-panel-border sticky top-0 bg-panel-card;
+    @apply text-left text-[9px] uppercase tracking-wider text-panel-muted font-semibold px-2 py-1.5 border-b border-panel-border sticky top-0 bg-panel-card;
   }
   .data-table td {
-    @apply px-3 py-2.5 border-b border-panel-border/50 font-mono text-xs whitespace-nowrap;
+    @apply px-2 py-1.5 border-b border-panel-border/40 font-mono text-[11px] whitespace-nowrap;
   }
   .data-table tr:hover td {
-    @apply bg-panel-hover/30;
+    @apply bg-panel-hover/20;
   }
 
   .badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide;
+    @apply inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wide;
   }
   .badge-pass {
     @apply bg-accent-green/15 text-accent-green;
@@ -63,7 +58,7 @@
   }
 
   .btn {
-    @apply px-4 py-2 rounded-md font-medium text-sm transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-wait;
+    @apply px-3 py-1.5 rounded font-medium text-xs transition-all duration-100 cursor-pointer disabled:opacity-50 disabled:cursor-wait;
   }
   .btn-primary {
     @apply bg-accent-blue text-white hover:bg-accent-blue/80;
@@ -76,6 +71,10 @@
   }
 
   .input {
-    @apply bg-panel-bg border border-panel-border rounded-md px-3 py-2 text-sm text-panel-text placeholder-panel-muted focus:outline-none focus:border-accent-blue/50 transition-colors;
+    @apply bg-panel-bg border border-panel-border rounded px-2 py-1.5 text-xs text-panel-text placeholder-panel-muted focus:outline-none focus:border-accent-blue/50 transition-colors;
+  }
+
+  .section-header {
+    @apply text-[9px] uppercase tracking-widest text-panel-muted font-semibold mb-1.5;
   }
 }

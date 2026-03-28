@@ -98,6 +98,34 @@ export function DomainDetailPage() {
     enabled: !!id && tab === "links",
   });
 
+  const { data: domainKeywords } = useQuery({
+    queryKey: ["domain-keywords", id],
+    queryFn: () => api.getDomainKeywords(id!),
+    enabled: !!id && tab === "tracked",
+  });
+
+  const [newDomainKw, setNewDomainKw] = useState("");
+
+  const addDomainKw = useMutation({
+    mutationFn: (kw: string) => api.addDomainKeyword(id!, kw),
+    onSuccess: () => {
+      setNewDomainKw("");
+      qc.invalidateQueries({ queryKey: ["domain-keywords", id] });
+    },
+  });
+
+  const removeDomainKw = useMutation({
+    mutationFn: (kwId: string) => api.removeDomainKeyword(id!, kwId),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["domain-keywords", id] }),
+  });
+
+  const checkDomainKw = useMutation({
+    mutationFn: () => api.checkDomainKeywords(id!),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["domain-keywords", id] }),
+  });
+
   const { data: domain, isLoading } = useQuery({
     queryKey: ["domain", id],
     queryFn: () => api.getDomain(id!),
@@ -558,7 +586,154 @@ export function DomainDetailPage() {
 
       {tab === "tracked" && (
         <div className="space-y-4">
-          {/* Add URL form */}
+          {/* ── DOMAIN KEYWORDS SECTION ── */}
+          <div className="bg-panel-card border border-panel-border rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-accent-cyan" />
+                Śledzone frazy kluczowe
+              </div>
+              {domainKeywords && domainKeywords.length > 0 && (
+                <button
+                  className="btn btn-ghost text-[10px] py-1"
+                  onClick={() => checkDomainKw.mutate()}
+                  disabled={checkDomainKw.isPending}
+                >
+                  {checkDomainKw.isPending ? (
+                    <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                  ) : null}
+                  {checkDomainKw.isPending ? "Sprawdzam..." : "Sprawdź pozycje"}
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2 mb-3">
+              <input
+                className="input flex-1"
+                placeholder="Dodaj frazę, np. silnik elektryczny 3kw, copywriting cennik..."
+                value={newDomainKw}
+                onChange={(e) => setNewDomainKw(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" &&
+                  newDomainKw &&
+                  addDomainKw.mutate(newDomainKw)
+                }
+              />
+              <button
+                className="btn btn-primary text-xs"
+                onClick={() => newDomainKw && addDomainKw.mutate(newDomainKw)}
+                disabled={addDomainKw.isPending || !newDomainKw}
+              >
+                {addDomainKw.isPending ? "..." : "Dodaj"}
+              </button>
+            </div>
+            <div className="text-[10px] text-panel-muted mb-3">
+              Wpisz frazę → system sprawdzi które strony tej domeny rankują na
+              nią w Google.
+            </div>
+
+            {!domainKeywords?.length ? (
+              <div className="text-xs text-panel-muted text-center py-3">
+                Brak śledzonych fraz.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {domainKeywords.map((kw: any) => {
+                  const results = (kw.results || []) as any[];
+                  return (
+                    <div
+                      key={kw.id}
+                      className="border border-panel-border rounded overflow-hidden"
+                    >
+                      <div className="px-3 py-2 flex items-center gap-2 bg-panel-bg/30">
+                        <span className="font-mono text-accent-amber font-semibold text-xs">
+                          "{kw.keyword}"
+                        </span>
+                        <div className="ml-auto flex items-center gap-3 text-[11px]">
+                          {kw.bestPosition && (
+                            <span className="text-panel-muted">
+                              poz.{" "}
+                              <strong className="text-accent-green">
+                                {kw.bestPosition.toFixed(1)}
+                              </strong>
+                            </span>
+                          )}
+                          <span className="text-panel-muted">
+                            <strong className="text-panel-text">
+                              {kw.totalPages}
+                            </strong>{" "}
+                            stron
+                          </span>
+                          <span className="text-accent-cyan font-semibold">
+                            {kw.totalClicks} klik.
+                          </span>
+                          {kw.lastChecked && (
+                            <span className="text-[10px] text-panel-muted">
+                              {fmtDate(kw.lastChecked)}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => removeDomainKw.mutate(kw.id)}
+                            className="text-panel-muted hover:text-accent-red"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                      {results.length > 0 && (
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Pozycja</th>
+                              <th>URL</th>
+                              <th>Kliknięcia</th>
+                              <th>Wyświetlenia</th>
+                              <th>CTR</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {results.map((r: any, i: number) => (
+                              <tr key={i}>
+                                <td
+                                  className={cn(
+                                    "font-bold",
+                                    r.position <= 3
+                                      ? "text-accent-green"
+                                      : r.position <= 10
+                                        ? "text-accent-cyan"
+                                        : r.position <= 20
+                                          ? "text-accent-amber"
+                                          : "text-accent-red",
+                                  )}
+                                >
+                                  {r.position}
+                                </td>
+                                <td className="max-w-[300px] truncate">
+                                  <a
+                                    href={r.url}
+                                    target="_blank"
+                                    className="text-accent-blue hover:underline"
+                                  >
+                                    {r.path}
+                                  </a>
+                                </td>
+                                <td className="text-accent-cyan">{r.clicks}</td>
+                                <td>{fmtNumber(r.impressions)}</td>
+                                <td>{fmtPercent(r.ctr)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-panel-border" />
+
+          {/* Add URL form (existing) */}
           <div className="bg-panel-card border border-panel-border rounded-lg p-4">
             <div className="text-xs font-semibold mb-2 flex items-center gap-2">
               <Star className="w-3.5 h-3.5 text-accent-amber" />

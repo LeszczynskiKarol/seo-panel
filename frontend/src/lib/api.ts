@@ -162,6 +162,23 @@ export const api = {
     request<any>("/watchlist/check-all", { method: "POST" }),
   getWatchKeyword: (id: string) => request<any>(`/watchlist/${id}`),
 
+  // Domain Keywords
+  getDomainKeywords: (domainId: string) =>
+    request<any[]>(`/domains/${domainId}/domain-keywords`),
+  addDomainKeyword: (domainId: string, keyword: string) =>
+    request<any>(`/domains/${domainId}/domain-keywords`, {
+      method: "POST",
+      body: JSON.stringify({ keyword }),
+    }),
+  removeDomainKeyword: (domainId: string, kwId: string) =>
+    request<void>(`/domains/${domainId}/domain-keywords/${kwId}`, {
+      method: "DELETE",
+    }),
+  checkDomainKeywords: (domainId: string) =>
+    request<any>(`/domains/${domainId}/check-domain-keywords`, {
+      method: "POST",
+    }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

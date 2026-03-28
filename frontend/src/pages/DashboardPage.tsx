@@ -109,10 +109,10 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-5 gap-4">
+      {/* Stat cards — kompaktowy rząd */}
+      <div className="flex gap-2">
         <StatCard
-          accent="var(--tw-colors-accent-blue, #3b82f6)"
+          accent="#3b82f6"
           icon={Globe}
           value={o.domains}
           label="Domeny"
@@ -121,25 +121,25 @@ export function DashboardPage() {
           accent="#22c55e"
           icon={FileCheck}
           value={`${o.indexRate}%`}
-          label={`${fmtNumber(o.totalIndexed)} / ${fmtNumber(o.totalPages)} stron`}
+          label={`${fmtNumber(o.totalIndexed)}/${fmtNumber(o.totalPages)}`}
         />
         <StatCard
           accent="#06b6d4"
           icon={MousePointerClick}
           value={fmtNumber(o.totalClicks)}
-          label="Kliknięcia (30d)"
+          label="Kliknięcia 30d"
         />
         <StatCard
           accent="#a855f7"
           icon={Eye}
           value={fmtNumber(o.totalImpressions)}
-          label="Wyświetlenia (30d)"
+          label="Wyświetlenia"
         />
         <StatCard
           accent="#ef4444"
           icon={AlertTriangle}
           value={o.alertCount}
-          label="Aktywne alerty"
+          label="Alerty"
         />
       </div>
 
@@ -206,18 +206,87 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Domains grid */}
-      <div>
-        <h2 className="text-sm font-semibold mb-3">Domeny</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {(domains || []).map((d: any) => (
-            <DomainCard
-              key={d.id}
-              domain={d}
-              onClick={() => navigate(`/domains/${d.id}`)}
-            />
-          ))}
-        </div>
+      {/* Domains table */}
+      <div className="bg-panel-card border border-panel-border rounded overflow-x-auto">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Domena</th>
+              <th>Kategoria</th>
+              <th>Indeks</th>
+              <th>Stron</th>
+              <th>Kliknięcia</th>
+              <th>Wyświetl.</th>
+              <th>Pozycja</th>
+              <th>GSC</th>
+              <th>Sitemap</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(domains || []).map((d: any) => {
+              const pct =
+                d.totalPages > 0
+                  ? Math.round((d.indexedPages / d.totalPages) * 100)
+                  : 0;
+              return (
+                <tr
+                  key={d.id}
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/domains/${d.id}`)}
+                >
+                  <td>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={cn(
+                          "w-1.5 h-1.5 rounded-full shrink-0",
+                          pct === 100
+                            ? "bg-accent-green"
+                            : pct > 50
+                              ? "bg-accent-amber"
+                              : "bg-accent-red",
+                        )}
+                      />
+                      <span className="text-accent-blue font-semibold">
+                        {d.label || d.domain.replace("www.", "")}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <span className={cn("badge", categoryColor(d.category))}>
+                      {categoryLabel(d.category)}
+                    </span>
+                  </td>
+                  <td
+                    className={cn(
+                      "font-semibold",
+                      pct === 100
+                        ? "text-accent-green"
+                        : pct > 50
+                          ? "text-accent-amber"
+                          : "text-accent-red",
+                    )}
+                  >
+                    {pct}%
+                  </td>
+                  <td>
+                    {d.indexedPages}/{d.totalPages}
+                  </td>
+                  <td className="text-accent-cyan">
+                    {fmtNumber(d.totalClicks)}
+                  </td>
+                  <td>{fmtNumber(d.totalImpressions)}</td>
+                  <td>{d.avgPosition ? d.avgPosition.toFixed(1) : "—"}</td>
+                  <td className="text-panel-muted text-[10px]">
+                    {fmtDate(d.lastGscPull)}
+                  </td>
+                  <td className="text-panel-muted text-[10px]">
+                    {fmtDate(d.lastSitemapSync)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {/* Recent alerts */}
@@ -274,100 +343,17 @@ function StatCard({
   label: string;
 }) {
   return (
-    <div className="stat-card" style={{ "--stat-accent": accent } as any}>
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="text-2xl font-bold font-mono tracking-tight">
-            {value}
-          </div>
-          <div className="text-[11px] text-panel-muted mt-1">{label}</div>
-        </div>
-        <Icon className="w-4 h-4 opacity-30" />
-      </div>
-    </div>
-  );
-}
-
-function DomainCard({
-  domain: d,
-  onClick,
-}: {
-  domain: any;
-  onClick: () => void;
-}) {
-  const pct =
-    d.totalPages > 0 ? Math.round((d.indexedPages / d.totalPages) * 100) : 0;
-
-  return (
     <div
-      onClick={onClick}
-      className="bg-panel-card border border-panel-border rounded-lg p-4 cursor-pointer transition-all hover:border-accent-blue/30 hover:shadow-lg hover:shadow-accent-blue/5 group"
+      className="stat-card flex-1"
+      style={{ "--stat-accent": accent } as any}
     >
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <span className={cn("badge text-[9px]", categoryColor(d.category))}>
-            {categoryLabel(d.category)}
-          </span>
-          <div className="text-sm font-bold font-mono mt-1.5 group-hover:text-accent-blue transition-colors">
-            {d.label || d.domain}
-          </div>
-          <div className="text-[11px] text-panel-muted font-mono">
-            {d.domain}
-          </div>
-        </div>
-        <div
-          className={cn(
-            "text-lg font-bold font-mono",
-            pct === 100
-              ? "text-accent-green"
-              : pct > 50
-                ? "text-accent-amber"
-                : "text-accent-red",
-          )}
-        >
-          {pct}%
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="h-1 bg-panel-border rounded-full overflow-hidden mb-3">
-        <div
-          className={cn(
-            "h-full rounded-full transition-all duration-500",
-            pct === 100
-              ? "bg-accent-green"
-              : pct > 50
-                ? "bg-accent-amber"
-                : "bg-accent-red",
-          )}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-
-      <div className="flex items-center gap-4 text-[11px] text-panel-muted">
-        <span>
-          <strong className="text-panel-text">{d.indexedPages}</strong> /{" "}
-          {d.totalPages} stron
+      <div className="flex items-center gap-2">
+        <Icon className="w-3 h-3 opacity-30" />
+        <span className="text-lg font-bold font-mono tracking-tight">
+          {value}
         </span>
-        <span>
-          <strong className="text-accent-cyan">
-            {fmtNumber(d.totalClicks)}
-          </strong>{" "}
-          kliknięć
-        </span>
-        {d.avgPosition && (
-          <span>
-            poz.{" "}
-            <strong className="text-panel-text">
-              {d.avgPosition.toFixed(1)}
-            </strong>
-          </span>
-        )}
       </div>
-
-      <div className="text-[10px] text-panel-muted mt-2 font-mono">
-        GSC: {fmtDate(d.lastGscPull)} · Sitemap: {fmtDate(d.lastSitemapSync)}
-      </div>
+      <div className="text-[9px] text-panel-muted mt-0.5">{label}</div>
     </div>
   );
 }

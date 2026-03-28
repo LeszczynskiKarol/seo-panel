@@ -47,6 +47,7 @@ model Domain {
   gscDailyStats   GscDomainDaily[]
   seoEvents       SeoEvent[]
   backlinks       BacklinkSnapshot[]
+  domainKeywords  DomainKeyword[]
   
   @@index([isActive])
 }
@@ -374,6 +375,28 @@ model WatchedKeyword {
   createdAt       DateTime  @default(now())
   
   @@index([keyword])
+}
+
+model DomainKeyword {
+  id              String    @id @default(cuid())
+  domainId        String
+  domain          Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  
+  keyword         String
+  
+  // Results: [{url, path, position, clicks, impressions, ctr}]
+  results         Json?
+  positionHistory Json?     // [{date, bestPosition, pages}]
+  
+  bestPosition    Float?
+  totalClicks     Int       @default(0)
+  totalPages      Int       @default(0)
+  
+  lastChecked     DateTime?
+  createdAt       DateTime  @default(now())
+  
+  @@unique([domainId, keyword])
+  @@index([domainId])
 }
 
 // Backlink snapshots — track external links pointing to our domains
