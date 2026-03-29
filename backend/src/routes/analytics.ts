@@ -52,6 +52,11 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     const { feature, domainId, limit, offset, startDate, endDate } =
       request.query as any;
     const where: any = {};
+    if (!feature) {
+      // Domyślnie nie pokazuj Moz logów w widoku API Claude
+      where.provider = "anthropic";
+      where.NOT = { feature: { startsWith: "moz_" } };
+    }
     if (feature) where.feature = feature;
     if (domainId) where.domainId = domainId;
     if (startDate || endDate) {

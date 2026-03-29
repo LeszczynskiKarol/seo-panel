@@ -78,9 +78,15 @@ export function APIAnalyticsPage() {
           }}
         >
           <option value="">Wszystkie features</option>
-          <option value="crosslink_analysis">Cross-link analysis</option>
-          <option value="internal_analysis">Internal link analysis</option>
+          <option value="seo_chat">SEO Chat</option>
+          <option value="cross_links_analyze">Cross-link analysis</option>
+          <option value="internal_links_analyze">Internal link analysis</option>
           <option value="code_generation">Code generation</option>
+          <option value="crosslink_filter">Crosslink filter</option>
+          <option value="crosslink_sitemap">Crosslink sitemap</option>
+          <option value="internal_sitemap">Internal sitemap</option>
+          <option value="moz_sync_backlinks">Moz backlinks</option>
+          <option value="moz_url_metrics">Moz metrics</option>
         </select>
       </div>
 
