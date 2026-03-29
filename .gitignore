@@ -13,3 +13,4 @@ dist/
 !ecosystem.config.js
 .env.local
 google-sa-key.json
+*.stackdump
