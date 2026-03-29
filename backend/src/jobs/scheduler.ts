@@ -1,12 +1,16 @@
 import cron from "node-cron";
 import { prisma } from "../lib/prisma.js";
 import { GscService } from "../services/gsc.service.js";
+import { GA4Service } from "../services/ga4.service.js";
+import { MerchantService } from "../services/merchant.service.js";
 import { MozService } from "../services/moz.service.js";
 import { SitemapService } from "../services/sitemap.service.js";
 import { IndexingService } from "../services/indexing.service.js";
 import { LinkCrawlerService } from "../services/link-crawler.service.js";
 import { TimelineService } from "../services/timeline.service.js";
 
+const ga4Service = new GA4Service();
+const merchantService = new MerchantService();
 const gsc = new GscService();
 const sitemap = new SitemapService();
 const indexing = new IndexingService();
@@ -245,6 +249,34 @@ export function startScheduler() {
   // 10:00 — Check domain keywords
   cron.schedule("0 10 * * *", () => {
     runJob("domain_keywords_check", checkDomainKeywordsAll);
+  });
+
+  // Daily 08:00 — GA4 pull for all active integrations
+  cron.schedule("0 8 * * *", async () => {
+    console.log("⏰ [CRON] GA4 daily sync starting...");
+    try {
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
+      const threeDaysAgo = new Date(Date.now() - 3 * 86400000)
+        .toISOString()
+        .split("T")[0];
+      const results = await ga4Service.syncAll(threeDaysAgo, yesterday);
+      console.log(`✅ [CRON] GA4 sync done:`, results);
+    } catch (e: any) {
+      console.error("❌ [CRON] GA4 sync failed:", e.message);
+    }
+  });
+
+  // Daily 08:30 — Merchant Center sync
+  cron.schedule("30 8 * * *", async () => {
+    console.log("⏰ [CRON] Merchant Center daily sync starting...");
+    try {
+      const results = await merchantService.syncAll();
+      console.log(`✅ [CRON] Merchant sync done:`, results);
+    } catch (e: any) {
+      console.error("❌ [CRON] Merchant sync failed:", e.message);
+    }
   });
 
   console.log("  🕷️  Link crawl:      daily 03:00");

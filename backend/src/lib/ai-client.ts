@@ -24,7 +24,8 @@ function calcCost(
 export async function aiCall(opts: {
   model?: string;
   messages: Anthropic.MessageParam[];
-  system?: string; // ← DODAJ
+  system?: string;
+  tools?: Anthropic.Tool[];
   max_tokens?: number;
   feature: string;
   domainId?: string;
@@ -47,7 +48,8 @@ export async function aiCall(opts: {
       model,
       max_tokens: opts.max_tokens || 4000,
       messages: opts.messages,
-      ...(opts.system ? { system: opts.system } : {}), // ← DODAJ
+      ...(opts.system ? { system: opts.system } : {}),
+      ...(opts.tools?.length ? { tools: opts.tools } : {}),
     });
 
     const durationMs = Date.now() - start;
@@ -66,7 +68,12 @@ export async function aiCall(opts: {
         durationMs,
         responsePreview: responseText.slice(0, 500),
         status: "OK",
-        metadata: { stopReason: msg.stop_reason },
+        metadata: {
+          stopReason: msg.stop_reason,
+          toolUse: msg.content
+            .filter((c) => c.type === "tool_use")
+            .map((c) => (c as any).name),
+        },
       },
     });
 

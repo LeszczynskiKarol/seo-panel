@@ -1,3 +1,5 @@
+// backend/src/lib/google-auth.ts
+
 import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
@@ -17,16 +19,22 @@ export async function getGoogleAuth() {
     credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
   } else {
     throw new Error(
-      "No Google credentials found. Set GOOGLE_PRIVATE_KEY_PATH or GOOGLE_SERVICE_ACCOUNT_JSON"
+      "No Google credentials found. Set GOOGLE_PRIVATE_KEY_PATH or GOOGLE_SERVICE_ACCOUNT_JSON",
     );
   }
 
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: [
+      // Search Console
       "https://www.googleapis.com/auth/webmasters.readonly",
       "https://www.googleapis.com/auth/webmasters",
+      // Indexing API
       "https://www.googleapis.com/auth/indexing",
+      // Google Analytics 4 Data API
+      "https://www.googleapis.com/auth/analytics.readonly",
+      // Merchant Center Content API
+      "https://www.googleapis.com/auth/content",
     ],
   });
 

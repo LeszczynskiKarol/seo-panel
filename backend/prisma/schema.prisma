@@ -58,6 +58,7 @@ model Domain {
   seoEvents       SeoEvent[]
   backlinks       BacklinkSnapshot[]
   domainKeywords  DomainKeyword[]
+  integrations DomainIntegration[]
   
   @@index([isActive])
 }
@@ -546,6 +547,170 @@ model ApiLog {
   @@index([createdAt(sort: Desc)])
   @@index([feature, createdAt(sort: Desc)])
   @@index([domainId])
+}
+
+model DomainIntegration {
+  id          String    @id @default(cuid())
+  domainId    String
+  domain      Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  
+  provider    IntegrationProvider
+  
+  // Provider-specific config
+  propertyId  String?   // GA4: "properties/123456789"
+  merchantId  String?   // Merchant Center: "123456"
+  adsCustomerId String? // Google Ads: "123-456-7890"
+  
+  // OAuth (only for Google Ads — phase 2)
+  oauthRefreshToken String?
+  oauthExpiresAt    DateTime?
+  
+  // Status
+  status      IntegrationStatus @default(PENDING)
+  lastSync    DateTime?
+  lastError   String?
+  syncCount   Int       @default(0)
+  
+  // Cached summary — last snapshot of key metrics
+  cachedData  Json?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Daily snapshots
+  dailyData   IntegrationDaily[]
+  
+  @@unique([domainId, provider])
+  @@index([domainId])
+  @@index([provider, status])
+}
+
+model IntegrationDaily {
+  id              String    @id @default(cuid())
+  integrationId   String
+  integration     DomainIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  
+  date            DateTime  @db.Date
+  
+  // ─── GA4 metrics ───
+  sessions        Int?
+  users           Int?
+  newUsers        Int?
+  pageviews       Int?
+  avgSessionDuration Float?
+  bounceRate      Float?
+  conversions     Int?
+  revenue         Float?
+  
+  // ─── Google Ads metrics ───
+  adClicks        Int?
+  adImpressions   Int?
+  adCost          Float?
+  adConversions   Int?
+  adConversionValue Float?
+  adCtr           Float?
+  adCpc           Float?
+  adRoas          Float?
+  
+  // ─── Merchant Center metrics ───
+  productCount    Int?
+  approvedProducts Int?
+  disapprovedProducts Int?
+  pendingProducts Int?
+  
+  // Flexible breakdowns (bySource, byCampaign, byProduct etc.)
+  breakdown       Json?
+  
+  @@unique([integrationId, date])
+  @@index([integrationId, date(sort: Desc)])
+}
+
+
+// ============================================
+// GOOGLE ADS
+// ============================================
+
+model AdsCampaignDaily {
+  id              String    @id @default(cuid())
+  domainId        String
+  
+  campaignId      String
+  campaignName    String
+  campaignType    String    // PERFORMANCE_MAX, SHOPPING, SEARCH
+  
+  date            DateTime  @db.Date
+  cost            Float     @default(0)     // in PLN
+  clicks          Int       @default(0)
+  impressions     Int       @default(0)
+  conversions     Float     @default(0)
+  conversionValue Float     @default(0)     // revenue in PLN
+  ctr             Float?
+  cpc             Float?                    // cost per click
+  roas            Float?                    // return on ad spend
+  
+  createdAt       DateTime  @default(now())
+  
+  @@unique([campaignId, date])
+  @@index([domainId, date(sort: Desc)])
+  @@index([campaignId, date(sort: Desc)])
+}
+
+model AdsProductDaily {
+  id              String    @id @default(cuid())
+  domainId        String
+  
+  productId       String    // Merchant Center product ID
+  productTitle    String
+  productCategory String?
+  
+  date            DateTime  @db.Date
+  cost            Float     @default(0)
+  clicks          Int       @default(0)
+  impressions     Int       @default(0)
+  conversions     Float     @default(0)
+  conversionValue Float     @default(0)
+  ctr             Float?
+  roas            Float?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@unique([productId, date])
+  @@index([domainId, date(sort: Desc)])
+}
+
+model AdsSearchTerm {
+  id              String    @id @default(cuid())
+  domainId        String
+  
+  searchTerm      String
+  campaignId      String
+  campaignName    String
+  
+  date            DateTime  @db.Date
+  cost            Float     @default(0)
+  clicks          Int       @default(0)
+  impressions     Int       @default(0)
+  conversions     Float     @default(0)
+  conversionValue Float     @default(0)
+  
+  createdAt       DateTime  @default(now())
+  
+  @@unique([searchTerm, campaignId, date])
+  @@index([domainId, date(sort: Desc)])
+  @@index([searchTerm])
+}
+
+enum IntegrationProvider {
+  GOOGLE_ANALYTICS
+  GOOGLE_ADS
+  GOOGLE_MERCHANT
+}
+
+enum IntegrationStatus {
+  PENDING
+  ACTIVE
+  ERROR
+  DISCONNECTED
 }
 
 enum JobStatus {

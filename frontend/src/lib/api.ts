@@ -293,6 +293,76 @@ export const api = {
   deleteChatConversation: (id: string) =>
     request<void>(`/chat/conversations/${id}`, { method: "DELETE" }),
 
+  // ─── INTEGRATIONS ────────────────────────────────────────────
+
+  getIntegrations: (domainId: string) =>
+    request<any[]>(`/domains/${domainId}/integrations`),
+
+  addIntegration: (
+    domainId: string,
+    data: {
+      provider: string;
+      propertyId?: string;
+      merchantId?: string;
+    },
+  ) =>
+    request<any>(`/domains/${domainId}/integrations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  verifyIntegration: (domainId: string, intId: string) =>
+    request<any>(`/domains/${domainId}/integrations/${intId}/verify`, {
+      method: "POST",
+    }),
+
+  syncIntegration: (
+    domainId: string,
+    intId: string,
+    data?: { startDate?: string; endDate?: string; days?: number },
+  ) =>
+    request<any>(`/domains/${domainId}/integrations/${intId}/sync`, {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    }),
+
+  getIntegrationData: (domainId: string, intId: string, days?: number) =>
+    request<any>(
+      `/domains/${domainId}/integrations/${intId}/data?days=${days || 30}`,
+    ),
+
+  getIntegrationRealtime: (domainId: string, intId: string) =>
+    request<any>(`/domains/${domainId}/integrations/${intId}/realtime`),
+
+  getIntegrationLandingPages: (domainId: string, intId: string) =>
+    request<any>(`/domains/${domainId}/integrations/${intId}/landing-pages`),
+
+  disconnectIntegration: (domainId: string, intId: string) =>
+    request<any>(`/domains/${domainId}/integrations/${intId}/disconnect`, {
+      method: "POST",
+    }),
+
+  deleteIntegration: (domainId: string, intId: string) =>
+    request<void>(`/domains/${domainId}/integrations/${intId}`, {
+      method: "DELETE",
+    }),
+
+  // Google Ads
+  getAdsCampaigns: (domainId: string, days = 30) =>
+    request<any>(`/ads/${domainId}/campaigns?days=${days}`),
+  getAdsProducts: (domainId: string, days = 30) =>
+    request<any>(`/ads/${domainId}/products?days=${days}`),
+  getAdsSearchTerms: (domainId: string, days = 30) =>
+    request<any>(`/ads/${domainId}/search-terms?days=${days}`),
+  getAdsVsOrganic: (domainId: string, days = 30) =>
+    request<any>(`/ads/${domainId}/ads-vs-organic?days=${days}`),
+  syncAdsCampaigns: (domainId: string) =>
+    request<any>(`/ads/${domainId}/sync-campaigns`, { method: "POST" }),
+  syncAdsProducts: (domainId: string) =>
+    request<any>(`/ads/${domainId}/sync-products`, { method: "POST" }),
+  syncAdsSearchTerms: (domainId: string) =>
+    request<any>(`/ads/${domainId}/sync-search-terms`, { method: "POST" }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

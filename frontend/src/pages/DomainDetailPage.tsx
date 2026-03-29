@@ -1,6 +1,7 @@
 import React from "react";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { IntegrationsTab } from "../components/IntegrationsTab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import {
@@ -35,7 +36,14 @@ import {
   Globe,
 } from "lucide-react";
 
-type Tab = "pages" | "queries" | "tracked" | "links" | "broken" | "orphans";
+type Tab =
+  | "pages"
+  | "queries"
+  | "tracked"
+  | "links"
+  | "broken"
+  | "orphans"
+  | "integrations";
 
 export function DomainDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -459,7 +467,15 @@ export function DomainDetailPage() {
       {/* ===== TABS — jedna jedyna sekcja nawigacji ===== */}
       <div className="flex gap-1 border-b border-panel-border">
         {(
-          ["pages", "queries", "tracked", "links", "broken", "orphans"] as Tab[]
+          [
+            "pages",
+            "queries",
+            "tracked",
+            "links",
+            "broken",
+            "orphans",
+            "integrations",
+          ] as Tab[]
         ).map((t) => (
           <button
             key={t}
@@ -477,6 +493,7 @@ export function DomainDetailPage() {
             {t === "links" && "Linkowanie"}
             {t === "broken" && "Złamane linki"}
             {t === "orphans" && "Orphan pages"}
+            {t === "integrations" && "Integracje"}
           </button>
         ))}
       </div>
@@ -1189,6 +1206,8 @@ export function DomainDetailPage() {
           )}
         </div>
       )}
+
+      {tab === "integrations" && <IntegrationsTab domainId={id!} />}
     </div>
   );
 }
