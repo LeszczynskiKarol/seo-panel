@@ -83,6 +83,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
       data: {
         conversationId: convId,
         role: "assistant",
+
         content: result.answer,
         matchedDomain: result.matchedDomain,
         inputTokens: result.usage?.input_tokens,
