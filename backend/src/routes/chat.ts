@@ -88,6 +88,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         inputTokens: result.usage?.input_tokens,
         outputTokens: result.usage?.output_tokens,
         durationMs: result.durationMs,
+        context: result.context,
       },
     });
 

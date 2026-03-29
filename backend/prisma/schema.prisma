@@ -502,6 +502,7 @@ model ChatMessage {
   
   role           String    // "user" | "assistant"
   content        String    @db.Text
+  context       String?   @db.Text  // full system prompt + data sent to Claude
   
   // Metadata (assistant only)
   matchedDomain  String?

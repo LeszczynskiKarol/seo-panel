@@ -252,6 +252,7 @@ ${context}`;
       matchedDomain: matchedDomain?.label || matchedDomain?.domain || null,
       usage: msg.usage,
       durationMs: 0, // aiCall handles logging
+      context: systemPrompt,
     };
   }
 }
