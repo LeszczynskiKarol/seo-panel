@@ -429,7 +429,6 @@ export function DomainDetailPage() {
           <DualMetricChart data={d.dailyStats} height={180} showPosition />
         </div>
       )}
-      <MozSection domainId={id!} />
       {/* Indexing breakdown */}
       {d.indexingStats?.length > 0 && (
         <div className="flex gap-3">
@@ -1074,6 +1073,7 @@ export function DomainDetailPage() {
 
           {/* Backlink timeline */}
           <BacklinkTimeline domainId={id!} />
+          <MozSection domainId={id!} />
         </div>
       )}
 

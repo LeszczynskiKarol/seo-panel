@@ -167,40 +167,38 @@ export class MozService {
       where: { id: domainId },
     });
 
-    if (
-      !force &&
-      domain.mozLastSync &&
-      Date.now() - new Date(domain.mozLastSync).getTime() < 3600000
-    ) {
-      return {
-        skipped: true,
-        reason: "Synced less than 1h ago",
-        lastSync: domain.mozLastSync,
-      };
-    }
-    // Check if MOZ backlinks were already synced recently (by checking last backlink)
-    const lastMozBacklink = await prisma.backlinkSnapshot.findFirst({
-      where: { domainId, source: "MOZ" },
-      orderBy: { lastChecked: "desc" },
-    });
-    if (
-      lastMozBacklink &&
-      Date.now() - new Date(lastMozBacklink.lastChecked).getTime() < 3600000
-    ) {
-      return { skipped: true, reason: "Backlinks synced less than 1h ago" };
+    if (!force) {
+      // Only check cooldown when not forced
+      const lastMozBacklink = await prisma.backlinkSnapshot.findFirst({
+        where: { domainId, source: "MOZ" },
+        orderBy: { lastChecked: "desc" },
+      });
+      if (
+        lastMozBacklink &&
+        Date.now() - new Date(lastMozBacklink.lastChecked).getTime() < 3600000
+      ) {
+        return { skipped: true, reason: "Backlinks synced less than 1h ago" };
+      }
+      if (
+        domain.mozLastSync &&
+        Date.now() - new Date(domain.mozLastSync).getTime() < 3600000
+      ) {
+        return { skipped: true, reason: "Domain synced less than 1h ago" };
+      }
     }
 
     const target = domain.domain.replace(/^www\./, "");
+    console.log(`[Moz] Syncing backlinks for ${target} (force=${force})`);
+
     let newLinks = 0;
     let updatedLinks = 0;
     let totalRows = 0;
-
     const now = new Date();
 
-    // Get individual links — this is what actually creates BacklinkSnapshot records
     const linksData = await this.getLinks(target, 50);
     const links = linksData.results || [];
     totalRows += links.length;
+    console.log(`[Moz] Got ${links.length} links from API for ${target}`);
 
     for (const link of links) {
       const sourceUrl = link.page || "";
