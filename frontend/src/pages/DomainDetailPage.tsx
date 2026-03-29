@@ -2249,6 +2249,10 @@ function PagesTab({
   const [expandedQueries, setExpandedQueries] = useState<Set<string>>(
     new Set(),
   );
+  const [pageSize, setPageSize] = useState(10);
+  const [showCount, setShowCount] = useState(10);
+  const [sortCol, setSortCol] = useState<string>("clicks");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const togglePage = (id: string) => {
     setExpandedPages((prev) => {
@@ -2266,10 +2270,24 @@ function PagesTab({
     });
   };
 
+  const handleSort = (col: string) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir(col === "path" || col === "indexingVerdict" ? "asc" : "desc");
+    }
+  };
+
+  const handlePageSize = (size: number) => {
+    setPageSize(size);
+    setShowCount(size);
+  };
+
   const pageParams = new URLSearchParams();
   if (search) pageParams.set("search", search);
   if (verdictFilter) pageParams.set("verdict", verdictFilter);
-  pageParams.set("limit", "100");
+  pageParams.set("limit", "5000"); // fetch all, sort client-side
   pageParams.set("startDate", startDate);
   pageParams.set("endDate", endDate);
 
@@ -2277,6 +2295,64 @@ function PagesTab({
     queryKey: ["pages", domainId, search, verdictFilter, startDate, endDate],
     queryFn: () => api.getDomainPages(domainId, pageParams.toString()),
   });
+
+  // Sort pages client-side
+  const sortedPages = [...(pagesData?.pages || [])].sort((a: any, b: any) => {
+    let aVal = a[sortCol];
+    let bVal = b[sortCol];
+
+    // Handle nested: linksOut = internalLinksOut + externalLinksOut
+    if (sortCol === "linksOut") {
+      aVal = (a.internalLinksOut || 0) + (a.externalLinksOut || 0);
+      bVal = (b.internalLinksOut || 0) + (b.externalLinksOut || 0);
+    }
+
+    // Nulls last
+    if (aVal == null && bVal == null) return 0;
+    if (aVal == null) return 1;
+    if (bVal == null) return -1;
+
+    // String comparison
+    if (typeof aVal === "string" && typeof bVal === "string") {
+      return sortDir === "asc"
+        ? aVal.localeCompare(bVal)
+        : bVal.localeCompare(aVal);
+    }
+
+    // Number comparison
+    return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+  });
+
+  const visiblePages =
+    pageSize === -1 ? sortedPages : sortedPages.slice(0, showCount);
+  const hasMore = pageSize !== -1 && showCount < sortedPages.length;
+
+  const SortHeader = ({
+    col,
+    label,
+    className,
+  }: {
+    col: string;
+    label: string;
+    className?: string;
+  }) => (
+    <th
+      className={cn(
+        "cursor-pointer hover:text-panel-text select-none",
+        className,
+      )}
+      onClick={() => handleSort(col)}
+    >
+      <div className="flex items-center gap-0.5">
+        {label}
+        {sortCol === col && (
+          <span className="text-accent-blue">
+            {sortDir === "asc" ? "↑" : "↓"}
+          </span>
+        )}
+      </div>
+    </th>
+  );
 
   return (
     <div>
@@ -2291,7 +2367,7 @@ function PagesTab({
           />
         </div>
       </div>
-      <div className="mb-3">
+      <div className="mb-3 flex items-center justify-between">
         <DateRangePicker
           days={days}
           setDays={setDays}
@@ -2300,24 +2376,52 @@ function PagesTab({
           setStartDate={setStartDate}
           setEndDate={setEndDate}
         />
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] text-panel-muted">Pokaż:</span>
+          {[10, 50, 100, 500].map((n) => (
+            <button
+              key={n}
+              onClick={() => handlePageSize(n)}
+              className={cn(
+                "px-1.5 py-0.5 rounded text-[10px] font-mono transition-all",
+                pageSize === n
+                  ? "bg-accent-blue/20 text-accent-blue font-semibold"
+                  : "text-panel-muted hover:text-panel-text",
+              )}
+            >
+              {n}
+            </button>
+          ))}
+          <button
+            onClick={() => handlePageSize(-1)}
+            className={cn(
+              "px-1.5 py-0.5 rounded text-[10px] font-mono transition-all",
+              pageSize === -1
+                ? "bg-accent-blue/20 text-accent-blue font-semibold"
+                : "text-panel-muted hover:text-panel-text",
+            )}
+          >
+            Wszystkie
+          </button>
+        </div>
       </div>
       <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
         <table className="data-table">
           <thead>
             <tr>
-              <th></th>
-              <th>URL</th>
-              <th>Status</th>
-              <th>Kliknięcia</th>
-              <th>Wyświetl.</th>
-              <th>Pozycja</th>
-              <th>Linki In</th>
-              <th>Linki Out</th>
-              <th>Sprawdzono</th>
+              <th className="w-4"></th>
+              <SortHeader col="path" label="URL" />
+              <SortHeader col="indexingVerdict" label="Status" />
+              <SortHeader col="clicks" label="Kliknięcia" />
+              <SortHeader col="impressions" label="Wyświetl." />
+              <SortHeader col="position" label="Pozycja" />
+              <SortHeader col="internalLinksIn" label="Linki In" />
+              <SortHeader col="linksOut" label="Linki Out" />
+              <SortHeader col="lastChecked" label="Sprawdzono" />
             </tr>
           </thead>
           <tbody>
-            {(pagesData?.pages || []).map((p: any) => (
+            {visiblePages.map((p: any) => (
               <ExpandablePageRow
                 key={p.id}
                 p={p}
@@ -2332,11 +2436,23 @@ function PagesTab({
             ))}
           </tbody>
         </table>
-        {pagesData && (
-          <div className="px-4 py-2 text-[10px] text-panel-muted border-t border-panel-border">
-            {pagesData.total} stron łącznie
-          </div>
-        )}
+        <div className="px-4 py-2 flex items-center justify-between text-[10px] text-panel-muted border-t border-panel-border">
+          <span>
+            {visiblePages.length} z {sortedPages.length} stron
+            {pagesData?.total &&
+              sortedPages.length < pagesData.total &&
+              ` (${pagesData.total} łącznie)`}
+          </span>
+          {hasMore && (
+            <button
+              onClick={() => setShowCount((c) => c + pageSize)}
+              className="text-accent-blue hover:underline font-medium"
+            >
+              Pokaż kolejne {Math.min(pageSize, sortedPages.length - showCount)}{" "}
+              →
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
