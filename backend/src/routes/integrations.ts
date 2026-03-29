@@ -118,7 +118,7 @@ export async function integrationRoutes(fastify: FastifyInstance) {
         const yesterday = new Date(Date.now() - 86400000)
           .toISOString()
           .split("T")[0];
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000)
+        const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000)
           .toISOString()
           .split("T")[0];
 
@@ -128,7 +128,7 @@ export async function integrationRoutes(fastify: FastifyInstance) {
             .pullDailyData(
               integration.id,
               normalizedPropertyId,
-              thirtyDaysAgo,
+              ninetyDaysAgo,
               yesterday,
             )
             .catch((e) => console.error("Initial GA4 pull failed:", e.message));
@@ -205,7 +205,12 @@ export async function integrationRoutes(fastify: FastifyInstance) {
         end,
       );
     } else if (integration.provider === "GOOGLE_MERCHANT") {
-      return merchant.pullData(integration.id, integration.merchantId!);
+      return merchant.pullData(
+        integration.id,
+        integration.merchantId!,
+        start,
+        end,
+      );
     }
 
     return { error: "Unsupported provider" };

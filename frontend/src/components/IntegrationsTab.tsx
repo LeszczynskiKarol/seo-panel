@@ -1,5 +1,6 @@
 // frontend/src/components/IntegrationsTab.tsx
 
+import { keepPreviousData } from "@tanstack/react-query";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -418,20 +419,38 @@ function GA4Dashboard({
   domainId: string;
   integration: any;
 }) {
-  const [days, setDays] = useState(30);
+  const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<
     "overview" | "sources" | "landing"
   >("overview");
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["integration-data", domainId, integration.id, days],
-    queryFn: () => api.getIntegrationData(domainId, integration.id, days),
+  // ─── Date range state ───
+  const [days, setDays] = useState<number | null>(30);
+  const [startDate, setStartDate] = useState(
+    () => new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0],
+  );
+  const [endDate, setEndDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+
+  // ─── Data query — keepPreviousData prevents chart from disappearing ───
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: [
+      "integration-data",
+      domainId,
+      integration.id,
+      startDate,
+      endDate,
+    ],
+    queryFn: () =>
+      api.getIntegrationData(domainId, integration.id, { startDate, endDate }),
+    placeholderData: keepPreviousData,
   });
 
   const { data: realtimeData } = useQuery({
     queryKey: ["integration-realtime", domainId, integration.id],
     queryFn: () => api.getIntegrationRealtime(domainId, integration.id),
-    refetchInterval: 30000, // refresh every 30s
+    refetchInterval: 30000,
   });
 
   const { data: landingData } = useQuery({
@@ -440,10 +459,52 @@ function GA4Dashboard({
     enabled: activeTab === "landing",
   });
 
+  // Re-sync: pull fresh data from GA4 API for selected date range
+  const resyncMutation = useMutation({
+    mutationFn: () =>
+      api.syncIntegration(domainId, integration.id, { startDate, endDate }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["integrations", domainId] });
+      qc.invalidateQueries({
+        queryKey: ["integration-data", domainId, integration.id],
+      });
+    },
+  });
+
   const cached = integration.cachedData as any;
   const agg = data?.aggregate;
 
-  if (isLoading && !cached) {
+  // Detect if selected range is outside what we have in DB
+  const cachedStart = cached?.startDate;
+  const cachedEnd = cached?.endDate;
+  const needsResync =
+    cachedStart &&
+    cachedEnd &&
+    (startDate < cachedStart || endDate > cachedEnd);
+
+  // ─── Date helpers ───
+  const presets = [7, 14, 30, 90, 180, 365];
+  const today = new Date().toISOString().split("T")[0];
+
+  const applyPreset = (d: number) => {
+    setDays(d);
+    setStartDate(
+      new Date(Date.now() - d * 86400000).toISOString().split("T")[0],
+    );
+    setEndDate(today);
+  };
+
+  const handleDateChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+    setDays(null);
+  };
+
+  const rangeDays = Math.round(
+    (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000,
+  );
+
+  if (isLoading && !cached && !data) {
     return (
       <div className="p-8 text-center">
         <RefreshCw className="w-4 h-4 animate-spin text-panel-muted mx-auto" />
@@ -453,16 +514,16 @@ function GA4Dashboard({
 
   return (
     <div>
-      {/* Period selector + tabs */}
-      <div className="px-4 py-2 flex items-center justify-between border-b border-panel-border/50 bg-panel-bg/20">
-        <div className="flex items-center gap-2">
+      {/* ─── DATE RANGE PICKER + TABS ─── */}
+      <div className="px-4 py-2.5 flex items-center justify-between border-b border-panel-border/50 bg-panel-bg/20 flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[9px] text-panel-muted uppercase tracking-wider">
             Okres:
           </span>
-          {[7, 14, 30, 90].map((d) => (
+          {presets.map((d) => (
             <button
               key={d}
-              onClick={() => setDays(d)}
+              onClick={() => applyPreset(d)}
               className={cn(
                 "px-2 py-0.5 rounded text-[10px] font-mono transition-all",
                 days === d
@@ -473,6 +534,47 @@ function GA4Dashboard({
               {d}d
             </button>
           ))}
+          <div className="h-4 w-px bg-panel-border mx-1" />
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={startDate}
+              max={endDate || today}
+              onChange={(e) => handleDateChange(e.target.value, endDate)}
+              className="input text-[10px] py-0.5 px-1.5 w-[110px] font-mono"
+            />
+            <span className="text-[9px] text-panel-muted">→</span>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate}
+              max={today}
+              onChange={(e) => handleDateChange(startDate, e.target.value)}
+              className="input text-[10px] py-0.5 px-1.5 w-[110px] font-mono"
+            />
+          </div>
+          {days === null && (
+            <span className="text-[9px] text-accent-purple font-mono">
+              {rangeDays}d
+            </span>
+          )}
+          {needsResync && (
+            <button
+              onClick={() => resyncMutation.mutate()}
+              disabled={resyncMutation.isPending}
+              className="btn btn-primary text-[10px] py-0.5 px-2"
+            >
+              {resyncMutation.isPending ? (
+                <RefreshCw className="w-3 h-3 animate-spin" />
+              ) : (
+                "Pobierz dane za ten okres"
+              )}
+            </button>
+          )}
+          {/* Subtle loading indicator — chart stays visible */}
+          {isFetching && !isLoading && (
+            <RefreshCw className="w-3 h-3 animate-spin text-accent-blue/50" />
+          )}
         </div>
         <div className="flex gap-1">
           {(["overview", "sources", "landing"] as const).map((t) => (
@@ -494,7 +596,7 @@ function GA4Dashboard({
         </div>
       </div>
 
-      {/* Stat cards */}
+      {/* ─── STAT CARDS ─── */}
       <div className="grid grid-cols-6 gap-2 p-4">
         {realtimeData?.activeUsers != null && (
           <div
@@ -515,7 +617,9 @@ function GA4Dashboard({
           <div className="text-base font-bold font-mono text-accent-cyan">
             {fmtNumber(agg?.totalSessions || cached?.sessions || 0)}
           </div>
-          <div className="text-[9px] text-panel-muted">Sesje</div>
+          <div className="text-[9px] text-panel-muted">
+            Sesje{days ? ` (${days}d)` : ""}
+          </div>
         </div>
         <div
           className="stat-card"
@@ -555,21 +659,37 @@ function GA4Dashboard({
         </div>
       </div>
 
-      {/* Overview tab — chart */}
-      {activeTab === "overview" && data?.daily?.length > 0 && (
-        <div className="px-4 pb-4">
-          <GA4Chart data={data.daily} />
+      {/* ═══ OVERVIEW TAB ═══ */}
+      {activeTab === "overview" && (
+        <div>
+          {data?.daily?.length > 0 ? (
+            <div className="px-4 pb-4">
+              <div className="text-[10px] text-panel-muted mb-1 flex justify-between">
+                <span>Sesje, użytkownicy, konwersje</span>
+                <span className="font-mono text-panel-dim">
+                  {startDate} → {endDate}
+                </span>
+              </div>
+              <GA4Chart data={data.daily} />
+            </div>
+          ) : !isLoading ? (
+            <div className="px-4 pb-4 text-xs text-panel-muted text-center py-6">
+              Brak danych za wybrany okres.
+              {needsResync &&
+                ' Kliknij "Pobierz dane za ten okres" aby pobrać z GA4.'}
+            </div>
+          ) : null}
         </div>
       )}
 
-      {/* Sources tab */}
+      {/* ═══ SOURCES TAB ═══ */}
       {activeTab === "sources" && (
         <div className="px-4 pb-4">
           <SourcesTable sources={cached?.bySource || []} />
         </div>
       )}
 
-      {/* Landing pages tab — GSC correlation */}
+      {/* ═══ LANDING PAGES TAB ═══ */}
       {activeTab === "landing" && (
         <div className="px-4 pb-4">
           <LandingPagesTable pages={landingData?.pages || []} />
@@ -580,13 +700,107 @@ function GA4Dashboard({
 }
 
 function GA4Chart({ data }: { data: any[] }) {
+  const [visible, setVisible] = useState({
+    sessions: true,
+    users: true,
+    pageviews: false,
+    conversions: true,
+    revenue: false,
+    bounceRate: false,
+  });
+
+  const toggle = (key: keyof typeof visible) => {
+    setVisible((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      if (!Object.values(next).some(Boolean)) return prev;
+      return next;
+    });
+  };
+
+  // Left axis: sessions, users, pageviews (big numbers)
+  // Right axis: conversions, revenue (small numbers / different scale)
+  const hasLeft = visible.sessions || visible.users || visible.pageviews;
+  const hasRight = visible.conversions || visible.revenue || visible.bounceRate;
+
+  const metrics = [
+    {
+      key: "sessions",
+      label: "Sesje",
+      color: "#06b6d4",
+      axis: "left",
+      dash: undefined,
+    },
+    {
+      key: "users",
+      label: "Użytkownicy",
+      color: "#a855f7",
+      axis: "left",
+      dash: "4 2",
+    },
+    {
+      key: "pageviews",
+      label: "Odsłony",
+      color: "#3b82f6",
+      axis: "left",
+      dash: "2 2",
+    },
+    {
+      key: "conversions",
+      label: "Konwersje",
+      color: "#f59e0b",
+      axis: "right",
+      dash: undefined,
+    },
+    {
+      key: "revenue",
+      label: "Przychód (zł)",
+      color: "#22c55e",
+      axis: "right",
+      dash: "4 2",
+    },
+    {
+      key: "bounceRate",
+      label: "Bounce Rate",
+      color: "#ef4444",
+      axis: "right",
+      dash: "2 2",
+    },
+  ] as const;
+
   return (
     <div>
-      <ResponsiveContainer width="100%" height={140}>
+      {/* Clickable legend */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {metrics.map((m) => (
+          <button
+            key={m.key}
+            onClick={() => toggle(m.key)}
+            className={cn(
+              "flex items-center gap-1 text-[9px] font-mono transition-all rounded px-1.5 py-0.5",
+              visible[m.key]
+                ? "opacity-100"
+                : "text-panel-muted line-through opacity-40 hover:opacity-60",
+            )}
+            style={
+              visible[m.key]
+                ? { color: m.color, backgroundColor: `${m.color}15` }
+                : undefined
+            }
+          >
+            <div
+              className="w-2 h-2 rounded-sm"
+              style={{ backgroundColor: visible[m.key] ? m.color : "#334155" }}
+            />
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      <ResponsiveContainer width="100%" height={160}>
         <AreaChart data={data}>
           <defs>
-            <linearGradient id="ga4-sessions" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.15} />
+            <linearGradient id="ga4-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.1} />
               <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
             </linearGradient>
           </defs>
@@ -600,21 +814,25 @@ function GA4Chart({ data }: { data: any[] }) {
             axisLine={false}
             tickLine={false}
           />
-          <YAxis
-            yAxisId="left"
-            tick={{ fontSize: 7, fill: "#06b6d4" }}
-            axisLine={false}
-            tickLine={false}
-            width={30}
-          />
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            tick={{ fontSize: 7, fill: "#a855f7" }}
-            axisLine={false}
-            tickLine={false}
-            width={30}
-          />
+          {hasLeft && (
+            <YAxis
+              yAxisId="left"
+              tick={{ fontSize: 7, fill: "#06b6d4" }}
+              axisLine={false}
+              tickLine={false}
+              width={35}
+            />
+          )}
+          {hasRight && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tick={{ fontSize: 7, fill: "#f59e0b" }}
+              axisLine={false}
+              tickLine={false}
+              width={35}
+            />
+          )}
           <Tooltip
             contentStyle={{
               background: "#1a2235",
@@ -622,52 +840,82 @@ function GA4Chart({ data }: { data: any[] }) {
               borderRadius: "4px",
               fontSize: "9px",
             }}
+            formatter={(value: number, name: string) => {
+              if (name === "Bounce Rate")
+                return [`${(value * 100).toFixed(1)}%`, name];
+              if (name === "Przychód (zł)")
+                return [`${value.toFixed(0)} zł`, name];
+              return [value, name];
+            }}
           />
-          <Area
-            yAxisId="left"
-            type="monotone"
-            dataKey="sessions"
-            stroke="#06b6d4"
-            fill="url(#ga4-sessions)"
-            strokeWidth={1.5}
-            name="Sesje"
-            dot={false}
-          />
-          <Area
-            yAxisId="right"
-            type="monotone"
-            dataKey="users"
-            stroke="#a855f7"
-            fill="none"
-            strokeWidth={1.5}
-            strokeDasharray="4 2"
-            name="Użytkownicy"
-            dot={false}
-          />
-          <Area
-            yAxisId="left"
-            type="monotone"
-            dataKey="conversions"
-            stroke="#f59e0b"
-            fill="none"
-            strokeWidth={1.5}
-            strokeDasharray="2 2"
-            name="Konwersje"
-            dot={false}
-          />
+
+          {metrics.map((m) =>
+            visible[m.key] ? (
+              <Area
+                key={m.key}
+                yAxisId={
+                  m.axis === "left" && hasLeft
+                    ? "left"
+                    : hasRight
+                      ? "right"
+                      : "left"
+                }
+                type="monotone"
+                dataKey={m.key}
+                stroke={m.color}
+                fill={m.key === "sessions" ? "url(#ga4-fill)" : "none"}
+                strokeWidth={1.5}
+                strokeDasharray={m.dash}
+                name={m.label}
+                dot={false}
+              />
+            ) : null,
+          )}
         </AreaChart>
       </ResponsiveContainer>
 
-      <div className="flex gap-3 text-[9px] text-panel-muted mt-1">
-        <span className="flex items-center gap-1">
-          <div className="w-2 h-0.5 bg-accent-cyan rounded" /> Sesje
-        </span>
-        <span className="flex items-center gap-1">
-          <div className="w-2 h-0.5 bg-accent-purple rounded" /> Użytkownicy
-        </span>
-        <span className="flex items-center gap-1">
-          <div className="w-2 h-0.5 bg-accent-amber rounded" /> Konwersje
-        </span>
+      {/* Summary stats for visible metrics */}
+      <div className="flex gap-3 text-[9px] text-panel-muted mt-1 flex-wrap">
+        {visible.sessions && (
+          <span>
+            Sesje:{" "}
+            <strong className="text-accent-cyan">
+              {fmtNumber(data.reduce((s, d) => s + (d.sessions || 0), 0))}
+            </strong>
+          </span>
+        )}
+        {visible.users && (
+          <span>
+            Użytk.:{" "}
+            <strong className="text-accent-purple">
+              {fmtNumber(data.reduce((s, d) => s + (d.users || 0), 0))}
+            </strong>
+          </span>
+        )}
+        {visible.pageviews && (
+          <span>
+            Odsłony:{" "}
+            <strong className="text-accent-blue">
+              {fmtNumber(data.reduce((s, d) => s + (d.pageviews || 0), 0))}
+            </strong>
+          </span>
+        )}
+        {visible.conversions && (
+          <span>
+            Konw.:{" "}
+            <strong className="text-accent-amber">
+              {data.reduce((s, d) => s + (d.conversions || 0), 0)}
+            </strong>
+          </span>
+        )}
+        {visible.revenue && (
+          <span>
+            Przychód:{" "}
+            <strong className="text-accent-green">
+              {fmtNumber(data.reduce((s, d) => s + (d.revenue || 0), 0))} zł
+            </strong>
+          </span>
+        )}
       </div>
     </div>
   );

@@ -326,10 +326,19 @@ export const api = {
       body: JSON.stringify(data || {}),
     }),
 
-  getIntegrationData: (domainId: string, intId: string, days?: number) =>
-    request<any>(
-      `/domains/${domainId}/integrations/${intId}/data?days=${days || 30}`,
-    ),
+  getIntegrationData: (
+    domainId: string,
+    intId: string,
+    opts?: { days?: number; startDate?: string; endDate?: string },
+  ) => {
+    const params = new URLSearchParams();
+    if (opts?.startDate) params.set("startDate", opts.startDate);
+    if (opts?.endDate) params.set("endDate", opts.endDate);
+    if (opts?.days && !opts?.startDate) params.set("days", String(opts.days));
+    return request<any>(
+      `/domains/${domainId}/integrations/${intId}/data?${params.toString()}`,
+    );
+  },
 
   getIntegrationRealtime: (domainId: string, intId: string) =>
     request<any>(`/domains/${domainId}/integrations/${intId}/realtime`),

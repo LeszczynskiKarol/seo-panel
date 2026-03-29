@@ -1,8 +1,12 @@
 // backend/src/services/ga4.service.ts
+// ZASTĄP CAŁY PLIK
 
 import { prisma } from "../lib/prisma.js";
 import { getGoogleAuth } from "../lib/google-auth.js";
-import { google } from "googleapis";
+import { google, analyticsdata_v1beta } from "googleapis";
+
+type RunReportResponse = analyticsdata_v1beta.Schema$RunReportResponse;
+type Row = analyticsdata_v1beta.Schema$Row;
 
 export class GA4Service {
   private async getAnalyticsData() {
@@ -10,28 +14,24 @@ export class GA4Service {
     return google.analyticsdata({ version: "v1beta", auth });
   }
 
-  /**
-   * Verify access to a GA4 property — try pulling 1 day of data
-   */
   async verifyAccess(
     propertyId: string,
   ): Promise<{ ok: boolean; error?: string; propertyName?: string }> {
     try {
       const analytics = await this.getAnalyticsData();
 
-      // Try a minimal report to verify access
       const res = await analytics.properties.runReport({
         property: propertyId,
         requestBody: {
           dateRanges: [{ startDate: "yesterday", endDate: "yesterday" }],
           metrics: [{ name: "sessions" }],
-          limit: 1,
+          limit: "1",
         },
       });
 
       return {
         ok: true,
-        propertyName: res.data.metadata?.currencyCode || propertyId,
+        propertyName: (res as any).data?.metadata?.currencyCode || propertyId,
       };
     } catch (e: any) {
       const msg = e.message || "Unknown error";
@@ -51,9 +51,6 @@ export class GA4Service {
     }
   }
 
-  /**
-   * Pull daily aggregated metrics for a GA4 property
-   */
   async pullDailyData(
     integrationId: string,
     propertyId: string,
@@ -64,7 +61,7 @@ export class GA4Service {
       const analytics = await this.getAnalyticsData();
 
       // 1. Daily aggregates
-      const dailyRes = await analytics.properties.runReport({
+      const dailyRes = (await analytics.properties.runReport({
         property: propertyId,
         requestBody: {
           dateRanges: [{ startDate, endDate }],
@@ -80,15 +77,15 @@ export class GA4Service {
             { name: "totalRevenue" },
           ],
           orderBys: [{ dimension: { dimensionName: "date" } }],
-          limit: 500,
+          limit: "500",
         },
-      });
+      })) as { data: RunReportResponse };
 
-      const rows = dailyRes.data.rows || [];
+      const rows: Row[] = dailyRes.data.rows || [];
       let daysProcessed = 0;
 
       for (const row of rows) {
-        const dateStr = row.dimensionValues?.[0]?.value; // YYYYMMDD
+        const dateStr = row.dimensionValues?.[0]?.value;
         if (!dateStr) continue;
 
         const date = new Date(
@@ -96,12 +93,11 @@ export class GA4Service {
         );
 
         const metrics = row.metricValues || [];
-        const getNum = (i: number) => parseFloat(metrics[i]?.value || "0") || 0;
+        const getNum = (i: number): number =>
+          parseFloat(metrics[i]?.value || "0") || 0;
 
         await prisma.integrationDaily.upsert({
-          where: {
-            integrationId_date: { integrationId, date },
-          },
+          where: { integrationId_date: { integrationId, date } },
           update: {
             sessions: Math.round(getNum(0)),
             users: Math.round(getNum(1)),
@@ -129,8 +125,8 @@ export class GA4Service {
         daysProcessed++;
       }
 
-      // 2. Pull source/medium breakdown for entire range (stored in last day's breakdown)
-      const sourceRes = await analytics.properties.runReport({
+      // 2. Source/medium breakdown
+      const sourceRes = (await analytics.properties.runReport({
         property: propertyId,
         requestBody: {
           dateRanges: [{ startDate, endDate }],
@@ -142,11 +138,11 @@ export class GA4Service {
             { name: "totalRevenue" },
           ],
           orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-          limit: 25,
+          limit: "25",
         },
-      });
+      })) as { data: RunReportResponse };
 
-      const bySource = (sourceRes.data.rows || []).map((r) => ({
+      const bySource = (sourceRes.data.rows || []).map((r: Row) => ({
         sourceMedium: r.dimensionValues?.[0]?.value || "unknown",
         sessions: parseInt(r.metricValues?.[0]?.value || "0"),
         users: parseInt(r.metricValues?.[1]?.value || "0"),
@@ -154,8 +150,8 @@ export class GA4Service {
         revenue: parseFloat(r.metricValues?.[3]?.value || "0"),
       }));
 
-      // 3. Pull top landing pages
-      const landingRes = await analytics.properties.runReport({
+      // 3. Top landing pages
+      const landingRes = (await analytics.properties.runReport({
         property: propertyId,
         requestBody: {
           dateRanges: [{ startDate, endDate }],
@@ -167,11 +163,11 @@ export class GA4Service {
             { name: "bounceRate" },
           ],
           orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
-          limit: 50,
+          limit: "50",
         },
-      });
+      })) as { data: RunReportResponse };
 
-      const landingPages = (landingRes.data.rows || []).map((r) => ({
+      const landingPages = (landingRes.data.rows || []).map((r: Row) => ({
         path: r.dimensionValues?.[0]?.value || "/",
         sessions: parseInt(r.metricValues?.[0]?.value || "0"),
         conversions: parseInt(r.metricValues?.[1]?.value || "0"),
@@ -179,27 +175,29 @@ export class GA4Service {
         bounceRate: parseFloat(r.metricValues?.[3]?.value || "0"),
       }));
 
-      // 4. Update cached summary + breakdown on integration
+      // 4. Cached summary
       const totalSessions = rows.reduce(
-        (s, r) => s + parseInt(r.metricValues?.[0]?.value || "0"),
+        (s: number, r: Row) => s + parseInt(r.metricValues?.[0]?.value || "0"),
         0,
       );
       const totalUsers = rows.reduce(
-        (s, r) => s + parseInt(r.metricValues?.[1]?.value || "0"),
+        (s: number, r: Row) => s + parseInt(r.metricValues?.[1]?.value || "0"),
         0,
       );
       const totalConversions = rows.reduce(
-        (s, r) => s + parseInt(r.metricValues?.[6]?.value || "0"),
+        (s: number, r: Row) => s + parseInt(r.metricValues?.[6]?.value || "0"),
         0,
       );
       const totalRevenue = rows.reduce(
-        (s, r) => s + parseFloat(r.metricValues?.[7]?.value || "0"),
+        (s: number, r: Row) =>
+          s + parseFloat(r.metricValues?.[7]?.value || "0"),
         0,
       );
       const avgBounce =
         rows.length > 0
           ? rows.reduce(
-              (s, r) => s + parseFloat(r.metricValues?.[5]?.value || "0"),
+              (s: number, r: Row) =>
+                s + parseFloat(r.metricValues?.[5]?.value || "0"),
               0,
             ) / rows.length
           : 0;
@@ -230,37 +228,26 @@ export class GA4Service {
     } catch (e: any) {
       await prisma.domainIntegration.update({
         where: { id: integrationId },
-        data: {
-          status: "ERROR",
-          lastError: e.message,
-        },
+        data: { status: "ERROR", lastError: e.message },
       });
       return { days: 0, error: e.message };
     }
   }
 
-  /**
-   * Get realtime active users (for dashboard widget)
-   */
   async getRealtimeUsers(propertyId: string): Promise<number> {
     try {
       const analytics = await this.getAnalyticsData();
-      const res = await analytics.properties.runRealtimeReport({
+      const res = (await analytics.properties.runRealtimeReport({
         property: propertyId,
-        requestBody: {
-          metrics: [{ name: "activeUsers" }],
-        },
-      });
+        requestBody: { metrics: [{ name: "activeUsers" }] },
+      })) as any;
 
-      return parseInt(res.data.rows?.[0]?.metricValues?.[0]?.value || "0");
+      return parseInt(res.data?.rows?.[0]?.metricValues?.[0]?.value || "0");
     } catch {
       return 0;
     }
   }
 
-  /**
-   * Pull data for ALL active GA4 integrations
-   */
   async syncAll(startDate: string, endDate: string) {
     const integrations = await prisma.domainIntegration.findMany({
       where: {
@@ -283,7 +270,6 @@ export class GA4Service {
         domain: int.domain.label || int.domain.domain,
         ...result,
       });
-      // Rate limit: GA4 has 10 concurrent requests limit
       await new Promise((r) => setTimeout(r, 500));
     }
 
