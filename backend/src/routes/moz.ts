@@ -21,7 +21,8 @@ export async function mozRoutes(fastify: FastifyInstance) {
   // Sync external backlinks from Moz
   fastify.post("/:domainId/sync-backlinks", async (request) => {
     const { domainId } = request.params as { domainId: string };
-    return moz.syncExternalBacklinks(domainId);
+    const { force } = request.query as any;
+    return moz.syncExternalBacklinks(domainId, force === "true");
   });
 
   // Sync all domains (metrics + backlinks)

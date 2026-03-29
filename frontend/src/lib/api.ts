@@ -274,7 +274,9 @@ export const api = {
   syncMozMetrics: (domainId: string) =>
     request<any>(`/moz/${domainId}/sync-metrics`, { method: "POST" }),
   syncMozBacklinks: (domainId: string) =>
-    request<any>(`/moz/${domainId}/sync-backlinks`, { method: "POST" }),
+    request<any>(`/moz/${domainId}/sync-backlinks?force=true`, {
+      method: "POST",
+    }),
   syncMozAll: () => request<any>("/moz/sync-all", { method: "POST" }),
 
   getMozAnalytics: () => request<any>("/moz/analytics/overview"),
