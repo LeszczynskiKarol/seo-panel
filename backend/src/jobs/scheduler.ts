@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { GscService } from "../services/gsc.service.js";
 import { GA4Service } from "../services/ga4.service.js";
 import { MerchantService } from "../services/merchant.service.js";
+import { AlertDetectionService } from "../services/alert-detection.service.js";
 import { MozService } from "../services/moz.service.js";
 import { SitemapService } from "../services/sitemap.service.js";
 import { IndexingService } from "../services/indexing.service.js";
@@ -12,6 +13,7 @@ import { TimelineService } from "../services/timeline.service.js";
 const ga4Service = new GA4Service();
 const merchantService = new MerchantService();
 const gsc = new GscService();
+const alertDetection = new AlertDetectionService();
 const sitemap = new SitemapService();
 const indexing = new IndexingService();
 const crawler = new LinkCrawlerService();
@@ -277,6 +279,15 @@ export function startScheduler() {
     } catch (e: any) {
       console.error("❌ [CRON] Merchant sync failed:", e.message);
     }
+  });
+
+  //   🚨 Alert detection:   daily 09:30
+
+  cron.schedule("30 9 * * *", async () => {
+    console.log("🚨 Running cross-source alert detection...");
+    const result = await alertDetection.detectAll();
+    console.log(`🚨 Alert detection done: ${result.created} new alerts`);
+    result.checks.forEach((c) => console.log(`   ${c}`));
   });
 
   console.log("  🕷️  Link crawl:      daily 03:00");

@@ -372,6 +372,9 @@ export const api = {
   syncAdsSearchTerms: (domainId: string) =>
     request<any>(`/ads/${domainId}/sync-search-terms`, { method: "POST" }),
 
+  detectAlerts: () =>
+    request<any>("/analytics/detect-alerts", { method: "POST" }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

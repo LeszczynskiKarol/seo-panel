@@ -272,14 +272,37 @@ model Alert {
 }
 
 enum AlertType {
+  // Indexing
   PAGE_DEINDEXED       // PASS → FAIL/NEUTRAL
-  TRAFFIC_DROP         // >30% click drop week-over-week
-  BROKEN_LINK          // outbound 404
+  PAGE_INDEXED         // UNCHECKED/NEUTRAL/FAIL → PASS (nowa!)
   NEW_PAGE_NOT_INDEXED // in sitemap >7 days, still not PASS
+
+  // Traffic & Performance (GSC)
+  TRAFFIC_DROP         // >30% click drop week-over-week
   POSITION_DROP        // avg position dropped >5 positions
+
+  // Conversions & Revenue (GA4)
+  CONVERSION_DROP      // >30% conversion drop week-over-week
+  CONVERSION_SPIKE     // >50% conversion increase (positive alert)
+  REVENUE_DROP         // >30% revenue drop week-over-week
+
+  // Links
+  BROKEN_LINK          // outbound 404
+  BACKLINK_NEW         // new high-DA backlink discovered (Moz)
+  BACKLINK_LOST        // existing backlink lost (Moz)
+
+  // Moz / Authority
+  DA_CHANGE            // Domain Authority changed by ≥2 points
+
+  // Merchant Center
+  MERCHANT_DISAPPROVED // product(s) got disapproved
+  FEED_APPROVAL_DROP   // approval rate dropped >5%
+
+  // Technical
   CRAWL_ERROR          // fetch error during link crawl
   SITEMAP_CHANGE       // pages added/removed from sitemap
 }
+
 
 enum AlertSeverity {
   LOW

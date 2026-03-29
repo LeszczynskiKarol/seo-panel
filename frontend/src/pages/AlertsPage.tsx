@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { fmtDate, fmtDateTime, severityColor, cn } from "../lib/utils";
-import { AlertTriangle, CheckCircle, Filter } from "lucide-react";
+import { RefreshCw, AlertTriangle, CheckCircle, Filter } from "lucide-react";
 import { useState } from "react";
 
 export function AlertsPage() {
@@ -14,6 +14,10 @@ export function AlertsPage() {
     queryFn: () => api.getAlerts(params),
   });
 
+  const detectAlerts = useMutation({
+    mutationFn: () => api.detectAlerts(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
+  });
   const resolve = useMutation({
     mutationFn: (id: string) => api.resolveAlert(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
@@ -21,22 +25,40 @@ export function AlertsPage() {
 
   const typeLabel: Record<string, string> = {
     PAGE_DEINDEXED: "Deindeksacja",
+    PAGE_INDEXED: "Zaindeksowano",
     TRAFFIC_DROP: "Spadek ruchu",
     BROKEN_LINK: "Złamany link",
     NEW_PAGE_NOT_INDEXED: "Brak indeksacji",
     POSITION_DROP: "Spadek pozycji",
     CRAWL_ERROR: "Błąd crawla",
     SITEMAP_CHANGE: "Zmiana sitemap",
+    CONVERSION_DROP: "Spadek konwersji",
+    CONVERSION_SPIKE: "Wzrost konwersji",
+    REVENUE_DROP: "Spadek przychodu",
+    BACKLINK_NEW: "Nowy backlink",
+    BACKLINK_LOST: "Utracony backlink",
+    DA_CHANGE: "Zmiana DA",
+    MERCHANT_DISAPPROVED: "Produkt odrzucony",
+    FEED_APPROVAL_DROP: "Spadek approval",
   };
 
   const typeIcon: Record<string, string> = {
     PAGE_DEINDEXED: "🔴",
+    PAGE_INDEXED: "✅",
     TRAFFIC_DROP: "📉",
     BROKEN_LINK: "🔗",
     NEW_PAGE_NOT_INDEXED: "⏳",
     POSITION_DROP: "⬇️",
     CRAWL_ERROR: "❌",
     SITEMAP_CHANGE: "🗺️",
+    CONVERSION_DROP: "💸",
+    CONVERSION_SPIKE: "🚀",
+    REVENUE_DROP: "📉",
+    BACKLINK_NEW: "🔗✨",
+    BACKLINK_LOST: "🔗💔",
+    DA_CHANGE: "📊",
+    MERCHANT_DISAPPROVED: "🛒❌",
+    FEED_APPROVAL_DROP: "🛒📉",
   };
 
   return (
@@ -55,6 +77,18 @@ export function AlertsPage() {
           <Filter className="w-3.5 h-3.5" />
           {showResolved ? "Ukryj rozwiązane" : "Pokaż rozwiązane"}
         </button>
+        <button
+          className="btn btn-primary text-xs flex items-center gap-1.5"
+          onClick={() => detectAlerts.mutate()}
+          disabled={detectAlerts.isPending}
+        >
+          {detectAlerts.isPending ? (
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <AlertTriangle className="w-3.5 h-3.5" />
+          )}
+          Wykryj alerty
+        </button>
       </div>
 
       {!alerts || alerts.length === 0 ? (
@@ -69,7 +103,7 @@ export function AlertsPage() {
               key={a.id}
               className={cn(
                 "bg-panel-card border border-panel-border rounded-lg p-4 flex items-start gap-4 transition-all",
-                a.isResolved && "opacity-50"
+                a.isResolved && "opacity-50",
               )}
             >
               <div className="text-lg shrink-0 mt-0.5">
@@ -81,7 +115,7 @@ export function AlertsPage() {
                   <span
                     className={cn(
                       "text-[10px] font-bold uppercase tracking-wide",
-                      severityColor(a.severity)
+                      severityColor(a.severity),
                     )}
                   >
                     {a.severity}
@@ -111,7 +145,8 @@ export function AlertsPage() {
 
                 <div className="text-[10px] text-panel-muted mt-2 font-mono">
                   {fmtDateTime(a.createdAt)}
-                  {a.isResolved && ` · Rozwiązano: ${fmtDateTime(a.resolvedAt)}`}
+                  {a.isResolved &&
+                    ` · Rozwiązano: ${fmtDateTime(a.resolvedAt)}`}
                 </div>
               </div>
 

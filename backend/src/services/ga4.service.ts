@@ -275,4 +275,78 @@ export class GA4Service {
 
     return results;
   }
+  // ═══════════════════════════════════════════════════════════
+  // DODAJ te dwie metody do klasy GA4Service w ga4.service.ts
+  // (przed metodą syncAll)
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Get source/medium breakdown for a date range (live API call)
+   */
+  async getSourceBreakdown(
+    propertyId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<any[]> {
+    const analytics = await this.getAnalyticsData();
+
+    const res = (await analytics.properties.runReport({
+      property: propertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: "sessionSourceMedium" }],
+        metrics: [
+          { name: "sessions" },
+          { name: "totalUsers" },
+          { name: "conversions" },
+          { name: "totalRevenue" },
+        ],
+        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+        limit: "25",
+      },
+    })) as { data: RunReportResponse };
+
+    return (res.data.rows || []).map((r: Row) => ({
+      sourceMedium: r.dimensionValues?.[0]?.value || "unknown",
+      sessions: parseInt(r.metricValues?.[0]?.value || "0"),
+      users: parseInt(r.metricValues?.[1]?.value || "0"),
+      conversions: parseInt(r.metricValues?.[2]?.value || "0"),
+      revenue: parseFloat(r.metricValues?.[3]?.value || "0"),
+    }));
+  }
+
+  /**
+   * Get top landing pages for a date range (live API call)
+   */
+  async getLandingPages(
+    propertyId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<any[]> {
+    const analytics = await this.getAnalyticsData();
+
+    const res = (await analytics.properties.runReport({
+      property: propertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: "landingPagePlusQueryString" }],
+        metrics: [
+          { name: "sessions" },
+          { name: "conversions" },
+          { name: "totalRevenue" },
+          { name: "bounceRate" },
+        ],
+        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+        limit: "50",
+      },
+    })) as { data: RunReportResponse };
+
+    return (res.data.rows || []).map((r: Row) => ({
+      path: r.dimensionValues?.[0]?.value || "/",
+      sessions: parseInt(r.metricValues?.[0]?.value || "0"),
+      conversions: parseInt(r.metricValues?.[1]?.value || "0"),
+      revenue: parseFloat(r.metricValues?.[2]?.value || "0"),
+      bounceRate: parseFloat(r.metricValues?.[3]?.value || "0"),
+    }));
+  }
 }

@@ -128,6 +128,16 @@ export function DomainDetailPage() {
 
   const [newDomainKw, setNewDomainKw] = useState("");
 
+  const syncMozMetrics = useMutation({
+    mutationFn: async () => {
+      await api.syncMozMetrics(id!);
+      await api.syncMozBacklinks(id!);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["domain", id] });
+    },
+  });
+
   const addDomainKw = useMutation({
     mutationFn: (kw: string) => api.addDomainKeyword(id!, kw),
     onSuccess: () => {
@@ -382,6 +392,17 @@ export function DomainDetailPage() {
                 "Crawl links"
               )}
             </button>
+            <button
+              className="btn btn-ghost text-xs"
+              onClick={() => syncMozMetrics.mutate()}
+              disabled={syncMozMetrics.isPending}
+            >
+              {syncMozMetrics.isPending ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                "Sync Moz"
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -396,7 +417,7 @@ export function DomainDetailPage() {
         setEndDate={setOverviewEnd}
       />
 
-      {/* Stats row — using range-aggregated data */}
+      {/* Stats row — GSC + Indexing */}
       <div className="grid grid-cols-5 gap-3">
         <MiniStat
           label="Indeksowanie"
@@ -438,6 +459,56 @@ export function DomainDetailPage() {
           <DualMetricChart data={d.dailyStats} height={180} showPosition />
         </div>
       )}
+
+      {d.mozDA != null && (
+        <div>
+          <div className="grid grid-cols-5 gap-3">
+            <MiniStat
+              label="Domain Authority"
+              value={d.mozDA?.toFixed(0) || "—"}
+              color={
+                d.mozDA >= 40
+                  ? "#22c55e"
+                  : d.mozDA >= 20
+                    ? "#f59e0b"
+                    : "#ef4444"
+              }
+            />
+            <MiniStat
+              label="Page Authority"
+              value={d.mozPA?.toFixed(0) || "—"}
+              color="#3b82f6"
+            />
+            <MiniStat
+              label="Spam Score"
+              value={d.mozSpamScore?.toFixed(0) || "—"}
+              color={
+                (d.mozSpamScore || 0) <= 30
+                  ? "#22c55e"
+                  : (d.mozSpamScore || 0) <= 60
+                    ? "#f59e0b"
+                    : "#ef4444"
+              }
+            />
+            <MiniStat
+              label="External Links"
+              value={fmtNumber(d.mozLinks || 0)}
+              color="#06b6d4"
+            />
+            <MiniStat
+              label="Linking Domains"
+              value={fmtNumber(d.mozDomains || 0)}
+              color="#a855f7"
+            />
+          </div>
+          {d.mozLastSync && (
+            <div className="text-[9px] text-panel-dim mt-1 text-right">
+              Moz sync: {fmtDate(d.mozLastSync)}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Indexing breakdown */}
       {d.indexingStats?.length > 0 && (
         <div className="flex gap-3">
@@ -3247,16 +3318,6 @@ function MozSection({ domainId }: { domainId: string }) {
     queryFn: () => api.getMozData(domainId),
   });
 
-  const syncMetrics = useMutation({
-    mutationFn: () => api.syncMozMetrics(domainId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["moz-data", domainId] }),
-  });
-
-  const syncBacklinks = useMutation({
-    mutationFn: () => api.syncMozBacklinks(domainId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["moz-data", domainId] }),
-  });
-
   if (isLoading) {
     return (
       <div className="bg-panel-card border border-panel-border rounded-lg p-8 text-center">
@@ -3267,96 +3328,53 @@ function MozSection({ domainId }: { domainId: string }) {
 
   if (!moz) return null;
 
+  // ─── Group backlinks by domain ───
+  const backlinks = moz.backlinks || [];
+  const byDomain = new Map<string, any[]>();
+  for (const bl of backlinks) {
+    if (!byDomain.has(bl.sourceDomain)) byDomain.set(bl.sourceDomain, []);
+    byDomain.get(bl.sourceDomain)!.push(bl);
+  }
+  const domainGroups = Array.from(byDomain.entries())
+    .map(([domain, links]) => {
+      const avgDA =
+        links.reduce((s: number, l: any) => s + (l.mozSourceDA || 0), 0) /
+        links.length;
+      const avgPA =
+        links.reduce((s: number, l: any) => s + (l.mozSourcePA || 0), 0) /
+        links.length;
+      const avgSpam =
+        links.reduce((s: number, l: any) => s + (l.mozSourceSpam || 0), 0) /
+        links.length;
+      return { domain, links, avgDA, avgPA, avgSpam, count: links.length };
+    })
+    .sort((a, b) => b.avgDA - a.avgDA);
+
+  // ─── Group backlinks by anchor text ───
+  const byAnchor = new Map<string, any[]>();
+  for (const bl of backlinks) {
+    const anchor = bl.anchorText || "(pusty)";
+    if (!byAnchor.has(anchor)) byAnchor.set(anchor, []);
+    byAnchor.get(anchor)!.push(bl);
+  }
+  const anchorGroups = Array.from(byAnchor.entries())
+    .map(([anchor, links]) => {
+      const uniqueDomains = new Set(links.map((l: any) => l.sourceDomain)).size;
+      return { anchor, links, uniqueDomains, count: links.length };
+    })
+    .sort((a, b) => b.uniqueDomains - a.uniqueDomains || b.count - a.count);
+
   return (
     <div className="space-y-3">
-      {/* Moz header with sync buttons */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="text-xs font-semibold text-panel-text">Moz Data</div>
-          {moz.mozLastSync && (
-            <span className="text-[9px] text-panel-muted">
-              sync: {fmtDate(moz.mozLastSync)}
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button
-            className="btn btn-ghost text-xs"
-            onClick={() => syncMetrics.mutate()}
-            disabled={syncMetrics.isPending}
-          >
-            {syncMetrics.isPending ? (
-              <RefreshCw className="w-3 h-3 animate-spin" />
-            ) : (
-              "Sync DA/PA"
-            )}
-          </button>
-          <button
-            className="btn btn-ghost text-xs"
-            onClick={() => syncBacklinks.mutate()}
-            disabled={syncBacklinks.isPending}
-          >
-            {syncBacklinks.isPending ? (
-              <RefreshCw className="w-3 h-3 animate-spin" />
-            ) : (
-              "Sync Backlinks (Moz)"
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Domain Authority stats */}
-      {moz.mozDA != null && (
-        <div className="grid grid-cols-5 gap-2">
-          <MozMetricCard
-            label="Domain Authority"
-            value={moz.mozDA?.toFixed(0) || "—"}
-            color={
-              moz.mozDA >= 40
-                ? "#22c55e"
-                : moz.mozDA >= 20
-                  ? "#f59e0b"
-                  : "#ef4444"
-            }
-          />
-          <MozMetricCard
-            label="Page Authority"
-            value={moz.mozPA?.toFixed(0) || "—"}
-            color="#3b82f6"
-          />
-          <MozMetricCard
-            label="Spam Score"
-            value={moz.mozSpamScore?.toFixed(0) || "—"}
-            color={
-              moz.mozSpamScore <= 30
-                ? "#22c55e"
-                : moz.mozSpamScore <= 60
-                  ? "#f59e0b"
-                  : "#ef4444"
-            }
-          />
-          <MozMetricCard
-            label="External Links"
-            value={fmtNumber(moz.mozLinks || 0)}
-            color="#06b6d4"
-          />
-          <MozMetricCard
-            label="Linking Domains"
-            value={fmtNumber(moz.mozDomains || 0)}
-            color="#a855f7"
-          />
-        </div>
-      )}
-
-      {/* Moz Backlinks table */}
-      {moz.backlinks?.length > 0 && (
+      {/* Moz Backlinks — grouped by domain, COLLAPSED by default */}
+      {backlinks.length > 0 && (
         <CollapsibleSection
           title={`Backlinki z Moz — ${moz.stats.total} linków z ${moz.stats.uniqueDomains} domen`}
           icon={<ExternalLink className="w-3.5 h-3.5 text-accent-blue" />}
           badge={
             <div className="flex gap-3 text-[10px] text-panel-muted">
               <span>
-                Śr. DA źródła:{" "}
+                Śr. DA:{" "}
                 <strong className="text-accent-green">
                   {moz.stats.avgSourceDA}
                 </strong>
@@ -3373,152 +3391,31 @@ function MozSection({ domainId }: { domainId: string }) {
               </span>
             </div>
           }
-          defaultOpen
+          defaultOpen={false}
         >
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Domena źródłowa</th>
-                  <th>DA</th>
-                  <th>PA</th>
-                  <th>Spam</th>
-                  <th>Cel</th>
-                  <th>Anchor</th>
-                  <th>Typ</th>
-                  <th>Status</th>
-                  <th>Wykryto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {moz.backlinks.map((bl: any) => (
-                  <tr key={bl.id}>
-                    <td>
-                      <a
-                        href={bl.sourceUrl}
-                        target="_blank"
-                        className="text-accent-blue hover:underline font-mono text-[10px]"
-                      >
-                        {bl.sourceDomain}
-                      </a>
-                    </td>
-                    <td>
-                      <span
-                        className={cn(
-                          "font-mono font-bold",
-                          bl.mozSourceDA >= 40
-                            ? "text-accent-green"
-                            : bl.mozSourceDA >= 20
-                              ? "text-accent-amber"
-                              : "text-accent-red",
-                        )}
-                      >
-                        {bl.mozSourceDA?.toFixed(0) || "—"}
-                      </span>
-                    </td>
-                    <td className="text-accent-blue font-mono">
-                      {bl.mozSourcePA?.toFixed(0) || "—"}
-                    </td>
-                    <td
-                      className={cn(
-                        "font-mono",
-                        bl.mozSourceSpam <= 30
-                          ? "text-accent-green"
-                          : bl.mozSourceSpam <= 60
-                            ? "text-accent-amber"
-                            : "text-accent-red",
-                      )}
-                    >
-                      {bl.mozSourceSpam?.toFixed(0) || "—"}
-                    </td>
-                    <td className="max-w-[180px] truncate">
-                      <a
-                        href={bl.targetUrl}
-                        target="_blank"
-                        className="text-accent-cyan hover:underline"
-                      >
-                        {bl.page?.path ||
-                          bl.targetUrl.replace(/^https?:\/\/[^/]+/, "")}
-                      </a>
-                    </td>
-                    <td className="text-panel-muted max-w-[120px] truncate">
-                      {bl.anchorText || "—"}
-                    </td>
-                    <td>
-                      <span
-                        className={cn(
-                          "badge",
-                          bl.isDofollow ? "badge-pass" : "badge-neutral",
-                        )}
-                      >
-                        {bl.isDofollow ? "do" : "no"}
-                      </span>
-                    </td>
-                    <td>
-                      <span
-                        className={cn(
-                          "badge",
-                          bl.isLive ? "badge-pass" : "badge-fail",
-                        )}
-                      >
-                        {bl.isLive ? "live" : "lost"}
-                      </span>
-                    </td>
-                    <td className="text-panel-muted text-[10px]">
-                      {fmtDate(bl.firstSeen)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <MozBacklinksGrouped groups={domainGroups} />
         </CollapsibleSection>
       )}
 
-      {/* Anchor text distribution */}
-      {moz.mozAnchors?.length > 0 && (
+      {/* Anchor text — expandable, COLLAPSED by default */}
+      {anchorGroups.length > 0 && (
         <CollapsibleSection
-          title="Dystrybucja anchor text (Moz)"
+          title={`Dystrybucja anchor text (Moz) — ${anchorGroups.length} unikalnych`}
           icon={<Search className="w-3.5 h-3.5 text-accent-amber" />}
           badge={
             <span className="text-[10px] text-panel-muted">
-              {moz.mozAnchors.length} unikalnych
+              {backlinks.length} linków łącznie
             </span>
           }
+          defaultOpen={false}
         >
-          <div className="p-4 space-y-1.5">
-            {moz.mozAnchors.map((a: any, i: number) => {
-              const maxDomains = moz.mozAnchors[0]?.externalDomains || 1;
-              const pct = Math.round((a.externalDomains / maxDomains) * 100);
-              return (
-                <div key={i} className="flex items-center gap-2 text-[11px]">
-                  <span className="font-mono text-accent-amber truncate w-48">
-                    "{a.text || "(pusty)"}"
-                  </span>
-                  <div className="flex-1 h-1.5 bg-panel-border/30 rounded overflow-hidden">
-                    <div
-                      className="h-full bg-accent-amber/50 rounded"
-                      style={{ width: `${Math.max(pct, 2)}%` }}
-                    />
-                  </div>
-                  <span className="text-panel-muted shrink-0 w-16 text-right">
-                    {a.externalDomains} domen
-                  </span>
-                  <span className="text-panel-dim shrink-0 w-16 text-right">
-                    {a.externalPages} stron
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <MozAnchorsGrouped groups={anchorGroups} />
         </CollapsibleSection>
       )}
 
-      {/* No data state */}
-      {!moz.mozDA && !moz.backlinks?.length && (
+      {!moz.mozDA && !backlinks.length && (
         <div className="bg-panel-card border border-panel-border rounded-lg p-6 text-center text-panel-muted text-sm">
-          Brak danych Moz. Kliknij "Sync DA/PA" lub "Sync Backlinks (Moz)" aby
-          pobrać dane.
+          Brak danych Moz. Kliknij "Sync Moz" aby pobrać dane.
         </div>
       )}
     </div>
@@ -3562,6 +3459,324 @@ function MiniStat({
       </div>
       <div className="text-[10px] text-panel-muted mt-0.5">{label}</div>
       {sub && <div className="text-[10px] text-panel-dim font-mono">{sub}</div>}
+    </div>
+  );
+}
+
+function MozBacklinksGrouped({ groups }: { groups: any[] }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (domain: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(domain) ? next.delete(domain) : next.add(domain);
+      return next;
+    });
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Domena źródłowa</th>
+            <th>Linków</th>
+            <th>DA</th>
+            <th>PA</th>
+            <th>Spam</th>
+            <th>Typ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map((group) => {
+            const isOpen = expanded.has(group.domain);
+            const doCount = group.links.filter((l: any) => l.isDofollow).length;
+            const noCount = group.links.length - doCount;
+
+            return (
+              <React.Fragment key={group.domain}>
+                {/* Domain summary row */}
+                <tr
+                  className="cursor-pointer hover:bg-panel-hover/20"
+                  onClick={() => toggle(group.domain)}
+                >
+                  <td>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-panel-muted">
+                        {isOpen ? "▼" : "▶"}
+                      </span>
+                      <Globe className="w-3 h-3 text-accent-blue shrink-0" />
+                      <a
+                        href={`https://${group.domain}`}
+                        target="_blank"
+                        className="text-accent-blue hover:underline font-semibold"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {group.domain}
+                      </a>
+                    </div>
+                  </td>
+                  <td className="text-accent-cyan font-semibold">
+                    {group.count}
+                  </td>
+                  <td>
+                    <span
+                      className={cn(
+                        "font-mono font-bold",
+                        group.avgDA >= 40
+                          ? "text-accent-green"
+                          : group.avgDA >= 20
+                            ? "text-accent-amber"
+                            : "text-accent-red",
+                      )}
+                    >
+                      {group.avgDA.toFixed(0)}
+                    </span>
+                  </td>
+                  <td className="text-accent-blue font-mono">
+                    {group.avgPA.toFixed(0)}
+                  </td>
+                  <td
+                    className={cn(
+                      "font-mono",
+                      group.avgSpam <= 30
+                        ? "text-accent-green"
+                        : group.avgSpam <= 60
+                          ? "text-accent-amber"
+                          : "text-accent-red",
+                    )}
+                  >
+                    {group.avgSpam.toFixed(0)}
+                  </td>
+                  <td>
+                    <span
+                      className={cn(
+                        "badge",
+                        doCount > 0 && noCount === 0
+                          ? "badge-pass"
+                          : "badge-neutral",
+                      )}
+                    >
+                      {doCount}do / {noCount}no
+                    </span>
+                  </td>
+                </tr>
+
+                {/* Expanded — individual links */}
+                {isOpen &&
+                  group.links.map((bl: any) => (
+                    <tr key={bl.id} className="bg-panel-bg/30">
+                      <td className="pl-8 max-w-[250px] truncate" colSpan={2}>
+                        <a
+                          href={bl.sourceUrl}
+                          target="_blank"
+                          className="text-panel-dim hover:underline text-[10px]"
+                        >
+                          {bl.sourceUrl
+                            .replace(/^https?:\/\//, "")
+                            .slice(0, 70)}
+                        </a>
+                      </td>
+                      <td colSpan={2} className="max-w-[180px] truncate">
+                        <span className="text-[9px] text-panel-muted mr-1">
+                          →
+                        </span>
+                        <a
+                          href={bl.targetUrl}
+                          target="_blank"
+                          className="text-accent-cyan hover:underline text-[10px]"
+                        >
+                          {bl.page?.path ||
+                            bl.targetUrl.replace(/^https?:\/\/[^/]+/, "")}
+                        </a>
+                      </td>
+                      <td className="text-panel-muted max-w-[120px] truncate text-[10px]">
+                        {bl.anchorText || "—"}
+                      </td>
+                      <td>
+                        <span
+                          className={cn(
+                            "badge",
+                            bl.isDofollow ? "badge-pass" : "badge-neutral",
+                          )}
+                        >
+                          {bl.isDofollow ? "do" : "no"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MozAnchorsGrouped({ groups }: { groups: any[] }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (anchor: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(anchor) ? next.delete(anchor) : next.add(anchor);
+      return next;
+    });
+  };
+
+  const maxDomains = groups[0]?.uniqueDomains || 1;
+
+  return (
+    <div className="p-4 space-y-1">
+      {groups.map((g, i) => {
+        const isOpen = expanded.has(g.anchor);
+        const pctBar = Math.round((g.uniqueDomains / maxDomains) * 100);
+
+        // Group links by domain for expanded view
+        const byDomain = new Map<string, any[]>();
+        for (const bl of g.links) {
+          if (!byDomain.has(bl.sourceDomain)) byDomain.set(bl.sourceDomain, []);
+          byDomain.get(bl.sourceDomain)!.push(bl);
+        }
+        const domainList = Array.from(byDomain.entries())
+          .map(([domain, links]) => ({ domain, links, count: links.length }))
+          .sort((a, b) => b.count - a.count);
+
+        return (
+          <div key={i}>
+            {/* Anchor summary row — clickable */}
+            <div
+              className="flex items-center gap-2 text-[11px] cursor-pointer hover:bg-panel-hover/20 rounded px-2 py-1.5 -mx-2 transition-all"
+              onClick={() => toggle(g.anchor)}
+            >
+              <span className="text-[9px] text-panel-muted">
+                {isOpen ? "▼" : "▶"}
+              </span>
+              <span className="font-mono text-accent-amber truncate w-56">
+                "{g.anchor}"
+              </span>
+              <div className="flex-1 h-1.5 bg-panel-border/30 rounded overflow-hidden">
+                <div
+                  className="h-full bg-accent-amber/50 rounded"
+                  style={{ width: `${Math.max(pctBar, 2)}%` }}
+                />
+              </div>
+              <span className="text-panel-muted shrink-0 w-16 text-right">
+                {g.uniqueDomains} domen
+              </span>
+              <span className="text-panel-dim shrink-0 w-16 text-right">
+                {g.count} linków
+              </span>
+            </div>
+
+            {/* Expanded — domains using this anchor */}
+            {isOpen && (
+              <div className="ml-6 mt-1 mb-2 border-l-2 border-accent-amber/20 pl-3 space-y-1">
+                {domainList.map((dg) => (
+                  <MozAnchorDomainGroup
+                    key={dg.domain}
+                    domain={dg.domain}
+                    links={dg.links}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MozAnchorDomainGroup({
+  domain,
+  links,
+}: {
+  domain: string;
+  links: any[];
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div>
+      <div
+        className="flex items-center gap-2 text-[10px] cursor-pointer hover:bg-panel-hover/20 rounded px-1 py-0.5 transition-all"
+        onClick={() => setOpen(!open)}
+      >
+        <span className="text-[8px] text-panel-muted">{open ? "▼" : "▶"}</span>
+        <Globe className="w-2.5 h-2.5 text-accent-blue shrink-0" />
+        <a
+          href={`https://${domain}`}
+          target="_blank"
+          className="text-accent-blue hover:underline font-semibold"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {domain}
+        </a>
+        <span className="text-panel-muted">
+          {links.length} {links.length === 1 ? "link" : "linków"}
+        </span>
+        {links[0]?.mozSourceDA > 0 && (
+          <span
+            className={cn(
+              "font-mono text-[9px]",
+              links[0].mozSourceDA >= 40
+                ? "text-accent-green"
+                : links[0].mozSourceDA >= 20
+                  ? "text-accent-amber"
+                  : "text-accent-red",
+            )}
+          >
+            DA {links[0].mozSourceDA.toFixed(0)}
+          </span>
+        )}
+        <span
+          className={cn(
+            "badge ml-auto",
+            links.every((l: any) => l.isDofollow)
+              ? "badge-pass"
+              : "badge-neutral",
+          )}
+        >
+          {links.filter((l: any) => l.isDofollow).length}do
+        </span>
+      </div>
+
+      {open && (
+        <div className="ml-5 mt-0.5 mb-1 space-y-0.5">
+          {links.map((bl: any) => (
+            <div
+              key={bl.id}
+              className="flex items-center gap-2 text-[9px] text-panel-dim pl-1"
+            >
+              <a
+                href={bl.sourceUrl}
+                target="_blank"
+                className="hover:underline truncate flex-1"
+              >
+                {bl.sourceUrl.replace(/^https?:\/\//, "").slice(0, 60)}
+              </a>
+              <span className="text-panel-muted">→</span>
+              <a
+                href={bl.targetUrl}
+                target="_blank"
+                className="text-accent-cyan hover:underline truncate max-w-[150px]"
+              >
+                {bl.page?.path || bl.targetUrl.replace(/^https?:\/\/[^/]+/, "")}
+              </a>
+              <span
+                className={cn(
+                  "badge",
+                  bl.isDofollow ? "badge-pass" : "badge-neutral",
+                )}
+              >
+                {bl.isDofollow ? "do" : "no"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

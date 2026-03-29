@@ -453,12 +453,6 @@ function GA4Dashboard({
     refetchInterval: 30000,
   });
 
-  const { data: landingData } = useQuery({
-    queryKey: ["integration-landing", domainId, integration.id],
-    queryFn: () => api.getIntegrationLandingPages(domainId, integration.id),
-    enabled: activeTab === "landing",
-  });
-
   // Re-sync: pull fresh data from GA4 API for selected date range
   const resyncMutation = useMutation({
     mutationFn: () =>
@@ -685,14 +679,16 @@ function GA4Dashboard({
       {/* ═══ SOURCES TAB ═══ */}
       {activeTab === "sources" && (
         <div className="px-4 pb-4">
-          <SourcesTable sources={cached?.bySource || []} />
+          <SourcesTable sources={data?.bySource || cached?.bySource || []} />
         </div>
       )}
 
       {/* ═══ LANDING PAGES TAB ═══ */}
       {activeTab === "landing" && (
         <div className="px-4 pb-4">
-          <LandingPagesTable pages={landingData?.pages || []} />
+          <LandingPagesTable
+            pages={data?.landingPages || cached?.landingPages || []}
+          />
         </div>
       )}
     </div>

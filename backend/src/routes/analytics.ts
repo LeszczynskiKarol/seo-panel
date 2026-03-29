@@ -3,6 +3,7 @@
 import { prisma } from "../lib/prisma.js";
 import { FastifyInstance } from "fastify";
 import { AnalyticsService } from "../services/analytics.service.js";
+import { AlertDetectionService } from "../services/alert-detection.service.js";
 
 const analytics = new AnalyticsService();
 
@@ -134,5 +135,10 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         output: m._sum.outputTokens || 0,
       })),
     };
+  });
+
+  fastify.post("/detect-alerts", async () => {
+    const alertDetection = new AlertDetectionService();
+    return alertDetection.detectAll();
   });
 }

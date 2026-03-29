@@ -241,6 +241,9 @@ export async function integrationRoutes(fastify: FastifyInstance) {
 
     // Aggregate stats for the period
     let aggregate: any = {};
+    let bySource: any[] = [];
+    let landingPages: any[] = [];
+
     if (integration.provider === "GOOGLE_ANALYTICS") {
       aggregate = {
         totalSessions: daily.reduce((s, d) => s + (d.sessions || 0), 0),
@@ -266,12 +269,48 @@ export async function integrationRoutes(fastify: FastifyInstance) {
               )
             : 0,
       };
+
+      // Live GA4 query for source/medium + landing pages for the selected range
+      if (integration.propertyId) {
+        const startStr =
+          startDate ||
+          new Date(Date.now() - d * 86400000).toISOString().split("T")[0];
+        const endStr = endDate || new Date().toISOString().split("T")[0];
+
+        try {
+          bySource = await ga4.getSourceBreakdown(
+            integration.propertyId,
+            startStr,
+            endStr,
+          );
+        } catch (e: any) {
+          console.log("GA4 source query failed:", e.message?.slice(0, 100));
+          // Fallback to cached
+          bySource = (integration.cachedData as any)?.bySource || [];
+        }
+
+        try {
+          landingPages = await ga4.getLandingPages(
+            integration.propertyId,
+            startStr,
+            endStr,
+          );
+        } catch (e: any) {
+          console.log(
+            "GA4 landing pages query failed:",
+            e.message?.slice(0, 100),
+          );
+          landingPages = (integration.cachedData as any)?.landingPages || [];
+        }
+      }
     }
 
     return {
       integration,
       daily,
       aggregate,
+      bySource,
+      landingPages,
       cached: integration.cachedData,
     };
   });
