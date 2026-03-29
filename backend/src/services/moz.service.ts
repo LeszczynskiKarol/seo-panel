@@ -199,21 +199,23 @@ export class MozService {
     const links = linksData.results || [];
     totalRows += links.length;
     console.log(`[Moz] Got ${links.length} links from API for ${target}`);
+    if (links.length > 0) {
+      console.log(`[Moz] Sample link:`, JSON.stringify(links[0]));
+    }
 
     for (const link of links) {
-      const sourceUrl = link.page || "";
-      const sourceDomain = link.root_domain || link.subdomain || "";
-      const targetUrl = link.target || "";
+      const sourceUrl = link.source?.page ? `https://${link.source.page}` : "";
+      const sourceDomain =
+        link.source?.root_domain || link.source?.subdomain || "";
+      const targetPage_ = link.target?.page
+        ? `https://${link.target.page}`
+        : "";
       const anchorText = link.anchor_text || null;
       const isDofollow = !link.nofollow;
 
       if (!sourceUrl || !sourceDomain) continue;
 
-      // Build target URL if not provided
-      let fullTargetUrl = targetUrl;
-      if (!fullTargetUrl || fullTargetUrl === target) {
-        fullTargetUrl = `https://${domain.domain}/`;
-      }
+      let fullTargetUrl = targetPage_ || `https://${domain.domain}/`;
 
       // Try to match target page in our DB
       let targetPath: string;
@@ -245,9 +247,11 @@ export class MozService {
             lostAt: null,
             anchorText: anchorText || existing.anchorText,
             isDofollow,
-            mozSourceDA: link.source_domain_authority || null,
-            mozSourcePA: link.source_page_authority || null,
-            mozSourceSpam: link.source_spam_score || null,
+            mozSourceDA: link.source?.domain_authority || null,
+            mozSourcePA: link.source?.page_authority || null,
+            mozSourceSpam:
+              link.source?.spam_score != null ? link.source.spam_score : null,
+
             pageId: targetPage?.id || existing.pageId,
             source: "MOZ",
           },
@@ -268,9 +272,9 @@ export class MozService {
               firstSeen: now,
               lastSeen: now,
               lastChecked: now,
-              mozSourceDA: link.source_domain_authority || null,
-              mozSourcePA: link.source_page_authority || null,
-              mozSourceSpam: link.source_spam_score || null,
+              mozSourceDA: link.source?.domain_authority || null,
+              mozSourcePA: link.source?.page_authority || null,
+              mozSourceSpam: link.source?.spam_score || null,
               source: "MOZ",
             },
           });
@@ -287,7 +291,7 @@ export class MozService {
                 sourceDomain,
                 targetUrl: fullTargetUrl,
                 anchor: anchorText,
-                da: link.source_domain_authority,
+                da: link.source?.domain_authority,
                 source: "moz",
               },
             },

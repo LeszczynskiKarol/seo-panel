@@ -7,6 +7,7 @@ import {
   Bell,
   Zap,
   Lightbulb,
+  MessageSquare,
   Activity,
   Clock,
 } from "lucide-react";
@@ -21,6 +22,7 @@ const NAV = [
   { to: "/timeline", icon: Clock, label: "Timeline" },
   { to: "/ai-links", icon: Zap, label: "AI Links" },
   { to: "/watchlist", icon: Eye, label: "Watchlist" },
+  { to: "/chat", icon: MessageSquare, label: "SEO Chat" },
   { to: "/api-analytics", icon: Activity, label: "API Claude" },
   { to: "/moz-analytics", icon: Shield, label: "Moz API" },
   { to: "/alerts", icon: Bell, label: "Alerty" },

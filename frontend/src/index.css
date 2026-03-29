@@ -86,4 +86,61 @@
   .section-header {
     @apply text-[9px] uppercase tracking-widest text-panel-muted font-semibold mb-1.5;
   }
+  .chat-markdown h1 {
+    @apply text-base font-bold mt-3 mb-1.5;
+  }
+  .chat-markdown h2 {
+    @apply text-sm font-bold mt-3 mb-1 text-panel-text;
+  }
+  .chat-markdown h3 {
+    @apply text-xs font-bold mt-2 mb-1 text-panel-text;
+  }
+  .chat-markdown p {
+    @apply mb-2;
+  }
+  .chat-markdown ul {
+    @apply list-disc pl-4 mb-2 space-y-0.5;
+  }
+  .chat-markdown ol {
+    @apply list-decimal pl-4 mb-2 space-y-0.5;
+  }
+  .chat-markdown li {
+    @apply text-xs;
+  }
+  .chat-markdown strong {
+    @apply font-bold text-panel-text;
+  }
+  .chat-markdown em {
+    @apply italic;
+  }
+  .chat-markdown code {
+    @apply bg-panel-bg/80 text-accent-cyan px-1 py-0.5 rounded text-[10px] font-mono;
+  }
+  .chat-markdown pre {
+    @apply bg-panel-bg border border-panel-border rounded-md p-3 mb-2 overflow-x-auto;
+  }
+  .chat-markdown pre code {
+    @apply bg-transparent p-0 text-[10px];
+  }
+  .chat-markdown blockquote {
+    @apply border-l-2 border-accent-purple pl-3 my-2 text-panel-muted italic;
+  }
+  .chat-markdown hr {
+    @apply border-panel-border my-3;
+  }
+  .chat-markdown a {
+    @apply text-accent-blue hover:underline;
+  }
+  .chat-markdown table {
+    @apply w-full text-[10px] border-collapse mb-2;
+  }
+  .chat-markdown th {
+    @apply text-left px-2 py-1 border-b border-panel-border font-semibold text-panel-muted bg-panel-bg/50;
+  }
+  .chat-markdown td {
+    @apply px-2 py-1 border-b border-panel-border/40;
+  }
+  .chat-markdown tr:hover td {
+    @apply bg-panel-hover/20;
+  }
 }

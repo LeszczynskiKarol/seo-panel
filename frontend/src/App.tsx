@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { WatchlistPage } from "./pages/WatchlistPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ChatPage } from "./pages/ChatPage";
 import { MozAnalyticsPage } from "./pages/MozAnalyticsPage";
 import { DomainDetailPage } from "./pages/DomainDetailPage";
 import { AILinksPage } from "./pages/AILinksPage";
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/insights" element={<InsightsPage />} />
         <Route path="/timeline" element={<TimelinePage />} />
         <Route path="/ai-links" element={<AILinksPage />} />
+        <Route path="/chat" element={<ChatPage />} />
         <Route path="/watchlist" element={<WatchlistPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/api-analytics" element={<APIAnalyticsPage />} />

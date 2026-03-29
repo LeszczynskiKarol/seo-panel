@@ -24,6 +24,7 @@ function calcCost(
 export async function aiCall(opts: {
   model?: string;
   messages: Anthropic.MessageParam[];
+  system?: string; // ← DODAJ
   max_tokens?: number;
   feature: string;
   domainId?: string;
@@ -46,6 +47,7 @@ export async function aiCall(opts: {
       model,
       max_tokens: opts.max_tokens || 4000,
       messages: opts.messages,
+      ...(opts.system ? { system: opts.system } : {}), // ← DODAJ
     });
 
     const durationMs = Date.now() - start;

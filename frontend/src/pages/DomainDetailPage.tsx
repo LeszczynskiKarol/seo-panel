@@ -1,3 +1,4 @@
+import React from "react";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1634,6 +1635,15 @@ function ExternalBacklinksTable({ domainId }: { domainId: string }) {
     queryKey: ["domain-backlinks-table", domainId],
     queryFn: () => api.getDomainBacklinks(domainId),
   });
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (domain: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(domain) ? next.delete(domain) : next.add(domain);
+      return next;
+    });
+  };
 
   if (isLoading || !data?.backlinks?.length) return null;
 
@@ -1678,108 +1688,139 @@ function ExternalBacklinksTable({ domainId }: { domainId: string }) {
             <th>Domena źródłowa</th>
             <th>Linków</th>
             <th>DA</th>
-            <th>Cel</th>
-            <th>Anchor</th>
             <th>Typ</th>
-            <th>Status</th>
             <th>Źródło</th>
-            <th>Wykryto</th>
           </tr>
         </thead>
         <tbody>
-          {data.byDomain.map((group: any) =>
-            group.links.map((bl: any, i: number) => (
-              <tr key={bl.id}>
-                {i === 0 && (
-                  <td
-                    rowSpan={group.links.length}
-                    className="align-top border-r border-panel-border/30"
-                  >
+          {data.byDomain.map((group: any) => {
+            const isOpen = expanded.has(group.domain);
+            const topLink = group.links[0];
+            const hasMoz = group.links.some((l: any) => l.source === "MOZ");
+            const avgDA =
+              group.links.reduce(
+                (s: number, l: any) => s + (l.mozSourceDA || 0),
+                0,
+              ) / group.links.length;
+
+            return (
+              <React.Fragment key={group.domain}>
+                {/* Domain summary row — always visible */}
+                <tr
+                  className="cursor-pointer hover:bg-panel-hover/20"
+                  onClick={() => toggle(group.domain)}
+                >
+                  <td>
                     <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-panel-muted">
+                        {isOpen ? "▼" : "▶"}
+                      </span>
                       <Globe className="w-3 h-3 text-accent-cyan shrink-0" />
+
                       <a
                         href={`https://${group.domain}`}
                         target="_blank"
                         className="text-accent-blue hover:underline font-semibold"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {group.domain}
                       </a>
                     </div>
-                    <div className="text-[9px] text-panel-muted mt-0.5">
-                      {group.count} linków
-                    </div>
                   </td>
-                )}
-                <td className="text-center font-semibold text-accent-cyan">
-                  {i === 0 ? group.count : ""}
-                </td>
-                <td>
-                  {bl.mozSourceDA != null ? (
+                  <td className="text-accent-cyan font-semibold">
+                    {group.count}
+                  </td>
+                  <td>
+                    {avgDA > 0 ? (
+                      <span
+                        className={cn(
+                          "font-mono font-bold text-[10px]",
+                          avgDA >= 40
+                            ? "text-accent-green"
+                            : avgDA >= 20
+                              ? "text-accent-amber"
+                              : "text-accent-red",
+                        )}
+                      >
+                        {avgDA.toFixed(0)}
+                      </span>
+                    ) : (
+                      <span className="text-panel-muted">—</span>
+                    )}
+                  </td>
+                  <td>
                     <span
                       className={cn(
-                        "font-mono font-bold text-[10px]",
-                        bl.mozSourceDA >= 40
-                          ? "text-accent-green"
-                          : bl.mozSourceDA >= 20
-                            ? "text-accent-amber"
-                            : "text-accent-red",
+                        "badge",
+                        group.links.every((l: any) => l.isDofollow)
+                          ? "badge-pass"
+                          : "badge-neutral",
                       )}
                     >
-                      {bl.mozSourceDA.toFixed(0)}
+                      {group.links.filter((l: any) => l.isDofollow).length}do /{" "}
+                      {group.links.filter((l: any) => !l.isDofollow).length}no
                     </span>
-                  ) : (
-                    <span className="text-panel-muted">—</span>
-                  )}
-                </td>
-                <td className="max-w-[200px] truncate">
-                  <a
-                    href={bl.targetUrl}
-                    target="_blank"
-                    className="text-accent-blue hover:underline"
-                  >
-                    {bl.page?.path ||
-                      bl.targetUrl.replace(/^https?:\/\/[^/]+/, "")}
-                  </a>
-                </td>
-                <td className="text-panel-muted max-w-[120px] truncate">
-                  {bl.anchorText || "—"}
-                </td>
-                <td>
-                  <span
-                    className={cn(
-                      "badge",
-                      bl.isDofollow ? "badge-pass" : "badge-neutral",
-                    )}
-                  >
-                    {bl.isDofollow ? "do" : "no"}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    className={cn(
-                      "badge",
-                      bl.isLive ? "badge-pass" : "badge-fail",
-                    )}
-                  >
-                    {bl.isLive ? "live" : "lost"}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    className={cn(
-                      "text-[9px] font-mono px-1 py-0.5 rounded",
-                      bl.source === "MOZ"
-                        ? "bg-accent-blue/10 text-accent-blue"
-                        : "bg-panel-border/30 text-panel-muted",
-                    )}
-                  >
-                    {bl.source === "MOZ" ? "moz" : "crawl"}
-                  </span>
-                </td>
-                <td className="text-panel-muted">{fmtDate(bl.firstSeen)}</td>
-              </tr>
-            )),
-          )}
+                  </td>
+                  <td>
+                    <span
+                      className={cn(
+                        "text-[9px] font-mono px-1 py-0.5 rounded",
+                        hasMoz
+                          ? "bg-accent-blue/10 text-accent-blue"
+                          : "bg-panel-border/30 text-panel-muted",
+                      )}
+                    >
+                      {hasMoz ? "moz" : "crawl"}
+                    </span>
+                  </td>
+                </tr>
+
+                {/* Expanded — individual links */}
+                {isOpen &&
+                  group.links.map((bl: any) => (
+                    <tr key={bl.id} className="bg-panel-bg/30">
+                      <td className="pl-8 max-w-[250px] truncate">
+                        <a
+                          href={bl.sourceUrl}
+                          target="_blank"
+                          className="text-panel-dim hover:underline text-[10px]"
+                        >
+                          {bl.sourceUrl
+                            .replace(/^https?:\/\//, "")
+                            .slice(0, 60)}
+                        </a>
+                      </td>
+                      <td className="max-w-[180px] truncate">
+                        <a
+                          href={bl.targetUrl}
+                          target="_blank"
+                          className="text-accent-blue hover:underline text-[10px]"
+                        >
+                          {bl.page?.path ||
+                            bl.targetUrl.replace(/^https?:\/\/[^/]+/, "")}
+                        </a>
+                      </td>
+                      <td className="text-panel-muted max-w-[120px] truncate text-[10px]">
+                        {bl.anchorText || "—"}
+                      </td>
+                      <td>
+                        <span
+                          className={cn(
+                            "badge",
+                            bl.isDofollow ? "badge-pass" : "badge-neutral",
+                          )}
+                        >
+                          {bl.isDofollow ? "do" : "no"}
+                        </span>
+                      </td>
+                      <td className="text-panel-muted text-[10px]">
+                        {fmtDate(bl.firstSeen)}
+                      </td>
+                    </tr>
+                  ))}
+              </React.Fragment>
+            );
+          })}
         </tbody>
       </table>
     </CollapsibleSection>

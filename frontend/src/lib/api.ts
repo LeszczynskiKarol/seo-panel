@@ -281,6 +281,18 @@ export const api = {
 
   getMozAnalytics: () => request<any>("/moz/analytics/overview"),
 
+  // Chat
+  sendChat: (question: string, conversationId?: string) =>
+    request<any>("/chat", {
+      method: "POST",
+      body: JSON.stringify({ question, conversationId }),
+    }),
+  getChatConversations: () => request<any[]>("/chat/conversations"),
+  getChatConversation: (id: string) =>
+    request<any>(`/chat/conversations/${id}`),
+  deleteChatConversation: (id: string) =>
+    request<void>(`/chat/conversations/${id}`, { method: "DELETE" }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };
