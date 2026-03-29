@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { domainRoutes } from "./routes/domains.js";
 import { aiRoutes } from "./routes/ai.js";
+import { mozRoutes } from "./routes/moz.js";
 import { registerAuth, authGuard } from "./lib/auth.js";
 import { overviewRoutes } from "./routes/overview.js";
 import { watchlistRoutes } from "./routes/watchlist.js";
@@ -34,6 +35,7 @@ fastify.register(importRoutes, { prefix: "/api" });
 fastify.register(analyticsRoutes, { prefix: "/api/analytics" });
 fastify.register(timelineRoutes, { prefix: "/api/timeline" });
 fastify.register(watchlistRoutes, { prefix: "/api/watchlist" });
+fastify.register(mozRoutes, { prefix: "/api/moz" });
 fastify.register(aiRoutes, { prefix: "/api/ai" });
 
 // Health check

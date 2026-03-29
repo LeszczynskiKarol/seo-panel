@@ -2,6 +2,7 @@ import { Outlet, NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   Globe,
+  Shield,
   Eye,
   Bell,
   Zap,
@@ -19,8 +20,9 @@ const NAV = [
   { to: "/insights", icon: Lightbulb, label: "Insights" },
   { to: "/timeline", icon: Clock, label: "Timeline" },
   { to: "/ai-links", icon: Zap, label: "AI Links" },
-  { to: "/api-analytics", icon: Activity, label: "API Claude" },
   { to: "/watchlist", icon: Eye, label: "Watchlist" },
+  { to: "/api-analytics", icon: Activity, label: "API Claude" },
+  { to: "/moz-analytics", icon: Shield, label: "Moz API" },
   { to: "/alerts", icon: Bell, label: "Alerty" },
 ];
 
@@ -80,8 +82,8 @@ export function Layout() {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="animate-fade-in">
+      <main className="flex-1 overflow-y-auto min-w-0 overflow-x-hidden">
+        <div className="animate-fade-in max-w-full">
           <Outlet />
         </div>
       </main>

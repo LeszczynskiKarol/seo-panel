@@ -28,7 +28,7 @@ model Domain {
   isActive        Boolean   @default(true)
 
   linkGroup       String?   // e.g. "EDU", "COPY", "MOTORS", "PERSONAL"
-  linkRole        String?   // "MAIN" | "SATELLITE" | "SUPPORT"
+  linkRole        String?   // "MAIN" | "SATELLITE" | "SUPPORT"lastSitemapSync
   
   // Cached stats (updated by jobs)
   totalPages      Int       @default(0)
@@ -40,6 +40,13 @@ model Domain {
   lastGscPull     DateTime?
   lastCrawl       DateTime?
   lastSitemapSync DateTime?
+  mozDA           Float?
+  mozPA           Float?
+  mozSpamScore    Float?
+  mozLinks        Int?
+  mozDomains      Int?
+  mozAnchors      Json?
+  mozLastSync     DateTime?
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -112,6 +119,7 @@ model Page {
   title           String?
   metaDescription String?
   statusCode      Int?
+  
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -459,6 +467,11 @@ model BacklinkSnapshot {
   lastSeen        DateTime  @default(now())
   lastChecked     DateTime  @default(now())
   lostAt          DateTime?
+
+  mozSourceDA     Float?
+  mozSourcePA     Float?
+  mozSourceSpam   Float?
+  source          String    @default("CRAWL")
   
   // Metadata
   isDofollow      Boolean   @default(true)

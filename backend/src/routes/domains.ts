@@ -57,28 +57,33 @@ export async function domainRoutes(fastify: FastifyInstance) {
   // ─── DOMAIN DETAIL ─────────────────────────────────────────
   fastify.get("/:id", async (request) => {
     const { id } = request.params as { id: string };
+    const { startDate, endDate } = request.query as any;
 
-    const domain = await prisma.domain.findUniqueOrThrow({
-      where: { id },
-    });
+    const domain = await prisma.domain.findUniqueOrThrow({ where: { id } });
 
-    // Last 30 days traffic
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const start = startDate
+      ? new Date(startDate)
+      : new Date(Date.now() - 30 * 86400000);
+    const end = endDate ? new Date(endDate) : new Date();
 
     const dailyStats = await prisma.gscDomainDaily.findMany({
-      where: { domainId: id, date: { gte: thirtyDaysAgo } },
+      where: { domainId: id, date: { gte: start, lte: end } },
       orderBy: { date: "asc" },
     });
 
-    // Indexing breakdown
+    // Aggregate stats for selected range
+    const rangeAgg = await prisma.gscDomainDaily.aggregate({
+      where: { domainId: id, date: { gte: start, lte: end } },
+      _sum: { clicks: true, impressions: true },
+      _avg: { position: true },
+    });
+
     const indexingStats = await prisma.page.groupBy({
       by: ["indexingVerdict"],
       where: { domainId: id, inSitemap: true },
       _count: { id: true },
     });
 
-    // Recent alerts
     const alerts = await prisma.alert.findMany({
       where: { domainId: id },
       orderBy: { createdAt: "desc" },
@@ -88,6 +93,9 @@ export async function domainRoutes(fastify: FastifyInstance) {
     return {
       ...domain,
       dailyStats,
+      rangeClicks: rangeAgg._sum.clicks || 0,
+      rangeImpressions: rangeAgg._sum.impressions || 0,
+      rangeAvgPosition: rangeAgg._avg.position,
       indexingStats: indexingStats.map((s) => ({
         verdict: s.indexingVerdict,
         count: s._count.id,
@@ -99,35 +107,123 @@ export async function domainRoutes(fastify: FastifyInstance) {
   // ─── DOMAIN PAGES ──────────────────────────────────────────
   fastify.get("/:id/pages", async (request) => {
     const { id } = request.params as { id: string };
-    const { sort, verdict, search, limit, offset } = request.query as any;
+    const { search, verdict, limit, offset, startDate, endDate } =
+      request.query as any;
 
-    const where: any = { domainId: id, inSitemap: true };
+    const where: any = { domainId: id };
+    if (search) where.path = { contains: search, mode: "insensitive" };
     if (verdict) where.indexingVerdict = verdict;
-    if (search) {
-      where.OR = [
-        { path: { contains: search, mode: "insensitive" } },
-        { url: { contains: search, mode: "insensitive" } },
-      ];
-    }
-
-    const orderBy: any =
-      sort === "impressions"
-        ? { impressions: "desc" }
-        : sort === "position"
-          ? { position: "asc" }
-          : { clicks: "desc" };
 
     const [pages, total] = await Promise.all([
       prisma.page.findMany({
         where,
-        orderBy,
-        take: parseInt(limit) || 50,
+        orderBy: { clicks: "desc" },
+        take: parseInt(limit) || 100,
         skip: parseInt(offset) || 0,
+        select: {
+          id: true,
+          url: true,
+          path: true,
+          clicks: true,
+          impressions: true,
+          ctr: true,
+          position: true,
+          indexingVerdict: true,
+          internalLinksIn: true,
+          internalLinksOut: true,
+          externalLinksOut: true,
+          brokenLinksOut: true,
+          lastChecked: true,
+          isTracked: true,
+          inSitemap: true,
+        },
       }),
       prisma.page.count({ where }),
     ]);
 
+    // If date range provided — override cached metrics with aggregated GscPageDaily
+    if (startDate && endDate) {
+      const pageIds = pages.map((p) => p.id);
+      const dailyAgg = await prisma.gscPageDaily.groupBy({
+        by: ["pageId"],
+        where: {
+          pageId: { in: pageIds },
+          date: { gte: new Date(startDate), lte: new Date(endDate) },
+        },
+        _sum: { clicks: true, impressions: true },
+        _avg: { position: true, ctr: true },
+      });
+
+      const aggMap = new Map(dailyAgg.map((a) => [a.pageId, a]));
+
+      for (const page of pages) {
+        const agg = aggMap.get(page.id);
+        if (agg) {
+          (page as any).clicks = agg._sum.clicks || 0;
+          (page as any).impressions = agg._sum.impressions || 0;
+          (page as any).position = agg._avg.position;
+          (page as any).ctr = agg._avg.ctr;
+        }
+      }
+
+      // Re-sort by aggregated clicks
+      pages.sort((a: any, b: any) => b.clicks - a.clicks);
+    }
+
     return { pages, total };
+  });
+
+  // Top queries for a specific page
+  fastify.get("/:domainId/pages/:pageId/queries", async (request) => {
+    const { domainId, pageId } = request.params as {
+      domainId: string;
+      pageId: string;
+    };
+    const { days } = request.query as { days?: string };
+    const domain = await prisma.domain.findUniqueOrThrow({
+      where: { id: domainId },
+    });
+    const page = await prisma.page.findUniqueOrThrow({ where: { id: pageId } });
+    if (!domain.gscProperty) return { queries: [] };
+
+    const { getSearchConsole } = await import("../lib/google-auth.js");
+    const sc = await getSearchConsole();
+    const endDate = new Date().toISOString().split("T")[0];
+    const startDate = new Date(Date.now() - parseInt(days || "30") * 86400000)
+      .toISOString()
+      .split("T")[0];
+
+    const pageUrls = [page.url, page.url.replace(/\/$/, ""), page.url + "/"];
+    let queries: any[] = [];
+
+    for (const tryUrl of pageUrls) {
+      try {
+        const res = await sc.searchanalytics.query({
+          siteUrl: domain.gscProperty,
+          requestBody: {
+            startDate,
+            endDate,
+            dimensions: ["query"],
+            dimensionFilterGroups: [
+              { filters: [{ dimension: "page", expression: tryUrl }] },
+            ],
+            rowLimit: 50,
+          },
+        });
+        queries = (res.data.rows || [])
+          .map((r: any) => ({
+            query: r.keys![0],
+            clicks: r.clicks || 0,
+            impressions: r.impressions || 0,
+            ctr: r.ctr || 0,
+            position: Math.round((r.position || 0) * 10) / 10,
+          }))
+          .sort((a: any, b: any) => b.clicks - a.clicks);
+        if (queries.length > 0) break;
+      } catch {}
+    }
+
+    return { queries, url: page.url, startDate, endDate };
   });
 
   // ─── PAGE DETAIL ───────────────────────────────────────────
@@ -837,6 +933,64 @@ export async function domainRoutes(fastify: FastifyInstance) {
       return { query, url: page.url, daily, startDate, endDate };
     } catch (e: any) {
       return { query, url: page.url, daily: [], error: e.message };
+    }
+  });
+
+  // Daily breakdown for specific query on domain level (no page filter)
+  fastify.get("/:domainId/query-daily", async (request) => {
+    const { domainId } = request.params as { domainId: string };
+    const {
+      query,
+      days,
+      startDate: qStart,
+      endDate: qEnd,
+    } = request.query as any;
+
+    const domain = await prisma.domain.findUniqueOrThrow({
+      where: { id: domainId },
+    });
+    if (!domain.gscProperty) return { daily: [] };
+
+    const { getSearchConsole } = await import("../lib/google-auth.js");
+    const sc = await getSearchConsole();
+    const endDate = qEnd || new Date().toISOString().split("T")[0];
+    const startDate =
+      qStart ||
+      new Date(Date.now() - parseInt(days || "30") * 86400000)
+        .toISOString()
+        .split("T")[0];
+
+    try {
+      const res = await sc.searchanalytics.query({
+        siteUrl: domain.gscProperty,
+        requestBody: {
+          startDate,
+          endDate,
+          dimensions: ["date"],
+          dimensionFilterGroups: [
+            {
+              filters: [
+                { dimension: "query", operator: "contains", expression: query },
+              ],
+            },
+          ],
+          rowLimit: 100,
+        },
+      });
+
+      const daily = (res.data.rows || [])
+        .map((r: any) => ({
+          date: r.keys![0],
+          clicks: r.clicks || 0,
+          impressions: r.impressions || 0,
+          position: Math.round((r.position || 0) * 10) / 10,
+          ctr: r.ctr || 0,
+        }))
+        .sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+      return { query, daily, startDate, endDate };
+    } catch (e: any) {
+      return { query, daily: [], error: e.message };
     }
   });
 }

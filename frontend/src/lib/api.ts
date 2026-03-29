@@ -38,7 +38,13 @@ export const api = {
 
   // Domains
   getDomains: () => request<any[]>("/domains"),
-  getDomain: (id: string) => request<any>(`/domains/${id}`),
+  getDomain: (id: string, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    const qs = params.toString();
+    return request<any>(`/domains/${id}${qs ? `?${qs}` : ""}`);
+  },
   addDomain: (data: any) =>
     request<any>("/domains", { method: "POST", body: JSON.stringify(data) }),
   deleteDomain: (id: string) =>
@@ -184,11 +190,6 @@ export const api = {
       `/domains/${domainId}/domain-keywords/${kwId}/daily?days=${days}`,
     ),
 
-  getQueryDaily: (domainId: string, pageId: string, query: string, days = 30) =>
-    request<any>(
-      `/domains/${domainId}/pages/${pageId}/query-daily?query=${encodeURIComponent(query)}&days=${days}`,
-    ),
-
   analyzeCrossLinks: (domainId: string) =>
     request<any>(`/ai/analyze-crosslinks/${domainId}`, { method: "POST" }),
 
@@ -233,6 +234,50 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ linkGroup, linkRole }),
     }),
+
+  getPageQueries: (
+    domainId: string,
+    pageId: string,
+    days = 30,
+    startDate?: string,
+    endDate?: string,
+  ) => {
+    const params = new URLSearchParams();
+    params.set("days", String(days));
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    return request<any>(
+      `/domains/${domainId}/pages/${pageId}/queries?${params.toString()}`,
+    );
+  },
+
+  getQueryDaily: (
+    domainId: string,
+    pageId: string,
+    query: string,
+    days = 30,
+    startDate?: string,
+    endDate?: string,
+  ) => {
+    const params = new URLSearchParams();
+    params.set("query", query);
+    params.set("days", String(days));
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    const path = pageId
+      ? `/domains/${domainId}/pages/${pageId}/query-daily`
+      : `/domains/${domainId}/query-daily`;
+    return request<any>(`${path}?${params.toString()}`);
+  },
+
+  getMozData: (domainId: string) => request<any>(`/moz/${domainId}`),
+  syncMozMetrics: (domainId: string) =>
+    request<any>(`/moz/${domainId}/sync-metrics`, { method: "POST" }),
+  syncMozBacklinks: (domainId: string) =>
+    request<any>(`/moz/${domainId}/sync-backlinks`, { method: "POST" }),
+  syncMozAll: () => request<any>("/moz/sync-all", { method: "POST" }),
+
+  getMozAnalytics: () => request<any>("/moz/analytics/overview"),
 
   // Jobs
   getJobs: () => request<any[]>("/jobs"),

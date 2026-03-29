@@ -40,6 +40,13 @@ export function DomainDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [overviewDays, setOverviewDays] = useState<number | null>(30);
+  const [overviewStart, setOverviewStart] = useState(
+    () => new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0],
+  );
+  const [overviewEnd, setOverviewEnd] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
   const [tab, setTab] = useState<Tab>("pages");
   const [trackedDays, setTrackedDays] = useState(30);
   const [trackedCompare, setTrackedCompare] = useState(false);
@@ -133,8 +140,8 @@ export function DomainDetailPage() {
   });
 
   const { data: domain, isLoading } = useQuery({
-    queryKey: ["domain", id],
-    queryFn: () => api.getDomain(id!),
+    queryKey: ["domain", id, overviewStart, overviewEnd],
+    queryFn: () => api.getDomain(id!, overviewStart, overviewEnd),
     enabled: !!id,
   });
 
@@ -303,6 +310,11 @@ export function DomainDetailPage() {
               >
                 {categoryLabel(d.category)}
               </span>
+              {d.mozDA != null && (
+                <span className="text-[10px] font-mono text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">
+                  DA {d.mozDA.toFixed(0)}
+                </span>
+              )}
             </div>
             <h1 className="text-xl font-bold font-mono">
               {d.label || d.domain}
@@ -365,7 +377,17 @@ export function DomainDetailPage() {
         </div>
       </div>
 
-      {/* Stats row */}
+      {/* Date range picker for overview */}
+      <DateRangePicker
+        days={overviewDays}
+        setDays={setOverviewDays}
+        startDate={overviewStart}
+        endDate={overviewEnd}
+        setStartDate={setOverviewStart}
+        setEndDate={setOverviewEnd}
+      />
+
+      {/* Stats row — using range-aggregated data */}
       <div className="grid grid-cols-5 gap-3">
         <MiniStat
           label="Indeksowanie"
@@ -374,18 +396,24 @@ export function DomainDetailPage() {
           color={pct === 100 ? "#22c55e" : pct > 50 ? "#f59e0b" : "#ef4444"}
         />
         <MiniStat
-          label="Kliknięcia (30d)"
-          value={fmtNumber(d.totalClicks)}
+          label={`Kliknięcia${overviewDays ? ` (${overviewDays}d)` : ""}`}
+          value={fmtNumber(d.rangeClicks ?? d.totalClicks)}
           color="#06b6d4"
         />
         <MiniStat
           label="Wyświetlenia"
-          value={fmtNumber(d.totalImpressions)}
+          value={fmtNumber(d.rangeImpressions ?? d.totalImpressions)}
           color="#a855f7"
         />
         <MiniStat
           label="Śr. pozycja"
-          value={d.avgPosition ? d.avgPosition.toFixed(1) : "—"}
+          value={
+            d.rangeAvgPosition
+              ? d.rangeAvgPosition.toFixed(1)
+              : d.avgPosition
+                ? d.avgPosition.toFixed(1)
+                : "—"
+          }
           color="#3b82f6"
         />
         <MiniStat
@@ -395,60 +423,13 @@ export function DomainDetailPage() {
         />
       </div>
 
-      {/* Traffic chart */}
+      {/* Traffic chart — DualMetricChart with position */}
       {d.dailyStats?.length > 0 && (
         <div className="bg-panel-card border border-panel-border rounded-lg p-4">
-          <div className="text-xs font-semibold text-panel-muted mb-3">
-            RUCH — 30 DNI
-          </div>
-          <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={d.dailyStats}>
-              <defs>
-                <linearGradient id="dg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.2} />
-                  <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 9, fill: "#64748b" }}
-                tickFormatter={(d) =>
-                  new Date(d).toLocaleDateString("pl-PL", {
-                    day: "2-digit",
-                    month: "2-digit",
-                  })
-                }
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 9, fill: "#64748b" }}
-                tickFormatter={fmtNumber}
-                axisLine={false}
-                tickLine={false}
-                width={40}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#1a2235",
-                  border: "1px solid #1e2a3a",
-                  borderRadius: "6px",
-                  fontSize: "11px",
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="clicks"
-                stroke="#06b6d4"
-                fill="url(#dg)"
-                strokeWidth={2}
-                name="Kliknięcia"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <DualMetricChart data={d.dailyStats} height={180} showPosition />
         </div>
       )}
-
+      <MozSection domainId={id!} />
       {/* Indexing breakdown */}
       {d.indexingStats?.length > 0 && (
         <div className="flex gap-3">
@@ -503,100 +484,15 @@ export function DomainDetailPage() {
       {/* ===== TAB CONTENT ===== */}
 
       {tab === "pages" && (
-        <div>
-          <div className="mb-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-panel-muted" />
-              <input
-                className="input w-full pl-9"
-                placeholder="Szukaj strony..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>URL</th>
-                  <th>Status</th>
-                  <th>Kliknięcia</th>
-                  <th>Wyświetl.</th>
-                  <th>Pozycja</th>
-                  <th>Linki In</th>
-                  <th>Linki Out</th>
-                  <th>Sprawdzono</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(pagesData?.pages || []).map((p: any) => (
-                  <tr key={p.id} className="cursor-pointer" onClick={() => {}}>
-                    <td className="max-w-[300px] truncate">
-                      <a
-                        href={p.url}
-                        target="_blank"
-                        className="text-accent-blue hover:underline"
-                      >
-                        {p.path}
-                      </a>
-                    </td>
-                    <td>
-                      <span
-                        className={cn("badge", verdictBadge(p.indexingVerdict))}
-                      >
-                        {p.indexingVerdict}
-                      </span>
-                    </td>
-                    <td className="text-accent-cyan">{p.clicks}</td>
-                    <td>{fmtNumber(p.impressions)}</td>
-                    <td>{fmtPosition(p.position)}</td>
-                    <td>{p.internalLinksIn}</td>
-                    <td>{p.internalLinksOut + p.externalLinksOut}</td>
-                    <td className="text-panel-muted">
-                      {fmtDate(p.lastChecked)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {pagesData && (
-              <div className="px-4 py-2 text-[10px] text-panel-muted border-t border-panel-border">
-                {pagesData.total} stron łącznie
-              </div>
-            )}
-          </div>
-        </div>
+        <PagesTab
+          domainId={id!}
+          search={search}
+          setSearch={setSearch}
+          verdictFilter={verdictFilter}
+        />
       )}
 
-      {tab === "queries" && (
-        <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Zapytanie</th>
-                <th>Kliknięcia</th>
-                <th>Wyświetlenia</th>
-                <th>CTR</th>
-                <th>Pozycja</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(queries || []).map((q: any, i: number) => (
-                <tr key={i}>
-                  <td className="text-panel-text max-w-[400px] truncate">
-                    {q.query}
-                  </td>
-                  <td className="text-accent-cyan font-semibold">{q.clicks}</td>
-                  <td>{fmtNumber(q.impressions)}</td>
-                  <td>{fmtPercent(q.ctr)}</td>
-                  <td>{fmtPosition(q.position)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {tab === "queries" && <QueriesTab domainId={id!} />}
 
       {tab === "tracked" && (
         <div className="space-y-4">
@@ -847,75 +743,17 @@ export function DomainDetailPage() {
                   )}
 
                   <div className="grid grid-cols-2 gap-0 divide-x divide-panel-border">
-                    {/* Position chart */}
+                    {/* Metrics chart */}
                     <div className="p-4">
                       <div className="text-[10px] text-panel-muted uppercase tracking-wider mb-2">
-                        Pozycja — {trackedDays} dni
+                        Metryki — {trackedDays} dni
                       </div>
                       {p.history?.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={120}>
-                          <AreaChart data={p.history}>
-                            <defs>
-                              <linearGradient
-                                id={`pg-${p.id}`}
-                                x1="0"
-                                y1="0"
-                                x2="0"
-                                y2="1"
-                              >
-                                <stop
-                                  offset="0%"
-                                  stopColor="#3b82f6"
-                                  stopOpacity={0.2}
-                                />
-                                <stop
-                                  offset="100%"
-                                  stopColor="#3b82f6"
-                                  stopOpacity={0}
-                                />
-                              </linearGradient>
-                            </defs>
-                            <XAxis
-                              dataKey="date"
-                              tick={{ fontSize: 8, fill: "#64748b" }}
-                              tickFormatter={(d: string) =>
-                                new Date(d).toLocaleDateString("pl-PL", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                })
-                              }
-                              axisLine={false}
-                              tickLine={false}
-                            />
-                            <YAxis
-                              reversed
-                              tick={{ fontSize: 8, fill: "#64748b" }}
-                              axisLine={false}
-                              tickLine={false}
-                              width={30}
-                              domain={["dataMin - 1", "dataMax + 1"]}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                background: "#1a2235",
-                                border: "1px solid #1e2a3a",
-                                borderRadius: "6px",
-                                fontSize: "10px",
-                              }}
-                              formatter={(v: number) => [
-                                v?.toFixed(1),
-                                "Pozycja",
-                              ]}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="position"
-                              stroke="#3b82f6"
-                              fill={`url(#pg-${p.id})`}
-                              strokeWidth={2}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
+                        <DualMetricChart
+                          data={p.history}
+                          height={120}
+                          showPosition
+                        />
                       ) : (
                         <div className="text-xs text-panel-muted h-[120px] flex items-center justify-center">
                           Brak danych
@@ -1240,7 +1078,7 @@ export function DomainDetailPage() {
       )}
 
       {tab === "broken" && (
-        <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
+        <div className="bg-panel-card border border-panel-border rounded-lg table-scroll-wrapper">
           {brokenLinks?.length === 0 ? (
             <div className="p-8 text-center text-panel-muted text-sm">
               Brak złamanych linków
@@ -1281,7 +1119,7 @@ export function DomainDetailPage() {
       )}
 
       {tab === "orphans" && (
-        <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
+        <div className="bg-panel-card border border-panel-border rounded-lg table-scroll-wrapper">
           {orphans?.length === 0 ? (
             <div className="p-8 text-center text-panel-muted text-sm">
               Brak orphan pages
@@ -1561,126 +1399,11 @@ function DomainKeywordRow({
           {/* Charts */}
           {dailyData?.daily?.length > 0 && (
             <div className="p-3 border-b border-panel-border">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-1">
-                    Pozycja — {days} dni
-                  </div>
-                  <ResponsiveContainer width="100%" height={100}>
-                    <AreaChart data={dailyData.daily}>
-                      <defs>
-                        <linearGradient
-                          id={`dkp-${kw.id}`}
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="#3b82f6"
-                            stopOpacity={0.2}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="#3b82f6"
-                            stopOpacity={0}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 7, fill: "#64748b" }}
-                        tickFormatter={(d: string) => d.slice(5)}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        reversed
-                        tick={{ fontSize: 7, fill: "#64748b" }}
-                        axisLine={false}
-                        tickLine={false}
-                        width={25}
-                        domain={["dataMin - 1", "dataMax + 1"]}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#1a2235",
-                          border: "1px solid #1e2a3a",
-                          borderRadius: "4px",
-                          fontSize: "9px",
-                        }}
-                        formatter={(v: number) => [v?.toFixed(1), "Pozycja"]}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="position"
-                        stroke="#3b82f6"
-                        fill={`url(#dkp-${kw.id})`}
-                        strokeWidth={1.5}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                <div>
-                  <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-1">
-                    Kliknięcia — {days} dni
-                  </div>
-                  <ResponsiveContainer width="100%" height={100}>
-                    <AreaChart data={dailyData.daily}>
-                      <defs>
-                        <linearGradient
-                          id={`dkc-${kw.id}`}
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="#06b6d4"
-                            stopOpacity={0.2}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="#06b6d4"
-                            stopOpacity={0}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 7, fill: "#64748b" }}
-                        tickFormatter={(d: string) => d.slice(5)}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 7, fill: "#64748b" }}
-                        axisLine={false}
-                        tickLine={false}
-                        width={25}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#1a2235",
-                          border: "1px solid #1e2a3a",
-                          borderRadius: "4px",
-                          fontSize: "9px",
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="clicks"
-                        stroke="#06b6d4"
-                        fill={`url(#dkc-${kw.id})`}
-                        strokeWidth={1.5}
-                        name="Kliknięcia"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+              <DualMetricChart
+                data={dailyData.daily}
+                height={100}
+                showPosition
+              />
             </div>
           )}
 
@@ -1874,7 +1597,7 @@ function ClickableQuery({
               </strong>
             </span>
             <span>
-              Imp:{" "}
+              Wyśw.{" "}
               <strong>
                 {dailyData.daily.reduce(
                   (s: number, d: any) => s + d.impressions,
@@ -1934,6 +1657,18 @@ function ExternalBacklinksTable({ domainId }: { domainId: string }) {
               {data.stats.uniqueDomains}
             </strong>
           </span>
+          <span>
+            Moz:{" "}
+            <strong className="text-accent-blue">
+              {data.backlinks.filter((b: any) => b.source === "MOZ").length}
+            </strong>
+          </span>
+          <span>
+            Crawl:{" "}
+            <strong className="text-panel-muted">
+              {data.backlinks.filter((b: any) => b.source !== "MOZ").length}
+            </strong>
+          </span>
         </div>
       }
     >
@@ -1942,10 +1677,12 @@ function ExternalBacklinksTable({ domainId }: { domainId: string }) {
           <tr>
             <th>Domena źródłowa</th>
             <th>Linków</th>
+            <th>DA</th>
             <th>Cel</th>
             <th>Anchor</th>
             <th>Typ</th>
             <th>Status</th>
+            <th>Źródło</th>
             <th>Wykryto</th>
           </tr>
         </thead>
@@ -1975,6 +1712,24 @@ function ExternalBacklinksTable({ domainId }: { domainId: string }) {
                 )}
                 <td className="text-center font-semibold text-accent-cyan">
                   {i === 0 ? group.count : ""}
+                </td>
+                <td>
+                  {bl.mozSourceDA != null ? (
+                    <span
+                      className={cn(
+                        "font-mono font-bold text-[10px]",
+                        bl.mozSourceDA >= 40
+                          ? "text-accent-green"
+                          : bl.mozSourceDA >= 20
+                            ? "text-accent-amber"
+                            : "text-accent-red",
+                      )}
+                    >
+                      {bl.mozSourceDA.toFixed(0)}
+                    </span>
+                  ) : (
+                    <span className="text-panel-muted">—</span>
+                  )}
                 </td>
                 <td className="max-w-[200px] truncate">
                   <a
@@ -2007,6 +1762,18 @@ function ExternalBacklinksTable({ domainId }: { domainId: string }) {
                     )}
                   >
                     {bl.isLive ? "live" : "lost"}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    className={cn(
+                      "text-[9px] font-mono px-1 py-0.5 rounded",
+                      bl.source === "MOZ"
+                        ? "bg-accent-blue/10 text-accent-blue"
+                        : "bg-panel-border/30 text-panel-muted",
+                    )}
+                  >
+                    {bl.source === "MOZ" ? "moz" : "crawl"}
                   </span>
                 </td>
                 <td className="text-panel-muted">{fmtDate(bl.firstSeen)}</td>
@@ -2404,7 +2171,7 @@ function CollapsibleSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="bg-panel-card border border-panel-border rounded-lg overflow-hidden">
+    <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
       <div
         className="px-4 py-2.5 flex items-center gap-2 cursor-pointer hover:bg-panel-hover/20 transition-all"
         onClick={() => setOpen(!open)}
@@ -2415,6 +2182,321 @@ function CollapsibleSection({
         {badge && <div className="ml-auto">{badge}</div>}
       </div>
       {open && <div className="border-t border-panel-border">{children}</div>}
+    </div>
+  );
+}
+
+function PagesTab({
+  domainId,
+  search,
+  setSearch,
+  verdictFilter,
+}: {
+  domainId: string;
+  search: string;
+  setSearch: (s: string) => void;
+  verdictFilter: string;
+}) {
+  const [days, setDays] = useState<number | null>(30);
+  const [startDate, setStartDate] = useState(
+    () => new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0],
+  );
+  const [endDate, setEndDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
+  const [expandedQueries, setExpandedQueries] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const togglePage = (id: string) => {
+    setExpandedPages((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleQuery = (key: string) => {
+    setExpandedQueries((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  const pageParams = new URLSearchParams();
+  if (search) pageParams.set("search", search);
+  if (verdictFilter) pageParams.set("verdict", verdictFilter);
+  pageParams.set("limit", "100");
+  pageParams.set("startDate", startDate);
+  pageParams.set("endDate", endDate);
+
+  const { data: pagesData } = useQuery({
+    queryKey: ["pages", domainId, search, verdictFilter, startDate, endDate],
+    queryFn: () => api.getDomainPages(domainId, pageParams.toString()),
+  });
+
+  return (
+    <div>
+      <div className="mb-3 flex gap-3 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-panel-muted" />
+          <input
+            className="input w-full pl-9"
+            placeholder="Szukaj strony..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="mb-3">
+        <DateRangePicker
+          days={days}
+          setDays={setDays}
+          startDate={startDate}
+          endDate={endDate}
+          setStartDate={setStartDate}
+          setEndDate={setEndDate}
+        />
+      </div>
+      <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>URL</th>
+              <th>Status</th>
+              <th>Kliknięcia</th>
+              <th>Wyświetl.</th>
+              <th>Pozycja</th>
+              <th>Linki In</th>
+              <th>Linki Out</th>
+              <th>Sprawdzono</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(pagesData?.pages || []).map((p: any) => (
+              <ExpandablePageRow
+                key={p.id}
+                p={p}
+                domainId={domainId}
+                startDate={startDate}
+                endDate={endDate}
+                expanded={expandedPages.has(p.id)}
+                onToggle={() => togglePage(p.id)}
+                expandedQueries={expandedQueries}
+                toggleQuery={toggleQuery}
+              />
+            ))}
+          </tbody>
+        </table>
+        {pagesData && (
+          <div className="px-4 py-2 text-[10px] text-panel-muted border-t border-panel-border">
+            {pagesData.total} stron łącznie
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExpandablePageRow({
+  p,
+  domainId,
+  startDate,
+  endDate,
+  expanded,
+  onToggle,
+  expandedQueries,
+  toggleQuery,
+}: {
+  p: any;
+  domainId: string;
+  startDate: string;
+  endDate: string;
+  expanded: boolean;
+  onToggle: () => void;
+  expandedQueries: Set<string>;
+  toggleQuery: (key: string) => void;
+}) {
+  const days = Math.round(
+    (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000,
+  );
+
+  const { data: queryData } = useQuery({
+    queryKey: ["page-queries", domainId, p.id, startDate, endDate],
+    queryFn: () => api.getPageQueries(domainId, p.id, days, startDate, endDate),
+    enabled: expanded,
+  });
+
+  return (
+    <>
+      <tr className="cursor-pointer hover:bg-panel-hover/20" onClick={onToggle}>
+        <td className="text-[9px] text-panel-muted w-4">
+          {expanded ? "▼" : "▶"}
+        </td>{" "}
+        <td className="max-w-[300px] truncate">
+          <a
+            href={p.url}
+            target="_blank"
+            className="text-accent-blue hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {p.path}
+          </a>
+        </td>
+        <td>
+          <span className={cn("badge", verdictBadge(p.indexingVerdict))}>
+            {p.indexingVerdict}
+          </span>
+        </td>
+        <td className="text-accent-cyan">{p.clicks}</td>
+        <td>{fmtNumber(p.impressions)}</td>
+        <td
+          className={cn(
+            "font-mono",
+            p.position && p.position <= 3
+              ? "text-accent-green font-bold"
+              : p.position && p.position <= 10
+                ? "text-accent-cyan"
+                : p.position && p.position <= 20
+                  ? "text-accent-amber"
+                  : "",
+          )}
+        >
+          {fmtPosition(p.position)}
+        </td>
+        <td>{p.internalLinksIn}</td>
+        <td>{p.internalLinksOut + p.externalLinksOut}</td>
+        <td className="text-panel-muted">{fmtDate(p.lastChecked)}</td>
+      </tr>
+
+      {expanded && (
+        <tr>
+          <td colSpan={9} className="!whitespace-normal p-0">
+            <div className="border-t border-panel-border bg-panel-bg/20 px-4 py-3 overflow-hidden">
+              {!queryData?.queries?.length ? (
+                <div className="text-xs text-panel-muted text-center py-2">
+                  {queryData ? "Brak fraz dla tej strony" : "Ładuję..."}
+                </div>
+              ) : (
+                <>
+                  <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
+                    Frazy rankujące — {days}d ({queryData.queries.length} fraz)
+                  </div>
+                  <div className="space-y-1">
+                    {queryData.queries.map((q: any, i: number) => {
+                      const qKey = `${p.id}:${q.query}`;
+                      return (
+                        <PageQueryRow
+                          key={i}
+                          q={q}
+                          domainId={domainId}
+                          pageId={p.id}
+                          startDate={startDate}
+                          endDate={endDate}
+                          expanded={expandedQueries.has(qKey)}
+                          onToggle={() => toggleQuery(qKey)}
+                        />
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function PageQueryRow({
+  q,
+  domainId,
+  pageId,
+  startDate,
+  endDate,
+  expanded,
+  onToggle,
+}: {
+  q: any;
+  domainId: string;
+  pageId: string;
+  startDate: string;
+  endDate: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const days = Math.round(
+    (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000,
+  );
+
+  const { data: dailyData } = useQuery({
+    queryKey: [
+      "page-query-daily",
+      domainId,
+      pageId,
+      q.query,
+      startDate,
+      endDate,
+    ],
+    queryFn: () =>
+      api.getQueryDaily(domainId, pageId, q.query, days, startDate, endDate),
+    enabled: expanded,
+  });
+
+  return (
+    <div>
+      <div
+        className="flex items-center gap-2 text-[11px] cursor-pointer hover:bg-panel-hover/20 rounded px-2 py-1 -mx-2 transition-all"
+        onClick={onToggle}
+      >
+        <span className="text-[9px] text-panel-muted">
+          {expanded ? "▼" : "▶"}
+        </span>
+
+        <span className="text-accent-amber font-mono truncate flex-1">
+          "{q.query}"
+        </span>
+        <span className="text-accent-cyan font-semibold shrink-0">
+          {q.clicks} klik.
+        </span>
+        <span className="text-panel-muted shrink-0">
+          {fmtNumber(q.impressions)} imp.
+        </span>
+        <span className="text-panel-muted shrink-0">{fmtPercent(q.ctr)}</span>
+        <span
+          className={cn(
+            "font-mono shrink-0",
+            q.position <= 3
+              ? "text-accent-green font-bold"
+              : q.position <= 10
+                ? "text-accent-cyan"
+                : q.position <= 20
+                  ? "text-accent-amber"
+                  : "text-accent-red",
+          )}
+        >
+          poz. {q.position}
+        </span>
+      </div>
+
+      {expanded && dailyData?.daily?.length > 0 && (
+        <div className="ml-4 mt-1 mb-2 border-l-2 border-panel-border pl-3">
+          <DualMetricChart data={dailyData.daily} height={70} showPosition />
+          <div className="text-[8px] text-panel-dim mt-0.5">
+            {dailyData.startDate} → {dailyData.endDate}
+          </div>
+        </div>
+      )}
+
+      {expanded && dailyData && !dailyData?.daily?.length && (
+        <div className="ml-4 mt-1 mb-1 text-[9px] text-panel-muted">
+          Brak danych dziennych
+        </div>
+      )}
     </div>
   );
 }
@@ -2453,6 +2535,835 @@ function KeywordInput({
       >
         {add.isPending ? "..." : "+ Dodaj"}
       </button>
+    </div>
+  );
+}
+
+function QueriesTab({ domainId }: { domainId: string }) {
+  const [days, setDays] = useState<number | null>(30);
+  const [startDate, setStartDate] = useState(
+    () => new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0],
+  );
+  const [endDate, setEndDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [compare, setCompare] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const limit = 50;
+
+  const toggleRow = (query: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      next.has(query) ? next.delete(query) : next.add(query);
+      return next;
+    });
+  };
+
+  const params = new URLSearchParams();
+  params.set("startDate", startDate);
+  params.set("endDate", endDate);
+  params.set("limit", String(limit));
+  params.set("offset", String(page * limit));
+  if (search) params.set("search", search);
+
+  const { data: queries } = useQuery({
+    queryKey: ["queries-tab", domainId, startDate, endDate, page, search],
+    queryFn: () => api.getQueries(domainId, params.toString()),
+    enabled: !!domainId,
+  });
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 px-1 flex-wrap">
+        <DateRangePicker
+          days={days}
+          setDays={(d) => {
+            setDays(d);
+            setPage(0);
+          }}
+          startDate={startDate}
+          endDate={endDate}
+          setStartDate={(d) => {
+            setStartDate(d);
+            setPage(0);
+          }}
+          setEndDate={(d) => {
+            setEndDate(d);
+            setPage(0);
+          }}
+        />
+        <div className="h-4 w-px bg-panel-border mx-1" />
+        <button
+          onClick={() => setCompare(!compare)}
+          className={cn(
+            "px-2 py-0.5 rounded text-[10px]",
+            compare
+              ? "bg-accent-purple/20 text-accent-purple font-semibold"
+              : "text-panel-muted hover:text-panel-text",
+          )}
+        >
+          vs poprzedni okres
+        </button>
+        <div className="ml-auto relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-panel-muted" />
+          <input
+            className="input text-xs pl-7 w-48"
+            placeholder="Szukaj frazy..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="bg-panel-card border border-panel-border rounded-lg table-scroll-wrapper">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Zapytanie</th>
+              <th>Kliknięcia</th>
+              <th>Wyświetlenia</th>
+              <th>CTR</th>
+              <th>Pozycja</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(queries || []).map((q: any, i: number) => (
+              <ExpandableQueryRow
+                key={i}
+                query={q}
+                domainId={domainId}
+                startDate={startDate}
+                endDate={endDate}
+                compare={compare}
+                expanded={expandedRows.has(q.query)}
+                onToggle={() => toggleRow(q.query)}
+              />
+            ))}
+          </tbody>
+        </table>
+        {queries && (
+          <div className="px-4 py-2 flex items-center gap-2 text-[10px] text-panel-muted border-t border-panel-border">
+            <button
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+              className="hover:text-panel-text disabled:opacity-30"
+            >
+              ← Poprzednia
+            </button>
+            <span>Strona {page + 1}</span>
+            <button
+              disabled={(queries?.length || 0) < limit}
+              onClick={() => setPage((p) => p + 1)}
+              className="hover:text-panel-text disabled:opacity-30"
+            >
+              Następna →
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExpandableQueryRow({
+  query: q,
+  domainId,
+  startDate,
+  endDate,
+  compare,
+  expanded,
+  onToggle,
+}: {
+  query: any;
+  domainId: string;
+  startDate: string;
+  endDate: string;
+  compare: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const days = Math.round(
+    (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000,
+  );
+
+  const { data: dailyData } = useQuery({
+    queryKey: ["query-daily-global", domainId, q.query, startDate, endDate],
+    queryFn: () =>
+      api.getQueryDaily(domainId, "", q.query, days, startDate, endDate),
+    enabled: expanded,
+  });
+
+  return (
+    <>
+      <tr className="cursor-pointer hover:bg-panel-hover/30" onClick={onToggle}>
+        <td className="text-panel-text max-w-[400px] truncate">
+          <span className="text-[9px] text-panel-muted mr-1">
+            {expanded ? "▼" : "▶"}
+          </span>
+          {q.query}
+        </td>
+        <td className="text-accent-cyan font-semibold">{q.clicks}</td>
+        <td>{fmtNumber(q.impressions)}</td>
+        <td>{fmtPercent(q.ctr)}</td>
+        <td>{fmtPosition(q.position)}</td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={5} className="!whitespace-normal p-0">
+            <div className="bg-panel-bg/30 border-t border-panel-border px-6 py-3 overflow-hidden">
+              {dailyData?.daily?.length > 0 ? (
+                <DualMetricChart
+                  data={dailyData.daily}
+                  height={90}
+                  showPosition
+                />
+              ) : dailyData ? (
+                <div className="text-xs text-panel-muted">
+                  Brak danych dziennych
+                </div>
+              ) : null}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function DateRangePicker({
+  days,
+  setDays,
+  startDate,
+  endDate,
+  setStartDate,
+  setEndDate,
+}: {
+  days: number | null;
+  setDays: (d: number | null) => void;
+  startDate: string;
+  endDate: string;
+  setStartDate: (d: string) => void;
+  setEndDate: (d: string) => void;
+}) {
+  const presets = [7, 14, 30, 90];
+  const today = new Date().toISOString().split("T")[0];
+
+  const applyPreset = (d: number) => {
+    setDays(d);
+    const end = new Date();
+    const start = new Date(Date.now() - d * 86400000);
+    setStartDate(start.toISOString().split("T")[0]);
+    setEndDate(end.toISOString().split("T")[0]);
+  };
+
+  const handleDateChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+    setDays(null); // custom range — deselect presets
+  };
+
+  // Calculate displayed range label
+  const rangeDays =
+    startDate && endDate
+      ? Math.round(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+            86400000,
+        )
+      : null;
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-[9px] text-panel-muted uppercase tracking-wider">
+        Okres:
+      </span>
+      {presets.map((d) => (
+        <button
+          key={d}
+          onClick={() => applyPreset(d)}
+          className={cn(
+            "px-2 py-0.5 rounded text-[10px] font-mono transition-all",
+            days === d
+              ? "bg-accent-blue/20 text-accent-blue font-semibold"
+              : "text-panel-muted hover:text-panel-text",
+          )}
+        >
+          {d}d
+        </button>
+      ))}
+      <div className="h-4 w-px bg-panel-border mx-1" />
+      <div className="flex items-center gap-1">
+        <input
+          type="date"
+          value={startDate}
+          max={endDate || today}
+          onChange={(e) => handleDateChange(e.target.value, endDate)}
+          className="input text-[10px] py-0.5 px-1.5 w-[110px] font-mono"
+        />
+        <span className="text-[9px] text-panel-muted">→</span>
+        <input
+          type="date"
+          value={endDate}
+          min={startDate}
+          max={today}
+          onChange={(e) => handleDateChange(startDate, e.target.value)}
+          className="input text-[10px] py-0.5 px-1.5 w-[110px] font-mono"
+        />
+      </div>
+      {days === null && rangeDays != null && (
+        <span className="text-[9px] text-accent-purple font-mono">
+          {rangeDays}d
+        </span>
+      )}
+    </div>
+  );
+}
+
+function DualMetricChart({
+  data,
+  height = 80,
+  showPosition = false,
+}: {
+  data: any[];
+  height?: number;
+  showPosition?: boolean;
+}) {
+  const [visible, setVisible] = useState({
+    clicks: true,
+    impressions: true,
+    position: showPosition,
+  });
+
+  const toggle = (key: keyof typeof visible) => {
+    setVisible((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      // Don't allow all off
+      if (!next.clicks && !next.impressions && !next.position) return prev;
+      return next;
+    });
+  };
+
+  // Determine which Y axes are needed
+  const hasLeft = visible.clicks;
+  const hasRight = visible.impressions;
+  const hasPosition = visible.position && showPosition;
+
+  return (
+    <div>
+      {/* Legend — clickable toggles */}
+      <div className="flex items-center gap-3 mb-1.5">
+        <button
+          onClick={() => toggle("clicks")}
+          className={cn(
+            "flex items-center gap-1 text-[9px] font-mono transition-all rounded px-1.5 py-0.5",
+            visible.clicks
+              ? "bg-accent-cyan/15 text-accent-cyan"
+              : "text-panel-muted line-through opacity-50 hover:opacity-75",
+          )}
+        >
+          <div
+            className={cn(
+              "w-2 h-2 rounded-sm",
+              visible.clicks ? "bg-accent-cyan" : "bg-panel-border",
+            )}
+          />
+          Kliknięcia
+        </button>
+        <button
+          onClick={() => toggle("impressions")}
+          className={cn(
+            "flex items-center gap-1 text-[9px] font-mono transition-all rounded px-1.5 py-0.5",
+            visible.impressions
+              ? "bg-accent-purple/15 text-accent-purple"
+              : "text-panel-muted line-through opacity-50 hover:opacity-75",
+          )}
+        >
+          <div
+            className={cn(
+              "w-2 h-2 rounded-sm",
+              visible.impressions ? "bg-accent-purple" : "bg-panel-border",
+            )}
+          />
+          Wyświetlenia
+        </button>
+        {showPosition && (
+          <button
+            onClick={() => toggle("position")}
+            className={cn(
+              "flex items-center gap-1 text-[9px] font-mono transition-all rounded px-1.5 py-0.5",
+              visible.position
+                ? "bg-accent-blue/15 text-accent-blue"
+                : "text-panel-muted line-through opacity-50 hover:opacity-75",
+            )}
+          >
+            <div
+              className={cn(
+                "w-2 h-2 rounded-sm",
+                visible.position ? "bg-accent-blue" : "bg-panel-border",
+              )}
+            />
+            Pozycja
+          </button>
+        )}
+      </div>
+
+      <ResponsiveContainer width="100%" height={height}>
+        <AreaChart data={data}>
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 7, fill: "#64748b" }}
+            tickFormatter={(d: string) => {
+              const dt = new Date(d);
+              return `${String(dt.getDate()).padStart(2, "0")}.${String(dt.getMonth() + 1).padStart(2, "0")}`;
+            }}
+            axisLine={false}
+            tickLine={false}
+          />
+
+          {/* Left Y axis — clicks */}
+          {hasLeft && (
+            <YAxis
+              yAxisId="left"
+              tick={{ fontSize: 7, fill: "#06b6d4" }}
+              axisLine={false}
+              tickLine={false}
+              width={30}
+            />
+          )}
+
+          {/* Right Y axis — impressions */}
+          {hasRight && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tick={{ fontSize: 7, fill: "#a855f7" }}
+              axisLine={false}
+              tickLine={false}
+              width={35}
+            />
+          )}
+
+          {/* Position Y axis — reversed, separate */}
+          {hasPosition && !hasLeft && !hasRight && (
+            <YAxis
+              yAxisId="pos"
+              reversed
+              tick={{ fontSize: 7, fill: "#3b82f6" }}
+              axisLine={false}
+              tickLine={false}
+              width={25}
+              domain={["dataMin - 1", "dataMax + 1"]}
+            />
+          )}
+          {hasPosition && (hasLeft || hasRight) && (
+            <YAxis
+              yAxisId="pos"
+              orientation={hasRight ? "left" : "right"}
+              reversed
+              tick={{ fontSize: 7, fill: "#3b82f6" }}
+              axisLine={false}
+              tickLine={false}
+              width={25}
+              domain={["dataMin - 1", "dataMax + 1"]}
+              hide
+            />
+          )}
+
+          <Tooltip
+            contentStyle={{
+              background: "#1a2235",
+              border: "1px solid #1e2a3a",
+              borderRadius: "4px",
+              fontSize: "9px",
+            }}
+            formatter={(value: number, name: string) => {
+              if (name === "Pozycja") return [value?.toFixed(1), name];
+              return [value, name];
+            }}
+          />
+
+          {visible.clicks && (
+            <Area
+              yAxisId="left"
+              type="monotone"
+              dataKey="clicks"
+              stroke="#06b6d4"
+              fill="none"
+              strokeWidth={1.5}
+              name="Kliknięcia"
+              dot={false}
+            />
+          )}
+
+          {visible.impressions && (
+            <Area
+              yAxisId="right"
+              type="monotone"
+              dataKey="impressions"
+              stroke="#a855f7"
+              fill="none"
+              strokeWidth={1.5}
+              strokeDasharray="4 2"
+              name="Wyświetlenia"
+              dot={false}
+            />
+          )}
+
+          {visible.position && showPosition && (
+            <Area
+              yAxisId={hasPosition && (hasLeft || hasRight) ? "pos" : "pos"}
+              type="monotone"
+              dataKey="position"
+              stroke="#3b82f6"
+              fill="none"
+              strokeWidth={1.5}
+              strokeDasharray="2 2"
+              name="Pozycja"
+              dot={false}
+            />
+          )}
+        </AreaChart>
+      </ResponsiveContainer>
+
+      {/* Summary stats */}
+      <div className="flex gap-3 text-[9px] text-panel-muted mt-1">
+        {visible.clicks && (
+          <span>
+            Klik:{" "}
+            <strong className="text-accent-cyan">
+              {data.reduce((s, d) => s + (d.clicks || 0), 0)}
+            </strong>
+          </span>
+        )}
+        {visible.impressions && (
+          <span>
+            Wyśw:{" "}
+            <strong className="text-accent-purple">
+              {data
+                .reduce((s, d) => s + (d.impressions || 0), 0)
+                .toLocaleString()}
+            </strong>
+          </span>
+        )}
+        {visible.position && showPosition && data.length > 0 && (
+          <span>
+            Śr. poz:{" "}
+            <strong className="text-accent-blue">
+              {(
+                data.reduce((s, d) => s + (d.position || 0), 0) / data.length
+              ).toFixed(1)}
+            </strong>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MozSection({ domainId }: { domainId: string }) {
+  const qc = useQueryClient();
+  const { data: moz, isLoading } = useQuery({
+    queryKey: ["moz-data", domainId],
+    queryFn: () => api.getMozData(domainId),
+  });
+
+  const syncMetrics = useMutation({
+    mutationFn: () => api.syncMozMetrics(domainId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["moz-data", domainId] }),
+  });
+
+  const syncBacklinks = useMutation({
+    mutationFn: () => api.syncMozBacklinks(domainId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["moz-data", domainId] }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="bg-panel-card border border-panel-border rounded-lg p-8 text-center">
+        <RefreshCw className="w-4 h-4 animate-spin text-panel-muted mx-auto" />
+      </div>
+    );
+  }
+
+  if (!moz) return null;
+
+  return (
+    <div className="space-y-3">
+      {/* Moz header with sync buttons */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-semibold text-panel-text">Moz Data</div>
+          {moz.mozLastSync && (
+            <span className="text-[9px] text-panel-muted">
+              sync: {fmtDate(moz.mozLastSync)}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            className="btn btn-ghost text-xs"
+            onClick={() => syncMetrics.mutate()}
+            disabled={syncMetrics.isPending}
+          >
+            {syncMetrics.isPending ? (
+              <RefreshCw className="w-3 h-3 animate-spin" />
+            ) : (
+              "Sync DA/PA"
+            )}
+          </button>
+          <button
+            className="btn btn-ghost text-xs"
+            onClick={() => syncBacklinks.mutate()}
+            disabled={syncBacklinks.isPending}
+          >
+            {syncBacklinks.isPending ? (
+              <RefreshCw className="w-3 h-3 animate-spin" />
+            ) : (
+              "Sync Backlinks (Moz)"
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Domain Authority stats */}
+      {moz.mozDA != null && (
+        <div className="grid grid-cols-5 gap-2">
+          <MozMetricCard
+            label="Domain Authority"
+            value={moz.mozDA?.toFixed(0) || "—"}
+            color={
+              moz.mozDA >= 40
+                ? "#22c55e"
+                : moz.mozDA >= 20
+                  ? "#f59e0b"
+                  : "#ef4444"
+            }
+          />
+          <MozMetricCard
+            label="Page Authority"
+            value={moz.mozPA?.toFixed(0) || "—"}
+            color="#3b82f6"
+          />
+          <MozMetricCard
+            label="Spam Score"
+            value={moz.mozSpamScore?.toFixed(0) || "—"}
+            color={
+              moz.mozSpamScore <= 30
+                ? "#22c55e"
+                : moz.mozSpamScore <= 60
+                  ? "#f59e0b"
+                  : "#ef4444"
+            }
+          />
+          <MozMetricCard
+            label="External Links"
+            value={fmtNumber(moz.mozLinks || 0)}
+            color="#06b6d4"
+          />
+          <MozMetricCard
+            label="Linking Domains"
+            value={fmtNumber(moz.mozDomains || 0)}
+            color="#a855f7"
+          />
+        </div>
+      )}
+
+      {/* Moz Backlinks table */}
+      {moz.backlinks?.length > 0 && (
+        <CollapsibleSection
+          title={`Backlinki z Moz — ${moz.stats.total} linków z ${moz.stats.uniqueDomains} domen`}
+          icon={<ExternalLink className="w-3.5 h-3.5 text-accent-blue" />}
+          badge={
+            <div className="flex gap-3 text-[10px] text-panel-muted">
+              <span>
+                Śr. DA źródła:{" "}
+                <strong className="text-accent-green">
+                  {moz.stats.avgSourceDA}
+                </strong>
+              </span>
+              <span>
+                Dofollow:{" "}
+                <strong className="text-accent-cyan">
+                  {moz.stats.dofollow}
+                </strong>
+              </span>
+              <span>
+                Live:{" "}
+                <strong className="text-accent-green">{moz.stats.live}</strong>
+              </span>
+            </div>
+          }
+          defaultOpen
+        >
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Domena źródłowa</th>
+                  <th>DA</th>
+                  <th>PA</th>
+                  <th>Spam</th>
+                  <th>Cel</th>
+                  <th>Anchor</th>
+                  <th>Typ</th>
+                  <th>Status</th>
+                  <th>Wykryto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {moz.backlinks.map((bl: any) => (
+                  <tr key={bl.id}>
+                    <td>
+                      <a
+                        href={bl.sourceUrl}
+                        target="_blank"
+                        className="text-accent-blue hover:underline font-mono text-[10px]"
+                      >
+                        {bl.sourceDomain}
+                      </a>
+                    </td>
+                    <td>
+                      <span
+                        className={cn(
+                          "font-mono font-bold",
+                          bl.mozSourceDA >= 40
+                            ? "text-accent-green"
+                            : bl.mozSourceDA >= 20
+                              ? "text-accent-amber"
+                              : "text-accent-red",
+                        )}
+                      >
+                        {bl.mozSourceDA?.toFixed(0) || "—"}
+                      </span>
+                    </td>
+                    <td className="text-accent-blue font-mono">
+                      {bl.mozSourcePA?.toFixed(0) || "—"}
+                    </td>
+                    <td
+                      className={cn(
+                        "font-mono",
+                        bl.mozSourceSpam <= 30
+                          ? "text-accent-green"
+                          : bl.mozSourceSpam <= 60
+                            ? "text-accent-amber"
+                            : "text-accent-red",
+                      )}
+                    >
+                      {bl.mozSourceSpam?.toFixed(0) || "—"}
+                    </td>
+                    <td className="max-w-[180px] truncate">
+                      <a
+                        href={bl.targetUrl}
+                        target="_blank"
+                        className="text-accent-cyan hover:underline"
+                      >
+                        {bl.page?.path ||
+                          bl.targetUrl.replace(/^https?:\/\/[^/]+/, "")}
+                      </a>
+                    </td>
+                    <td className="text-panel-muted max-w-[120px] truncate">
+                      {bl.anchorText || "—"}
+                    </td>
+                    <td>
+                      <span
+                        className={cn(
+                          "badge",
+                          bl.isDofollow ? "badge-pass" : "badge-neutral",
+                        )}
+                      >
+                        {bl.isDofollow ? "do" : "no"}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={cn(
+                          "badge",
+                          bl.isLive ? "badge-pass" : "badge-fail",
+                        )}
+                      >
+                        {bl.isLive ? "live" : "lost"}
+                      </span>
+                    </td>
+                    <td className="text-panel-muted text-[10px]">
+                      {fmtDate(bl.firstSeen)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Anchor text distribution */}
+      {moz.mozAnchors?.length > 0 && (
+        <CollapsibleSection
+          title="Dystrybucja anchor text (Moz)"
+          icon={<Search className="w-3.5 h-3.5 text-accent-amber" />}
+          badge={
+            <span className="text-[10px] text-panel-muted">
+              {moz.mozAnchors.length} unikalnych
+            </span>
+          }
+        >
+          <div className="p-4 space-y-1.5">
+            {moz.mozAnchors.map((a: any, i: number) => {
+              const maxDomains = moz.mozAnchors[0]?.externalDomains || 1;
+              const pct = Math.round((a.externalDomains / maxDomains) * 100);
+              return (
+                <div key={i} className="flex items-center gap-2 text-[11px]">
+                  <span className="font-mono text-accent-amber truncate w-48">
+                    "{a.text || "(pusty)"}"
+                  </span>
+                  <div className="flex-1 h-1.5 bg-panel-border/30 rounded overflow-hidden">
+                    <div
+                      className="h-full bg-accent-amber/50 rounded"
+                      style={{ width: `${Math.max(pct, 2)}%` }}
+                    />
+                  </div>
+                  <span className="text-panel-muted shrink-0 w-16 text-right">
+                    {a.externalDomains} domen
+                  </span>
+                  <span className="text-panel-dim shrink-0 w-16 text-right">
+                    {a.externalPages} stron
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* No data state */}
+      {!moz.mozDA && !moz.backlinks?.length && (
+        <div className="bg-panel-card border border-panel-border rounded-lg p-6 text-center text-panel-muted text-sm">
+          Brak danych Moz. Kliknij "Sync DA/PA" lub "Sync Backlinks (Moz)" aby
+          pobrać dane.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MozMetricCard({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  color: string;
+}) {
+  return (
+    <div className="stat-card" style={{ "--stat-accent": color } as any}>
+      <div className="text-base font-bold font-mono" style={{ color }}>
+        {value}
+      </div>
+      <div className="text-[9px] text-panel-muted">{label}</div>
     </div>
   );
 }

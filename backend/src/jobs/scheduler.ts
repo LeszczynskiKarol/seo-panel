@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { prisma } from "../lib/prisma.js";
 import { GscService } from "../services/gsc.service.js";
+import { MozService } from "../services/moz.service.js";
 import { SitemapService } from "../services/sitemap.service.js";
 import { IndexingService } from "../services/indexing.service.js";
 import { LinkCrawlerService } from "../services/link-crawler.service.js";
@@ -198,6 +199,47 @@ export function startScheduler() {
       }
       return results;
     });
+  });
+
+  // ─── MOZ SYNC — Every Sunday at 04:00 ─────────────────────
+  // Syncs DA/PA/Spam Score + external backlinks for all domains
+
+  cron.schedule("0 4 1,15 * *", async () => {
+    console.log("[Scheduler] Starting weekly Moz sync...");
+    const moz = new MozService();
+    const job = await prisma.jobRun.create({
+      data: { jobName: "moz_sync", status: "RUNNING" },
+    });
+
+    try {
+      const results = await moz.syncAllDomains();
+      const errors = results.filter((r: any) => r.status === "error").length;
+
+      await prisma.jobRun.update({
+        where: { id: job.id },
+        data: {
+          status: errors === results.length ? "FAILED" : "COMPLETED",
+          finishedAt: new Date(),
+          domainsProcessed: results.length,
+          errors,
+          details: results,
+        },
+      });
+
+      console.log(
+        `[Scheduler] Moz sync done: ${results.length} domains, ${errors} errors`,
+      );
+    } catch (e: any) {
+      await prisma.jobRun.update({
+        where: { id: job.id },
+        data: {
+          status: "FAILED",
+          finishedAt: new Date(),
+          errorLog: e.message,
+        },
+      });
+      console.error("[Scheduler] Moz sync failed:", e.message);
+    }
   });
 
   // 10:00 — Check domain keywords

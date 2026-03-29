@@ -31,12 +31,13 @@
   .data-table {
     @apply w-full text-xs min-w-[800px];
   }
+  .data-table td {
+    @apply px-2 py-1.5 border-b border-panel-border/40 font-mono text-[11px] whitespace-nowrap overflow-hidden;
+  }
   .data-table th {
     @apply text-left text-[9px] uppercase tracking-wider text-panel-muted font-semibold px-2 py-1.5 border-b border-panel-border sticky top-0 bg-panel-card;
   }
-  .data-table td {
-    @apply px-2 py-1.5 border-b border-panel-border/40 font-mono text-[11px] whitespace-nowrap;
-  }
+
   .data-table tr:hover td {
     @apply bg-panel-hover/20;
   }
@@ -69,7 +70,15 @@
   .btn-danger {
     @apply bg-accent-red/10 text-accent-red border border-accent-red/20 hover:bg-accent-red/20;
   }
-
+  .table-scroll-wrapper {
+    @apply overflow-x-auto overflow-y-visible max-w-full;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-scroll-wrapper .data-table td [class*="ResponsiveContainer"],
+  .table-scroll-wrapper .data-table td > div {
+    max-width: calc(100vw - 320px); /* sidebar width offset */
+    overflow: hidden;
+  }
   .input {
     @apply bg-panel-bg border border-panel-border rounded px-2 py-1.5 text-xs text-panel-text placeholder-panel-muted focus:outline-none focus:border-accent-blue/50 transition-colors;
   }
