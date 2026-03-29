@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import { domainRoutes } from "./routes/domains.js";
 import { aiRoutes } from "./routes/ai.js";
 import { mozRoutes } from "./routes/moz.js";
+
 import { registerAuth, authGuard } from "./lib/auth.js";
 import { overviewRoutes } from "./routes/overview.js";
 import { watchlistRoutes } from "./routes/watchlist.js";
