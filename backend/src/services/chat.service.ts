@@ -13,7 +13,7 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "get_domain_details",
     description:
-      "Szczegółowe dane domeny: top 30 stron z metrykami GSC, statystyki indeksowania, orphan pages, broken links, alerty, eventy SEO, metryki Moz (DA/PA/spam). Użyj gdy pytanie dotyczy konkretnej domeny — stanu SEO, indeksowania, stron, alertów.",
+      "Szczegółowe dane domeny: top 30 stron z metrykami GSC, statystyki indeksowania, alerty, eventy SEO, metryki Moz (DA/PA/spam), status integracji. Użyj gdy pytanie dotyczy konkretnej domeny — stanu SEO, indeksowania, stron, alertów.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -55,18 +55,6 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
-    name: "get_domain_internal_links",
-    description:
-      "Struktura linkowania wewnętrznego: link magnets, orphan pages, strony potrzebujące linków IN. Użyj gdy pytanie dotyczy linkowania wewnętrznego, struktury serwisu, orphan pages.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        domain_label: { type: "string", description: "Nazwa domeny" },
-      },
-      required: ["domain_label"],
-    },
-  },
-  {
     name: "get_cross_domain_links",
     description:
       "Mapa cross-linków między domenami w portfelu: kto linkuje do kogo, ile linków, anchory. Użyj gdy pytanie dotyczy strategii linkowania między domenami, sieci satelitów.",
@@ -97,7 +85,7 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "compare_domains",
     description:
-      "Porównaj 2-5 domen side-by-side: DA, kliknięcia, indeksowanie, backlinki, pozycje, orphan pages. Użyj gdy user prosi o porównanie lub ranking domen.",
+      "Porównaj 2-5 domen side-by-side: DA, kliknięcia, indeksowanie, backlinki, pozycje. Użyj gdy user prosi o porównanie lub ranking domen.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -263,8 +251,6 @@ async function executeTool(name: string, input: any): Promise<string> {
         input.domain_label,
         input.min_impressions || 5,
       );
-    case "get_domain_internal_links":
-      return getDomainInternalLinksData(input.domain_label);
     case "get_cross_domain_links":
       return getCrossDomainLinksData(input.group);
     case "get_position_movers":
@@ -362,19 +348,14 @@ async function getDetailedDomainData(label: string): Promise<string> {
       impressions: true,
       position: true,
       indexingVerdict: true,
-      internalLinksIn: true,
-      internalLinksOut: true,
-      externalLinksOut: true,
       title: true,
     },
   });
   sections.push(`\nTop 30 stron (po kliknięciach):`);
-  sections.push(
-    "Path | Klik | Imp | Poz | Verdict | LinksIn | LinksOut | Title",
-  );
+  sections.push("Path | Klik | Imp | Poz | Verdict | Title");
   for (const p of topPages) {
     sections.push(
-      `${p.path} | ${p.clicks} | ${p.impressions} | ${p.position?.toFixed(1) || "-"} | ${p.indexingVerdict} | IN:${p.internalLinksIn} OUT:${p.internalLinksOut + p.externalLinksOut} | ${(p.title || "").slice(0, 60)}`,
+      `${p.path} | ${p.clicks} | ${p.impressions} | ${p.position?.toFixed(1) || "-"} | ${p.indexingVerdict} | ${(p.title || "").slice(0, 60)}`,
     );
   }
 
@@ -387,15 +368,6 @@ async function getDetailedDomainData(label: string): Promise<string> {
   sections.push(`\nIndeksowanie:`);
   for (const s of indexing)
     sections.push(`  ${s.indexingVerdict}: ${s._count.id}`);
-
-  // Orphan & broken
-  const orphans = await prisma.page.count({
-    where: { domainId, inSitemap: true, internalLinksIn: 0 },
-  });
-  const broken = await prisma.link.count({
-    where: { isBroken: true, fromPage: { domainId } },
-  });
-  sections.push(`\nOrphan pages: ${orphans} | Broken links: ${broken}`);
 
   // Active alerts
   const alerts = await prisma.alert.findMany({
@@ -586,75 +558,6 @@ async function getDomainQueriesData(
   return sections.join("\n");
 }
 
-async function getDomainInternalLinksData(label: string): Promise<string> {
-  const domain = await findDomainByLabel(label);
-  if (!domain) return `Nie znaleziono domeny: ${label}`;
-
-  const pages = await prisma.page.findMany({
-    where: { domainId: domain.id, inSitemap: true },
-    orderBy: { clicks: "desc" },
-    take: 100,
-    select: {
-      path: true,
-      clicks: true,
-      impressions: true,
-      position: true,
-      internalLinksIn: true,
-      internalLinksOut: true,
-      externalLinksOut: true,
-      indexingVerdict: true,
-    },
-  });
-
-  const sections: string[] = [];
-  sections.push(
-    `=== LINKOWANIE WEWNĘTRZNE: ${domain.label || domain.domain} ===`,
-  );
-
-  const totalIn = pages.reduce((s, p) => s + p.internalLinksIn, 0);
-  const orphans = pages.filter((p) => p.internalLinksIn === 0);
-  const avgIn = pages.length ? (totalIn / pages.length).toFixed(1) : "0";
-  sections.push(
-    `Stron: ${pages.length} | Łącznie linków IN: ${totalIn} | Śr. IN/stronę: ${avgIn} | Orphan pages: ${orphans.length}`,
-  );
-
-  const orphansWithTraffic = orphans
-    .filter((p) => p.impressions > 0)
-    .sort((a, b) => b.impressions - a.impressions);
-  if (orphansWithTraffic.length) {
-    sections.push(`\n🔴 ORPHAN PAGES Z RUCHEM (${orphansWithTraffic.length}):`);
-    for (const p of orphansWithTraffic.slice(0, 15)) {
-      sections.push(
-        `  ${p.path} | ${p.clicks} klik | ${p.impressions} imp | poz ${p.position?.toFixed(1) || "-"} | ${p.indexingVerdict}`,
-      );
-    }
-  }
-
-  const needLinks = pages
-    .filter((p) => p.internalLinksIn <= 1 && p.impressions > 10)
-    .sort((a, b) => b.impressions - a.impressions);
-  if (needLinks.length) {
-    sections.push(`\n🟡 POTRZEBUJĄ LINKÓW (IN ≤ 1, imp > 10):`);
-    for (const p of needLinks.slice(0, 15)) {
-      sections.push(
-        `  ${p.path} | IN:${p.internalLinksIn} | ${p.clicks} klik | ${p.impressions} imp | poz ${p.position?.toFixed(1) || "-"}`,
-      );
-    }
-  }
-
-  const magnets = [...pages]
-    .sort((a, b) => b.internalLinksIn - a.internalLinksIn)
-    .slice(0, 10);
-  sections.push(`\n🟢 LINK MAGNETS (top IN):`);
-  for (const p of magnets) {
-    sections.push(
-      `  ${p.path} | IN:${p.internalLinksIn} | OUT:${p.internalLinksOut} | ${p.clicks} klik`,
-    );
-  }
-
-  return sections.join("\n");
-}
-
 async function getCrossDomainLinksData(group?: string): Promise<string> {
   const domains = await prisma.domain.findMany({
     where: { isActive: true, ...(group ? { linkGroup: group } : {}) },
@@ -823,17 +726,14 @@ async function compareDomainsData(labels: string[]): Promise<string> {
 
   const sections: string[] = [`=== PORÓWNANIE ${domains.length} DOMEN ===`];
   sections.push(
-    "Domena | DA | PA | Spam | Strony | Index% | Klik(30d) | Imp | Poz | ExtLinks | LinkDomains | Orphans",
+    "Domena | DA | PA | Spam | Strony | Index% | Klik(30d) | Imp | Poz | ExtLinks | LinkDomains",
   );
 
   for (const d of domains) {
-    const orphans = await prisma.page.count({
-      where: { domainId: d.id, inSitemap: true, internalLinksIn: 0 },
-    });
     const indexPct =
       d.totalPages > 0 ? Math.round((d.indexedPages / d.totalPages) * 100) : 0;
     sections.push(
-      `${d.label || d.domain} | DA:${d.mozDA?.toFixed(0) || "-"} | PA:${d.mozPA?.toFixed(0) || "-"} | Spam:${d.mozSpamScore?.toFixed(0) || "-"} | ${d.totalPages} | ${indexPct}% | ${d.totalClicks} | ${d.totalImpressions} | ${d.avgPosition?.toFixed(1) || "-"} | ${d.mozLinks || "-"} | ${d.mozDomains || "-"} | ${orphans}`,
+      `${d.label || d.domain} | DA:${d.mozDA?.toFixed(0) || "-"} | PA:${d.mozPA?.toFixed(0) || "-"} | Spam:${d.mozSpamScore?.toFixed(0) || "-"} | ${d.totalPages} | ${indexPct}% | ${d.totalClicks} | ${d.totalImpressions} | ${d.avgPosition?.toFixed(1) || "-"} | ${d.mozLinks || "-"} | ${d.mozDomains || "-"}`,
     );
   }
 
@@ -1837,7 +1737,7 @@ DANE, DO KTÓRYCH MASZ DOSTĘP PRZEZ NARZĘDZIA:
 3. Google Ads — kampanie (Search, Shopping, PMax), produkty, search terms, ROAS, CPC, koszty
 4. Google Merchant Center — status feedu: approved/disapproved/pending
 5. Moz — Domain Authority, Page Authority, spam score, backlinki, anchory, linking domains
-6. Linkowanie wewnętrzne i cross-domain — orphan pages, link magnets, cross-linki między domenami
+6. Cross-domain linking — cross-linki między domenami w portfelu, strategia satelitów
 7. Alerty i eventy SEO — deindeksacja, spadki ruchu, nowe backlinki, broken links
 
 ZASADY:
@@ -1863,12 +1763,48 @@ ${overview}`;
       { role: "user" as const, content: question },
     ];
 
-    let allToolResults: string[] = [];
+    // ─── Full debug trace ───
+    interface ToolCallTrace {
+      tool: string;
+      input: any;
+      resultLength: number;
+      result: string; // FULL result, not truncated
+      durationMs: number;
+    }
+    interface IterationTrace {
+      iteration: number;
+      toolCalls: ToolCallTrace[];
+      intermediateText: string | null; // Claude's thinking between tool calls
+      inputTokens: number;
+      outputTokens: number;
+      stopReason: string | null;
+    }
+
+    const trace: {
+      systemPrompt: string;
+      userQuestion: string;
+      historyLength: number;
+      iterations: IterationTrace[];
+      finalAnswer: string;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalDurationMs: number;
+    } = {
+      systemPrompt,
+      userQuestion: question,
+      historyLength: history.length,
+      iterations: [],
+      finalAnswer: "",
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalDurationMs: 0,
+    };
+
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
     const startTime = Date.now();
 
-    // Multi-turn tool loop
+    // Initial call
     let response = await aiCall({
       model: "claude-sonnet-4-6",
       max_tokens: 4000,
@@ -1881,24 +1817,46 @@ ${overview}`;
     totalInputTokens += response.usage.input_tokens;
     totalOutputTokens += response.usage.output_tokens;
 
-    // Process tool calls in a loop (max 8 iterations to allow deep analysis)
+    // Process tool calls in a loop (max 8 iterations)
     let iterations = 0;
     while (response.stop_reason === "tool_use" && iterations < 8) {
       iterations++;
+      const iterStart = Date.now();
+
+      // Capture Claude's intermediate text (thinking/reasoning before tool calls)
+      const intermediateText =
+        response.content
+          .filter((b) => b.type === "text")
+          .map((b) => (b as any).text)
+          .join("\n")
+          .trim() || null;
+
       const toolUseBlocks = response.content.filter(
         (b) => b.type === "tool_use",
       );
+      const toolCallTraces: ToolCallTrace[] = [];
+
       const toolResults: Anthropic.MessageParam = {
         role: "user",
         content: await Promise.all(
           toolUseBlocks.map(async (block) => {
             if (block.type !== "tool_use")
               return { type: "text" as const, text: "" };
+            const toolStart = Date.now();
             console.log(
               `[Chat] Tool call #${iterations}: ${block.name}(${JSON.stringify(block.input)})`,
             );
+
             const result = await executeTool(block.name, block.input);
-            allToolResults.push(`[${block.name}] ${result.slice(0, 300)}...`);
+
+            toolCallTraces.push({
+              tool: block.name,
+              input: block.input,
+              resultLength: result.length,
+              result, // FULL — no truncation
+              durationMs: Date.now() - toolStart,
+            });
+
             return {
               type: "tool_result" as const,
               tool_use_id: block.id,
@@ -1907,6 +1865,15 @@ ${overview}`;
           }),
         ),
       };
+
+      trace.iterations.push({
+        iteration: iterations,
+        toolCalls: toolCallTraces,
+        intermediateText,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        stopReason: response.stop_reason,
+      });
 
       messages.push({ role: "assistant", content: response.content });
       messages.push(toolResults);
@@ -1927,6 +1894,94 @@ ${overview}`;
     const answer =
       response.content.find((c) => c.type === "text")?.text ||
       "Brak odpowiedzi";
+    const durationMs = Date.now() - startTime;
+
+    trace.finalAnswer = answer;
+    trace.totalInputTokens = totalInputTokens;
+    trace.totalOutputTokens = totalOutputTokens;
+    trace.totalDurationMs = durationMs;
+
+    // Build full readable context for frontend
+    const contextParts: string[] = [];
+    contextParts.push(
+      "╔══════════════════════════════════════════════════════╗",
+    );
+    contextParts.push(
+      "║              PEŁNY KONTEKST SESJI CLAUDE             ║",
+    );
+    contextParts.push(
+      "╚══════════════════════════════════════════════════════╝",
+    );
+    contextParts.push("");
+    contextParts.push(
+      "┌─── SYSTEM PROMPT ───────────────────────────────────┐",
+    );
+    contextParts.push(systemPrompt);
+    contextParts.push("└────────────────────────────────────────────────────┘");
+    contextParts.push("");
+
+    if (history.length > 0) {
+      contextParts.push(
+        "┌─── HISTORIA KONWERSACJI ────────────────────────────┐",
+      );
+      for (const h of history) {
+        contextParts.push(`[${h.role.toUpperCase()}]: ${h.content}`);
+        contextParts.push("---");
+      }
+      contextParts.push(
+        "└────────────────────────────────────────────────────┘",
+      );
+      contextParts.push("");
+    }
+
+    contextParts.push(
+      `┌─── PYTANIE UŻYTKOWNIKA ─────────────────────────────┐`,
+    );
+    contextParts.push(question);
+    contextParts.push("└────────────────────────────────────────────────────┘");
+    contextParts.push("");
+
+    for (const iter of trace.iterations) {
+      contextParts.push(
+        `╔══ ITERACJA ${iter.iteration} ══════════════════════════════════════╗`,
+      );
+      contextParts.push(
+        `║ Tokens: IN=${iter.inputTokens} OUT=${iter.outputTokens} | Stop: ${iter.stopReason}`,
+      );
+
+      if (iter.intermediateText) {
+        contextParts.push("║");
+        contextParts.push("║ 💭 CLAUDE MYŚLI:");
+        contextParts.push(iter.intermediateText);
+      }
+
+      for (const tc of iter.toolCalls) {
+        contextParts.push("║");
+        contextParts.push(`║ 🔧 TOOL: ${tc.tool}`);
+        contextParts.push(`║ 📥 INPUT: ${JSON.stringify(tc.input)}`);
+        contextParts.push(`║ ⏱  ${tc.durationMs}ms | ${tc.resultLength} chars`);
+        contextParts.push("║ 📤 FULL RESULT:");
+        contextParts.push(
+          "║ ─────────────────────────────────────────────────",
+        );
+        contextParts.push(tc.result);
+        contextParts.push(
+          "║ ─────────────────────────────────────────────────",
+        );
+      }
+      contextParts.push(
+        "╚═══════════════════════════════════════════════════╝",
+      );
+      contextParts.push("");
+    }
+
+    contextParts.push(
+      "┌─── FINALNA ODPOWIEDŹ CLAUDE ────────────────────────┐",
+    );
+    contextParts.push(
+      `Tokens: IN=${totalInputTokens} OUT=${totalOutputTokens} | Iteracje: ${iterations} | Czas: ${durationMs}ms`,
+    );
+    contextParts.push("└────────────────────────────────────────────────────┘");
 
     return {
       answer,
@@ -1935,8 +1990,10 @@ ${overview}`;
         input_tokens: totalInputTokens,
         output_tokens: totalOutputTokens,
       },
-      durationMs: Date.now() - startTime,
-      context: `${systemPrompt}\n\n--- TOOL CALLS (${iterations}) ---\n${allToolResults.join("\n")}`,
+      durationMs,
+      context: contextParts.join("\n"),
+      // Structured trace for programmatic access
+      trace: JSON.stringify(trace),
     };
   }
 }

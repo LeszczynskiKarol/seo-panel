@@ -17,6 +17,7 @@ import {
   MessageSquare,
   ChevronLeft,
 } from "lucide-react";
+import { ContextViewer } from "../../src//components/ContextViewer";
 
 interface Message {
   id?: string;
@@ -345,31 +346,6 @@ export function ChatPage() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ContextViewer({ context }: { context: string }) {
-  const [open, setOpen] = useState(false);
-
-  // Count approximate tokens (rough: 4 chars ≈ 1 token)
-  const approxTokens = Math.round(context.length / 4);
-
-  return (
-    <div className="mt-1.5">
-      <button
-        onClick={() => setOpen(!open)}
-        className="text-[9px] text-panel-muted hover:text-accent-purple flex items-center gap-1 font-mono"
-      >
-        <span>{open ? "▼" : "▶"}</span>
-        Kontekst wysłany do Claude ({(context.length / 1024).toFixed(1)} KB, ~
-        {approxTokens} tok.)
-      </button>
-      {open && (
-        <pre className="mt-1.5 text-[9px] font-mono text-panel-dim bg-panel-bg/60 border border-panel-border rounded-md p-3 max-h-[400px] overflow-auto whitespace-pre-wrap leading-relaxed">
-          {context}
-        </pre>
-      )}
     </div>
   );
 }
