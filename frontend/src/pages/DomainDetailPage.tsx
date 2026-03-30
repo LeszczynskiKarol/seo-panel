@@ -68,18 +68,120 @@ export function DomainDetailPage() {
   const { data: linksData } = useQuery({
     queryKey: ["domain-links", id],
     queryFn: async () => {
-      const pages = await api.getDomainPages(id!, "limit=500");
+      const pages = await api.getDomainPages(id!, "limit=5000");
 
-      const byInbound = [...pages.pages]
-        .sort((a: any, b: any) => b.internalLinksIn - a.internalLinksIn)
-        .slice(0, 20);
+      // ─── Calculate baseline (nav/footer links every page gets) ───
+      // Use mode or percentile — most pages get same number from global nav
+      const linksInValues = pages.pages
+        .map((p: any) => p.internalLinksIn)
+        .sort((a: number, b: number) => a - b);
 
-      const needLinks = [...pages.pages]
-        .filter((p: any) => p.internalLinksIn <= 1 && p.impressions > 0)
+      // Baseline = value at 25th percentile (robust against outliers)
+      const baseline =
+        linksInValues.length > 0
+          ? linksInValues[Math.floor(linksInValues.length * 0.25)]
+          : 0;
+
+      // ─── Enrich pages with extra links ───
+      const enriched = pages.pages.map((p: any) => ({
+        ...p,
+        extraLinksIn: Math.max(0, p.internalLinksIn - baseline),
+        section: getSection(p.path),
+      }));
+
+      // ─── Group by section ───
+      const sectionMap = new Map<string, any[]>();
+      for (const p of enriched) {
+        if (!sectionMap.has(p.section)) sectionMap.set(p.section, []);
+        sectionMap.get(p.section)!.push(p);
+      }
+
+      const sections = Array.from(sectionMap.entries())
+        .map(([section, sPages]) => {
+          const totalExtraLinks = sPages.reduce(
+            (s: number, p: any) => s + p.extraLinksIn,
+            0,
+          );
+          const totalClicks = sPages.reduce(
+            (s: number, p: any) => s + p.clicks,
+            0,
+          );
+          const totalImpressions = sPages.reduce(
+            (s: number, p: any) => s + p.impressions,
+            0,
+          );
+          const orphanCount = sPages.filter(
+            (p: any) => p.internalLinksIn === 0,
+          ).length;
+          const avgLinksIn =
+            sPages.length > 0
+              ? Math.round(
+                  (sPages.reduce(
+                    (s: number, p: any) => s + p.internalLinksIn,
+                    0,
+                  ) /
+                    sPages.length) *
+                    10,
+                ) / 10
+              : 0;
+          const avgExtraLinks =
+            sPages.length > 0
+              ? Math.round((totalExtraLinks / sPages.length) * 10) / 10
+              : 0;
+
+          // Top pages in section (by extra links, then clicks)
+          const topPages = [...sPages]
+            .sort(
+              (a: any, b: any) =>
+                b.extraLinksIn - a.extraLinksIn || b.clicks - a.clicks,
+            )
+            .slice(0, 10);
+
+          return {
+            section,
+            pageCount: sPages.length,
+            totalExtraLinks,
+            totalClicks,
+            totalImpressions,
+            orphanCount,
+            avgLinksIn,
+            avgExtraLinks,
+            topPages,
+            allPages: sPages,
+          };
+        })
+        .sort(
+          (a, b) =>
+            b.totalExtraLinks - a.totalExtraLinks ||
+            b.totalClicks - a.totalClicks,
+        );
+
+      // ─── Need links — pages with traffic but few extra links ───
+      const needLinks = enriched
+        .filter((p: any) => p.extraLinksIn <= 1 && p.impressions > 0)
         .sort((a: any, b: any) => b.impressions - a.impressions)
-        .slice(0, 20);
+        .slice(0, 30);
 
-      const byOutbound = [...pages.pages]
+      // Group needLinks by section
+      const needBySection = new Map<string, any[]>();
+      for (const p of needLinks) {
+        if (!needBySection.has(p.section)) needBySection.set(p.section, []);
+        needBySection.get(p.section)!.push(p);
+      }
+      const needSections = Array.from(needBySection.entries())
+        .map(([section, sPages]) => ({
+          section,
+          pageCount: sPages.length,
+          totalImpressions: sPages.reduce(
+            (s: number, p: any) => s + p.impressions,
+            0,
+          ),
+          pages: sPages.sort((a: any, b: any) => b.impressions - a.impressions),
+        }))
+        .sort((a, b) => b.totalImpressions - a.totalImpressions);
+
+      // ─── Outbound — keep existing logic ───
+      const byOutbound = [...enriched]
         .sort(
           (a: any, b: any) =>
             b.internalLinksOut +
@@ -88,15 +190,15 @@ export function DomainDetailPage() {
         )
         .slice(0, 20);
 
-      const totalInternal = pages.pages.reduce(
+      const totalInternal = enriched.reduce(
         (s: number, p: any) => s + p.internalLinksOut,
         0,
       );
-      const totalExternal = pages.pages.reduce(
+      const totalExternal = enriched.reduce(
         (s: number, p: any) => s + p.externalLinksOut,
         0,
       );
-      const orphans = pages.pages.filter(
+      const orphans = enriched.filter(
         (p: any) => p.internalLinksIn === 0,
       ).length;
       const avgInbound =
@@ -105,18 +207,26 @@ export function DomainDetailPage() {
           : 0;
 
       return {
-        byInbound,
-        needLinks,
+        sections,
+        needSections,
         byOutbound,
         totalInternal,
         totalExternal,
         orphans,
         avgInbound,
         total: pages.total,
+        baseline,
       };
     },
     enabled: !!id && tab === "links",
   });
+
+  // Helper function — dodaj gdziekolwiek w pliku (np. przed DomainDetailPage):
+  function getSection(path: string): string {
+    const parts = path.split("/").filter(Boolean);
+    if (parts.length === 0) return "/";
+    return `/${parts[0]}`;
+  }
 
   const { data: domainKeywords } = useQuery({
     queryKey: ["domain-keywords", id],
@@ -996,114 +1106,50 @@ export function DomainDetailPage() {
 
           {/* Link Magnets - collapsed */}
           <CollapsibleSection
-            title="Link Magnets — strony z największą liczbą linków przychodzących"
+            title="Link Magnets — sekcje z największą liczbą dodatkowych linków"
             icon={<ArrowDown className="w-3.5 h-3.5 text-accent-green" />}
             badge={
-              <span className="text-[10px] text-panel-muted">
-                {linksData.byInbound.length} stron
-              </span>
+              <div className="flex gap-3 text-[10px] text-panel-muted">
+                <span>{linksData.sections.length} sekcji</span>
+                <span>
+                  Baseline:{" "}
+                  <strong className="text-panel-text">
+                    {linksData.baseline}
+                  </strong>{" "}
+                  linków/stronę (nav/footer)
+                </span>
+              </div>
             }
           >
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>URL</th>
-                  <th>Linki IN</th>
-                  <th>Linki OUT</th>
-                  <th>Kliknięcia</th>
-                  <th>Wyświetl.</th>
-                  <th>Pozycja</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {linksData.byInbound.map((p: any) => (
-                  <tr key={p.id}>
-                    <td className="max-w-[300px] truncate">
-                      <a
-                        href={p.url}
-                        target="_blank"
-                        className="text-accent-blue hover:underline"
-                      >
-                        {p.path}
-                      </a>
-                    </td>
-                    <td className="text-accent-green font-semibold">
-                      {p.internalLinksIn}
-                    </td>
-                    <td>{p.internalLinksOut + p.externalLinksOut}</td>
-                    <td className="text-accent-cyan">{p.clicks}</td>
-                    <td>{fmtNumber(p.impressions)}</td>
-                    <td>{fmtPosition(p.position)}</td>
-                    <td>
-                      <span
-                        className={cn("badge", verdictBadge(p.indexingVerdict))}
-                      >
-                        {p.indexingVerdict}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="text-[9px] text-panel-muted px-4 py-2 bg-panel-bg/30 border-b border-panel-border">
+              "Extra linki" = linki powyżej baseline ({linksData.baseline}) —
+              czyli linki z treści, nie z nawigacji.
+            </div>
+            <SectionMagnets
+              sections={linksData.sections}
+              baseline={linksData.baseline}
+            />
           </CollapsibleSection>
 
           {/* Need more links - collapsed */}
-          {linksData.needLinks.length > 0 && (
+          {linksData.needSections.length > 0 && (
             <CollapsibleSection
-              title="Potrzebują linkowania — strony z ruchem ale mało/brak linków"
+              title="Potrzebują linkowania — sekcje ze stronami bez extra linków"
               icon={<AlertTriangle className="w-3.5 h-3.5 text-accent-amber" />}
               badge={
                 <span className="text-[10px] text-accent-amber font-semibold">
-                  {linksData.needLinks.length} stron
+                  {linksData.needSections.reduce(
+                    (s: number, ns: any) => s + ns.pageCount,
+                    0,
+                  )}{" "}
+                  stron
                 </span>
               }
             >
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>URL</th>
-                    <th>Linki IN</th>
-                    <th>Kliknięcia</th>
-                    <th>Wyświetl.</th>
-                    <th>Pozycja</th>
-                    <th>Rekomendacja</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {linksData.needLinks.map((p: any) => (
-                    <tr key={p.id}>
-                      <td className="max-w-[300px] truncate">
-                        <a
-                          href={p.url}
-                          target="_blank"
-                          className="text-accent-blue hover:underline"
-                        >
-                          {p.path}
-                        </a>
-                      </td>
-                      <td
-                        className={cn(
-                          "font-semibold",
-                          p.internalLinksIn === 0
-                            ? "text-accent-red"
-                            : "text-accent-amber",
-                        )}
-                      >
-                        {p.internalLinksIn}
-                      </td>
-                      <td className="text-accent-cyan">{p.clicks}</td>
-                      <td>{fmtNumber(p.impressions)}</td>
-                      <td>{fmtPosition(p.position)}</td>
-                      <td className="text-[10px] text-panel-dim">
-                        {p.internalLinksIn === 0
-                          ? "🔴 Brak linków!"
-                          : "🟡 Mało linków"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <NeedLinksSections
+                sections={linksData.needSections}
+                baseline={linksData.baseline}
+              />
             </CollapsibleSection>
           )}
 
@@ -3778,5 +3824,266 @@ function MozAnchorDomainGroup({
         </div>
       )}
     </div>
+  );
+}
+
+function SectionMagnets({
+  sections,
+  baseline,
+}: {
+  sections: any[];
+  baseline: number;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (section: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(section) ? next.delete(section) : next.add(section);
+      return next;
+    });
+  };
+
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>Sekcja</th>
+          <th>Stron</th>
+          <th>Extra linki</th>
+          <th>Śr. extra/stronę</th>
+          <th>Kliknięcia</th>
+          <th>Wyświetlenia</th>
+          <th>Orphany</th>
+          <th>Moc</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sections.map((sec: any) => {
+          const isOpen = expanded.has(sec.section);
+          const maxExtra = sections[0]?.totalExtraLinks || 1;
+          const pct = Math.round((sec.totalExtraLinks / maxExtra) * 100);
+
+          return (
+            <React.Fragment key={sec.section}>
+              {/* Section summary */}
+              <tr
+                className="cursor-pointer hover:bg-panel-hover/20"
+                onClick={() => toggle(sec.section)}
+              >
+                <td>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] text-panel-muted">
+                      {isOpen ? "▼" : "▶"}
+                    </span>
+                    <span className="font-mono font-semibold text-accent-blue">
+                      {sec.section}
+                    </span>
+                  </div>
+                </td>
+                <td>{sec.pageCount}</td>
+                <td className="text-accent-green font-semibold">
+                  {sec.totalExtraLinks}
+                </td>
+                <td
+                  className={cn(
+                    "font-mono",
+                    sec.avgExtraLinks >= 5
+                      ? "text-accent-green"
+                      : sec.avgExtraLinks >= 1
+                        ? "text-accent-cyan"
+                        : "text-accent-red",
+                  )}
+                >
+                  {sec.avgExtraLinks}
+                </td>
+                <td className="text-accent-cyan">
+                  {fmtNumber(sec.totalClicks)}
+                </td>
+                <td>{fmtNumber(sec.totalImpressions)}</td>
+                <td
+                  className={cn(
+                    sec.orphanCount > 0
+                      ? "text-accent-red font-semibold"
+                      : "text-panel-muted",
+                  )}
+                >
+                  {sec.orphanCount}
+                </td>
+                <td>
+                  <div className="w-20 h-1.5 bg-panel-border/30 rounded overflow-hidden">
+                    <div
+                      className="h-full bg-accent-green/60 rounded"
+                      style={{ width: `${Math.max(pct, 2)}%` }}
+                    />
+                  </div>
+                </td>
+              </tr>
+
+              {/* Expanded — top pages in section */}
+              {isOpen &&
+                sec.topPages.map((p: any) => (
+                  <tr key={p.id} className="bg-panel-bg/30">
+                    <td className="pl-8 max-w-[250px] truncate">
+                      <a
+                        href={p.url}
+                        target="_blank"
+                        className="text-panel-dim hover:underline text-[10px]"
+                      >
+                        {p.path}
+                      </a>
+                    </td>
+                    <td />
+                    <td
+                      className={cn(
+                        "font-semibold",
+                        p.extraLinksIn > 5
+                          ? "text-accent-green"
+                          : p.extraLinksIn > 0
+                            ? "text-accent-cyan"
+                            : "text-panel-muted",
+                      )}
+                    >
+                      +{p.extraLinksIn}
+                      <span className="text-panel-muted font-normal text-[9px] ml-1">
+                        ({p.internalLinksIn} total)
+                      </span>
+                    </td>
+                    <td />
+                    <td className="text-accent-cyan">{p.clicks}</td>
+                    <td>{fmtNumber(p.impressions)}</td>
+                    <td />
+                    <td>
+                      <span
+                        className={cn(
+                          "badge",
+                          p.indexingVerdict === "PASS"
+                            ? "badge-pass"
+                            : "badge-neutral",
+                        )}
+                      >
+                        {p.indexingVerdict}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+
+              {/* Show more link if section has more pages */}
+              {isOpen && sec.allPages.length > 10 && (
+                <tr className="bg-panel-bg/30">
+                  <td
+                    colSpan={8}
+                    className="text-center text-[10px] text-panel-muted"
+                  >
+                    ...i jeszcze {sec.allPages.length - 10} stron w tej sekcji
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function NeedLinksSections({
+  sections,
+  baseline,
+}: {
+  sections: any[];
+  baseline: number;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (section: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(section) ? next.delete(section) : next.add(section);
+      return next;
+    });
+  };
+
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>Sekcja</th>
+          <th>Stron bez extra linków</th>
+          <th>Wyświetlenia (łącznie)</th>
+          <th>Rekomendacja</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sections.map((sec: any) => {
+          const isOpen = expanded.has(sec.section);
+          return (
+            <React.Fragment key={sec.section}>
+              <tr
+                className="cursor-pointer hover:bg-panel-hover/20"
+                onClick={() => toggle(sec.section)}
+              >
+                <td>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] text-panel-muted">
+                      {isOpen ? "▼" : "▶"}
+                    </span>
+                    <span className="font-mono font-semibold text-accent-amber">
+                      {sec.section}
+                    </span>
+                  </div>
+                </td>
+                <td className="text-accent-amber font-semibold">
+                  {sec.pageCount}
+                </td>
+                <td>{fmtNumber(sec.totalImpressions)}</td>
+                <td className="text-[10px] text-panel-dim">
+                  {sec.totalImpressions > 1000
+                    ? "🔴 Wysoki priorytet — dużo ruchu bez linków"
+                    : sec.totalImpressions > 100
+                      ? "🟡 Średni priorytet"
+                      : "🟢 Niski priorytet"}
+                </td>
+              </tr>
+
+              {isOpen &&
+                sec.pages.map((p: any) => (
+                  <tr key={p.id} className="bg-panel-bg/30">
+                    <td className="pl-8 max-w-[250px] truncate">
+                      <a
+                        href={p.url}
+                        target="_blank"
+                        className="text-accent-blue hover:underline text-[10px]"
+                      >
+                        {p.path}
+                      </a>
+                    </td>
+                    <td
+                      className={cn(
+                        "font-semibold",
+                        p.extraLinksIn === 0
+                          ? "text-accent-red"
+                          : "text-accent-amber",
+                      )}
+                    >
+                      +{p.extraLinksIn}
+                      <span className="text-panel-muted font-normal text-[9px] ml-1">
+                        ({p.internalLinksIn} total)
+                      </span>
+                    </td>
+                    <td>
+                      <span className="text-accent-cyan">{p.clicks} klik.</span>
+                      <span className="text-panel-muted ml-1">
+                        {fmtNumber(p.impressions)} imp.
+                      </span>
+                    </td>
+                    <td className="text-[10px]">{fmtPosition(p.position)}</td>
+                  </tr>
+                ))}
+            </React.Fragment>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
