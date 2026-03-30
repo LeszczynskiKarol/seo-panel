@@ -392,9 +392,19 @@ async function getDetailedDomainData(label: string): Promise<string> {
   if (events.length) {
     sections.push(`\nOstatnie eventy SEO:`);
     for (const e of events) {
-      sections.push(
-        `  ${new Date(e.createdAt).toISOString().split("T")[0]} | ${e.type} | ${e.page?.path || "-"}`,
-      );
+      const date = new Date(e.createdAt).toISOString().split("T")[0];
+      const d = e.data as any;
+      let detail = e.page?.path || "-";
+
+      if (e.type === "BACKLINK_NEW" && d?.sourceDomain) {
+        detail = `${d.sourceDomain}${d.da ? ` DA:${d.da}` : ""} → ${e.page?.path || "/"} | anchor: "${d.anchor || "-"}"`;
+      } else if (e.type === "BACKLINK_LOST" && d?.sourceDomain) {
+        detail = `LOST: ${d.sourceDomain}${d.da ? ` DA:${d.da}` : ""} → ${e.page?.path || "/"}`;
+      } else if (d?.description) {
+        detail = d.description;
+      }
+
+      sections.push(`  ${date} | ${e.type} | ${detail}`);
     }
   }
 
@@ -484,73 +494,80 @@ async function getDomainQueriesData(
 ): Promise<string> {
   const domain = await findDomainByLabel(label);
   if (!domain) return `Nie znaleziono domeny: ${label}`;
+  if (!domain.gscProperty)
+    return `Domena ${label} nie ma skonfigurowanego GSC property.`;
 
-  const since = daysAgo(30);
-  const daily = await prisma.gscPageDaily.findMany({
-    where: { page: { domainId: domain.id }, date: { gte: since } },
-    select: { topQueries: true, page: { select: { path: true } } },
+  const { getSearchConsole } = await import("../lib/google-auth.js");
+  const sc = await getSearchConsole();
+  const endDate = new Date().toISOString().split("T")[0];
+  const startDate = new Date(Date.now() - 30 * 86400000)
+    .toISOString()
+    .split("T")[0];
+
+  // Query 1: top queries by impressions
+  const res = await sc.searchanalytics.query({
+    siteUrl: domain.gscProperty,
+    requestBody: {
+      startDate,
+      endDate,
+      dimensions: ["query"],
+      rowLimit: 500,
+    },
   });
 
-  const queryMap = new Map<
-    string,
-    {
-      clicks: number;
-      impressions: number;
-      positions: number[];
-      pages: Set<string>;
-    }
-  >();
-  for (const d of daily) {
-    if (!d.topQueries) continue;
-    for (const q of d.topQueries as any[]) {
-      if (!q.query) continue;
-      const existing = queryMap.get(q.query) || {
-        clicks: 0,
-        impressions: 0,
-        positions: [],
-        pages: new Set(),
-      };
-      existing.clicks += q.clicks || 0;
-      existing.impressions += q.impressions || 0;
-      if (q.position) existing.positions.push(q.position);
-      existing.pages.add(d.page.path);
-      queryMap.set(q.query, existing);
-    }
-  }
-
-  const queries = Array.from(queryMap.entries())
-    .map(([query, data]) => ({
-      query,
-      clicks: data.clicks,
-      impressions: data.impressions,
-      avgPosition: data.positions.length
-        ? data.positions.reduce((s, p) => s + p, 0) / data.positions.length
-        : 0,
-      pages: data.pages.size,
-      pagesList: Array.from(data.pages).slice(0, 3),
+  const queries = (res.data.rows || [])
+    .map((r: any) => ({
+      query: r.keys![0],
+      clicks: r.clicks || 0,
+      impressions: r.impressions || 0,
+      ctr: r.ctr || 0,
+      position: Math.round((r.position || 0) * 10) / 10,
     }))
     .filter((q) => q.impressions >= minImpressions)
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 50);
+
+  // Query 2: query+page for cannibalization detection
+  const canniRes = await sc.searchanalytics.query({
+    siteUrl: domain.gscProperty,
+    requestBody: {
+      startDate,
+      endDate,
+      dimensions: ["query", "page"],
+      rowLimit: 5000,
+    },
+  });
+
+  const queryPages = new Map<string, Set<string>>();
+  for (const row of canniRes.data.rows || []) {
+    const q = row.keys![0];
+    const page = new URL(row.keys![1]).pathname;
+    if (!queryPages.has(q)) queryPages.set(q, new Set());
+    queryPages.get(q)!.add(page);
+  }
 
   const sections: string[] = [];
   sections.push(
     `=== FRAZY GSC: ${domain.label || domain.domain} (30d, min ${minImpressions} imp) ===`,
   );
   sections.push(`Łącznie: ${queries.length} fraz`);
-  sections.push("Query | Klik | Imp | Śr.Poz | Stron | Strony");
+  sections.push("Query | Klik | Imp | Poz | CTR | Stron");
   for (const q of queries) {
+    const pageCount = queryPages.get(q.query)?.size || 1;
     sections.push(
-      `"${q.query}" | ${q.clicks} | ${q.impressions} | ${q.avgPosition.toFixed(1)} | ${q.pages} | ${q.pagesList.join(", ")}`,
+      `"${q.query}" | ${q.clicks} | ${q.impressions} | ${q.position} | ${(q.ctr * 100).toFixed(1)}% | ${pageCount}`,
     );
   }
 
-  const cannibalized = queries.filter((q) => q.pages > 1);
+  const cannibalized = queries.filter(
+    (q) => (queryPages.get(q.query)?.size || 0) > 1,
+  );
   if (cannibalized.length) {
     sections.push(`\n⚠️ CANNIBALIZATION — frazy z >1 stroną:`);
     for (const q of cannibalized.slice(0, 10)) {
+      const pages = Array.from(queryPages.get(q.query) || []).slice(0, 3);
       sections.push(
-        `  "${q.query}" — ${q.pages} stron: ${q.pagesList.join(", ")}`,
+        `  "${q.query}" — ${pages.length} stron: ${pages.join(", ")}`,
       );
     }
   }
@@ -614,13 +631,11 @@ async function getCrossDomainLinksData(group?: string): Promise<string> {
           to: toDom.label || toDom.domain,
           links: [],
         });
-      crossMap
-        .get(key)!
-        .links.push({
-          fromPath: l.fromPage.path,
-          toUrl: l.toUrl,
-          anchor: l.anchorText,
-        });
+      crossMap.get(key)!.links.push({
+        fromPath: l.fromPage.path,
+        toUrl: l.toUrl,
+        anchor: l.anchorText,
+      });
     } catch {}
   }
 
@@ -860,15 +875,22 @@ async function getDomainAnalyticsData(
     );
   }
 
-  // Breakdown data if available
-  const breakdownDays = daily.filter((d) => d.breakdown);
-  if (breakdownDays.length > 0) {
-    const latestBreakdown = breakdownDays[0].breakdown as any;
-    if (latestBreakdown?.bySource) {
-      sections.push(`\nŹRÓDŁA RUCHU (najnowszy dzień z danymi):`);
-      for (const src of (latestBreakdown.bySource as any[]).slice(0, 10)) {
+  // Source breakdown from cached integration data
+  if (integration.cachedData) {
+    const cached = integration.cachedData as any;
+    if (cached.bySource?.length) {
+      sections.push(`\nŹRÓDŁA RUCHU (ostatni sync):`);
+      for (const src of cached.bySource.slice(0, 10)) {
         sections.push(
-          `  ${src.source || src.medium || "?"}: ${src.sessions || 0} sesji, ${src.conversions || 0} konwersji`,
+          `  ${src.sourceMedium || "?"}: ${src.sessions} sesji, ${src.conversions} konw., ${src.revenue?.toFixed(0) || "0"} PLN`,
+        );
+      }
+    }
+    if (cached.landingPages?.length) {
+      sections.push(`\nTOP LANDING PAGES (ostatni sync):`);
+      for (const lp of cached.landingPages.slice(0, 10)) {
+        sections.push(
+          `  ${lp.path}: ${lp.sessions} sesji, ${lp.conversions} konw., bounce ${lp.bounceRate?.toFixed(1)}%`,
         );
       }
     }
@@ -1751,6 +1773,7 @@ ZASADY:
 - Znasz grupy: EDU, COPY, MOTORS, PERSONAL
 - Znasz role: MAIN (money site), SATELLITE (zaplecze), SUPPORT
 - Kolumna "Integracje" w przeglądzie pokazuje jakie źródła danych są dostępne dla danej domeny (analytics, merchant, ads)
+- NIE odpowiadaj na pytania o linkowanie wewnętrzne, orphan pages, strukturę linków wewnętrznych — panel nie zbiera wiarygodnych danych na ten temat. Powiedz użytkownikowi wprost.
 
 PRZEGLĄD DOMEN (dane podstawowe — po szczegóły użyj narzędzi):
 ${overview}`;
