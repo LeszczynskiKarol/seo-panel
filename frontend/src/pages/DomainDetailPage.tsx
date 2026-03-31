@@ -2,6 +2,7 @@ import React from "react";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { IntegrationsTab } from "../components/IntegrationsTab";
+import { ProfitabilityTab } from "../components/ProfitabilityTab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import {
@@ -25,13 +26,10 @@ import {
 import {
   ArrowLeft,
   RefreshCw,
-  ArrowUp,
   Search,
   ExternalLink,
-  AlertTriangle,
-  Star,
-  ArrowDown,
   FileWarning,
+  Star,
   Clock,
   Globe,
 } from "lucide-react";
@@ -43,7 +41,8 @@ type Tab =
   | "links"
   | "broken"
   | "orphans"
-  | "integrations";
+  | "integrations"
+  | "profitability";
 
 export function DomainDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -99,12 +98,6 @@ export function DomainDetailPage() {
       qc.invalidateQueries({ queryKey: ["domain-keywords", id] }),
   });
 
-  const checkDomainKw = useMutation({
-    mutationFn: () => api.checkDomainKeywords(id!),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["domain-keywords", id] }),
-  });
-
   const { data: domain, isLoading } = useQuery({
     queryKey: ["domain", id, overviewStart, overviewEnd],
     queryFn: () => api.getDomain(id!, overviewStart, overviewEnd),
@@ -115,18 +108,6 @@ export function DomainDetailPage() {
   if (search) pageParams.set("search", search);
   if (verdictFilter) pageParams.set("verdict", verdictFilter);
   pageParams.set("limit", "100");
-
-  const { data: pagesData } = useQuery({
-    queryKey: ["pages", id, search, verdictFilter],
-    queryFn: () => api.getDomainPages(id!, pageParams.toString()),
-    enabled: !!id && tab === "pages",
-  });
-
-  const { data: queries } = useQuery({
-    queryKey: ["queries", id],
-    queryFn: () => api.getQueries(id!),
-    enabled: !!id && tab === "queries",
-  });
 
   const { data: brokenLinks } = useQuery({
     queryKey: ["broken", id],
@@ -152,11 +133,6 @@ export function DomainDetailPage() {
     queryKey: ["orphans", id],
     queryFn: () => api.getOrphanPages(id!),
     enabled: !!id && tab === "orphans",
-  });
-
-  const checkKw = useMutation({
-    mutationFn: () => api.checkKeywords(id!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tracked", id] }),
   });
 
   const removeKw = useMutation({
@@ -492,6 +468,7 @@ export function DomainDetailPage() {
             "links",
             "broken",
             "orphans",
+            "profitability",
             "integrations",
           ] as Tab[]
         ).map((t) => (
@@ -511,6 +488,7 @@ export function DomainDetailPage() {
             {t === "links" && "Linkowanie"}
             {t === "broken" && "Złamane linki"}
             {t === "orphans" && "Orphan pages"}
+            {t === "profitability" && "Rentowność"}
             {t === "integrations" && "Integracje"}
           </button>
         ))}
@@ -528,7 +506,7 @@ export function DomainDetailPage() {
       )}
 
       {tab === "queries" && <QueriesTab domainId={id!} />}
-
+      {tab === "profitability" && <ProfitabilityTab domainId={id!} />}
       {tab === "tracked" && (
         <div className="space-y-4">
           {/* ── DOMAIN KEYWORDS SECTION ── */}

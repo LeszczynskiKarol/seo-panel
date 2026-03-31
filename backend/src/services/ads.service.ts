@@ -1,9 +1,7 @@
 // backend/src/services/ads.service.ts
 
+import { GoogleAdsApi } from "google-ads-api";
 import { prisma } from "../lib/prisma.js";
-
-// Google Ads API client setup
-// Will use google-ads-api npm package once Basic Access is granted
 
 const ADS_CONFIG = {
   client_id: process.env.GOOGLE_ADS_CLIENT_ID || "",
@@ -15,105 +13,214 @@ const ADS_CONFIG = {
 };
 
 export class AdsService {
-  private isConfigured(): boolean {
-    return (
-      ADS_CONFIG.refresh_token !== "" &&
-      ADS_CONFIG.refresh_token !== "PENDING_APPROVAL"
-    );
-  }
+  private client: GoogleAdsApi;
 
-  // ─── CAMPAIGN PERFORMANCE ─────────────────────────────────
-  async syncCampaignDaily(domainId: string, days = 30) {
-    if (!this.isConfigured()) {
-      return {
-        error:
-          "Google Ads API not configured — waiting for Basic Access approval",
-      };
-    }
-
-    const client = new GoogleAdsApi({
+  constructor() {
+    this.client = new GoogleAdsApi({
       client_id: ADS_CONFIG.client_id,
       client_secret: ADS_CONFIG.client_secret,
       developer_token: ADS_CONFIG.developer_token,
     });
-    const customer = client.Customer({
+  }
+
+  private getCustomer() {
+    return this.client.Customer({
       customer_id: ADS_CONFIG.customer_id,
       login_customer_id: ADS_CONFIG.mcc_id,
       refresh_token: ADS_CONFIG.refresh_token,
     });
-
-    const campaigns = await customer.query(`
-       SELECT
-         campaign.id,
-         campaign.name,
-         campaign.advertising_channel_type,
-         metrics.cost_micros,
-         metrics.clicks,
-         metrics.impressions,
-         metrics.conversions,
-         metrics.conversions_value,
-         segments.date
-       FROM campaign
-       WHERE segments.date DURING LAST_${days}_DAYS
-         AND campaign.status = 'ENABLED'
-       ORDER BY segments.date DESC
-     `);
-
-    return {
-      status: "pending_approval",
-      message: "Waiting for Google Ads API Basic Access",
-    };
   }
 
-  // ─── PRODUCT PERFORMANCE (Shopping/PMax) ──────────────────
+  isConfigured(): boolean {
+    return !!ADS_CONFIG.refresh_token && ADS_CONFIG.refresh_token !== "PENDING";
+  }
+
+  // ─── SYNC CAMPAIGNS ──────────────────────────────────────
+  async syncCampaignDaily(domainId: string, days = 30) {
+    console.log(
+      "[Ads] syncCampaignDaily called, configured:",
+      this.isConfigured(),
+    );
+    console.log("[Ads] config:", {
+      hasClientId: !!ADS_CONFIG.client_id,
+      hasSecret: !!ADS_CONFIG.client_secret,
+      hasDevToken: !!ADS_CONFIG.developer_token,
+      hasCustomerId: !!ADS_CONFIG.customer_id,
+      hasMccId: !!ADS_CONFIG.mcc_id,
+      hasRefreshToken: !!ADS_CONFIG.refresh_token,
+    });
+
+    if (!this.isConfigured()) return { error: "Google Ads not configured" };
+
+    try {
+      const customer = this.getCustomer();
+      console.log("[Ads] Customer created, querying campaigns...");
+      // DEBUG — list accessible customers
+      try {
+        const accessible = await this.client.listAccessibleCustomers(
+          ADS_CONFIG.refresh_token,
+        );
+        console.log("[Ads] Accessible customers:", JSON.stringify(accessible));
+      } catch (e: any) {
+        console.error("[Ads] listAccessibleCustomers error:", e.message);
+      }
+      const rows = await customer.query(`
+        SELECT
+          campaign.id,
+          campaign.name,
+          campaign.advertising_channel_type,
+          metrics.cost_micros,
+          metrics.clicks,
+          metrics.impressions,
+          metrics.conversions,
+          metrics.conversions_value,
+          segments.date
+        FROM campaign
+        WHERE segments.date DURING LAST_${days}_DAYS
+          AND campaign.status = 'ENABLED'
+        ORDER BY segments.date DESC
+      `);
+
+      console.log(`[Ads] Got ${rows.length} rows from API`);
+      if (rows.length > 0) {
+        console.log("[Ads] Sample row:", JSON.stringify(rows[0]));
+      }
+
+      let created = 0;
+
+      for (const row of rows) {
+        const campaignId = String(row.campaign?.id);
+        const date = new Date(row.segments?.date + "T00:00:00Z");
+        const cost = (row.metrics?.cost_micros || 0) / 1_000_000;
+        const clicks = row.metrics?.clicks || 0;
+        const impressions = row.metrics?.impressions || 0;
+        const conversions = row.metrics?.conversions || 0;
+        const conversionValue = row.metrics?.conversions_value || 0;
+
+        try {
+          await prisma.adsCampaignDaily.upsert({
+            where: { campaignId_date: { campaignId, date } },
+            update: {
+              cost,
+              clicks,
+              impressions,
+              conversions,
+              conversionValue,
+              ctr: impressions > 0 ? clicks / impressions : null,
+              cpc: clicks > 0 ? cost / clicks : null,
+              roas: cost > 0 ? conversionValue / cost : null,
+            },
+            create: {
+              domainId,
+              campaignId,
+              campaignName: row.campaign?.name || "Unknown",
+              campaignType: String(
+                row.campaign?.advertising_channel_type || "UNKNOWN",
+              ),
+              date,
+              cost,
+              clicks,
+              impressions,
+              conversions,
+              conversionValue,
+              ctr: impressions > 0 ? clicks / impressions : null,
+              cpc: clicks > 0 ? cost / clicks : null,
+              roas: cost > 0 ? conversionValue / cost : null,
+            },
+          });
+          created++;
+        } catch (e: any) {
+          console.error("[Ads] Upsert error:", e.message);
+        }
+      }
+
+      console.log(`[Ads] Saved ${created} campaign daily records`);
+      return { rows: rows.length, created };
+    } catch (e: any) {
+      console.error("[Ads] API Error:", e.message);
+      console.error(
+        "[Ads] Full error:",
+        JSON.stringify(e.errors || e, null, 2),
+      );
+      return { error: e.message };
+    }
+  }
+
+  // ─── SYNC PRODUCTS (Shopping/PMax) ────────────────────────
   async syncProductDaily(domainId: string, days = 30) {
-    if (!this.isConfigured()) {
-      return { error: "Google Ads API not configured" };
+    if (!this.isConfigured()) return { error: "Google Ads not configured" };
+
+    try {
+      const customer = this.getCustomer();
+      console.log("[Ads] Syncing products...");
+
+      const rows = await customer.query(`
+        SELECT
+          segments.product_item_id,
+          segments.product_title,
+          segments.product_type_l1,
+          metrics.cost_micros,
+          metrics.clicks,
+          metrics.impressions,
+          metrics.conversions,
+          metrics.conversions_value,
+          segments.date
+        FROM shopping_performance_view
+        WHERE segments.date DURING LAST_${days}_DAYS
+        ORDER BY metrics.conversions_value DESC
+      `);
+
+      console.log(`[Ads] Got ${rows.length} product rows`);
+      if (rows.length > 0)
+        console.log("[Ads] Sample product:", JSON.stringify(rows[0]));
+
+      let saved = 0;
+      for (const row of rows) {
+        const productId = row.segments?.product_item_id || "unknown";
+        const date = new Date(row.segments?.date + "T00:00:00Z");
+        const cost = (row.metrics?.cost_micros || 0) / 1_000_000;
+        const clicks = row.metrics?.clicks || 0;
+        const impressions = row.metrics?.impressions || 0;
+        const conversions = row.metrics?.conversions || 0;
+        const conversionValue = row.metrics?.conversions_value || 0;
+
+        try {
+          await prisma.adsProductDaily.upsert({
+            where: { productId_date: { productId, date } },
+            update: {
+              cost,
+              clicks,
+              impressions,
+              conversions,
+              conversionValue,
+              ctr: impressions > 0 ? clicks / impressions : null,
+              roas: cost > 0 ? conversionValue / cost : null,
+            },
+            create: {
+              domainId,
+              productId,
+              productTitle: row.segments?.product_title || "Unknown",
+              productCategory: row.segments?.product_type_l1 || null,
+              date,
+              cost,
+              clicks,
+              impressions,
+              conversions,
+              conversionValue,
+              ctr: impressions > 0 ? clicks / impressions : null,
+              roas: cost > 0 ? conversionValue / cost : null,
+            },
+          });
+          saved++;
+        } catch {}
+      }
+
+      console.log(`[Ads] Saved ${saved} product records`);
+      return { rows: rows.length, saved };
+    } catch (e: any) {
+      console.error("[Ads] Products error:", e.message);
+      return { error: e.message };
     }
-
-    const products = await customer.query(`
-       SELECT
-         segments.product_item_id,
-         segments.product_title,
-         segments.product_type_l1,
-         metrics.cost_micros,
-         metrics.clicks,
-         metrics.impressions,
-         metrics.conversions,
-         metrics.conversions_value,
-         segments.date
-       FROM shopping_performance_view
-       WHERE segments.date DURING LAST_${days}_DAYS
-       ORDER BY metrics.conversions_value DESC
-     `);
-
-    return { status: "pending_approval" };
-  }
-
-  // ─── SEARCH TERMS ─────────────────────────────────────────
-  async syncSearchTerms(domainId: string, days = 30) {
-    if (!this.isConfigured()) {
-      return { error: "Google Ads API not configured" };
-    }
-
-    const terms = await customer.query(`
-       SELECT
-         search_term_view.search_term,
-         campaign.id,
-         campaign.name,
-         metrics.cost_micros,
-         metrics.clicks,
-         metrics.impressions,
-         metrics.conversions,
-         metrics.conversions_value,
-         segments.date
-       FROM search_term_view
-       WHERE segments.date DURING LAST_${days}_DAYS
-       ORDER BY metrics.impressions DESC
-       LIMIT 500
-     `);
-
-    return { status: "pending_approval" };
   }
 
   // ─── GET CACHED DATA FOR FRONTEND ─────────────────────────
@@ -126,7 +233,6 @@ export class AdsService {
       orderBy: { date: "asc" },
     });
 
-    // Aggregate by date
     const byDate = new Map<
       string,
       {
@@ -140,7 +246,7 @@ export class AdsService {
     >();
     for (const d of daily) {
       const dateStr = d.date.toISOString().split("T")[0];
-      const existing = byDate.get(dateStr) || {
+      const e = byDate.get(dateStr) || {
         date: dateStr,
         cost: 0,
         clicks: 0,
@@ -148,35 +254,21 @@ export class AdsService {
         conversions: 0,
         revenue: 0,
       };
-      existing.cost += d.cost;
-      existing.clicks += d.clicks;
-      existing.impressions += d.impressions;
-      existing.conversions += d.conversions;
-      existing.revenue += d.conversionValue;
-      byDate.set(dateStr, existing);
+      e.cost += d.cost;
+      e.clicks += d.clicks;
+      e.impressions += d.impressions;
+      e.conversions += d.conversions;
+      e.revenue += d.conversionValue;
+      byDate.set(dateStr, e);
     }
 
     const chartData = Array.from(byDate.values()).sort((a, b) =>
       a.date.localeCompare(b.date),
     );
 
-    // Aggregate by campaign
-    const byCampaign = new Map<
-      string,
-      {
-        id: string;
-        name: string;
-        type: string;
-        cost: number;
-        clicks: number;
-        impressions: number;
-        conversions: number;
-        revenue: number;
-        days: number;
-      }
-    >();
+    const byCampaign = new Map<string, any>();
     for (const d of daily) {
-      const existing = byCampaign.get(d.campaignId) || {
+      const e = byCampaign.get(d.campaignId) || {
         id: d.campaignId,
         name: d.campaignName,
         type: d.campaignType,
@@ -185,15 +277,13 @@ export class AdsService {
         impressions: 0,
         conversions: 0,
         revenue: 0,
-        days: 0,
       };
-      existing.cost += d.cost;
-      existing.clicks += d.clicks;
-      existing.impressions += d.impressions;
-      existing.conversions += d.conversions;
-      existing.revenue += d.conversionValue;
-      existing.days++;
-      byCampaign.set(d.campaignId, existing);
+      e.cost += d.cost;
+      e.clicks += d.clicks;
+      e.impressions += d.impressions;
+      e.conversions += d.conversions;
+      e.revenue += d.conversionValue;
+      byCampaign.set(d.campaignId, e);
     }
 
     const campaigns = Array.from(byCampaign.values())
@@ -202,11 +292,9 @@ export class AdsService {
         cpc: c.clicks > 0 ? c.cost / c.clicks : 0,
         ctr: c.impressions > 0 ? c.clicks / c.impressions : 0,
         roas: c.cost > 0 ? c.revenue / c.cost : 0,
-        convRate: c.clicks > 0 ? c.conversions / c.clicks : 0,
       }))
       .sort((a, b) => b.revenue - a.revenue);
 
-    // Totals
     const totals = {
       cost: daily.reduce((s, d) => s + d.cost, 0),
       clicks: daily.reduce((s, d) => s + d.clicks, 0),
@@ -227,7 +315,6 @@ export class AdsService {
 
   async getProductPerformance(domainId: string, days = 30) {
     const since = new Date(Date.now() - days * 86400000);
-
     const products = await prisma.adsProductDaily.groupBy({
       by: ["productId", "productTitle", "productCategory"],
       where: { domainId, date: { gte: since } },
@@ -262,118 +349,16 @@ export class AdsService {
       .sort((a, b) => b.revenue - a.revenue);
   }
 
-  async getSearchTerms(domainId: string, days = 30) {
-    const since = new Date(Date.now() - days * 86400000);
-
-    const terms = await prisma.adsSearchTerm.groupBy({
-      by: ["searchTerm"],
-      where: { domainId, date: { gte: since } },
-      _sum: {
-        cost: true,
-        clicks: true,
-        impressions: true,
-        conversions: true,
-        conversionValue: true,
-      },
-    });
-
-    return terms
-      .map((t) => ({
-        term: t.searchTerm,
-        cost: t._sum.cost || 0,
-        clicks: t._sum.clicks || 0,
-        impressions: t._sum.impressions || 0,
-        conversions: t._sum.conversions || 0,
-        revenue: t._sum.conversionValue || 0,
-        roas:
-          (t._sum.cost || 0) > 0
-            ? (t._sum.conversionValue || 0) / (t._sum.cost || 0)
-            : 0,
-      }))
-      .sort((a, b) => b.impressions - a.impressions);
-  }
-
-  // ─── ADS vs ORGANIC COMPARISON ────────────────────────────
-  async getAdsVsOrganic(domainId: string, days = 30) {
-    const since = new Date(Date.now() - days * 86400000);
-
-    // Get paid search terms
-    const paidTerms = await prisma.adsSearchTerm.groupBy({
-      by: ["searchTerm"],
-      where: { domainId, date: { gte: since } },
-      _sum: {
-        clicks: true,
-        impressions: true,
-        cost: true,
-        conversions: true,
-        conversionValue: true,
-      },
-    });
-
-    // Get organic queries from GscPageDaily
-    const organicDaily = await prisma.gscPageDaily.findMany({
-      where: { page: { domainId }, date: { gte: since } },
-      select: { topQueries: true },
-    });
-
-    const organicMap = new Map<
-      string,
-      { clicks: number; impressions: number; position: number; count: number }
-    >();
-    for (const d of organicDaily) {
-      if (!d.topQueries) continue;
-      for (const q of d.topQueries as any[]) {
-        if (!q.query) continue;
-        const existing = organicMap.get(q.query) || {
-          clicks: 0,
-          impressions: 0,
-          position: 0,
-          count: 0,
-        };
-        existing.clicks += q.clicks || 0;
-        existing.impressions += q.impressions || 0;
-        existing.position += q.position || 0;
-        existing.count++;
-        organicMap.set(q.query, existing);
-      }
+  async listAccessibleCustomers() {
+    try {
+      const customers = await this.client.listAccessibleCustomers(
+        ADS_CONFIG.refresh_token,
+      );
+      console.log("[Ads] Accessible customers:", JSON.stringify(customers));
+      return customers;
+    } catch (e: any) {
+      console.error("[Ads] listAccessibleCustomers error:", e.message);
+      return { error: e.message };
     }
-
-    // Match paid with organic
-    const comparison = paidTerms
-      .map((pt) => {
-        const organic = organicMap.get(pt.searchTerm);
-        return {
-          term: pt.searchTerm,
-          paid: {
-            clicks: pt._sum.clicks || 0,
-            impressions: pt._sum.impressions || 0,
-            cost: pt._sum.cost || 0,
-            conversions: pt._sum.conversions || 0,
-            revenue: pt._sum.conversionValue || 0,
-          },
-          organic: organic
-            ? {
-                clicks: organic.clicks,
-                impressions: organic.impressions,
-                avgPosition:
-                  organic.count > 0 ? organic.position / organic.count : 0,
-              }
-            : null,
-          hasOrganic: !!organic,
-        };
-      })
-      .sort((a, b) => (b.paid.cost || 0) - (a.paid.cost || 0));
-
-    return {
-      terms: comparison,
-      summary: {
-        totalPaidTerms: paidTerms.length,
-        withOrganicPresence: comparison.filter((c) => c.hasOrganic).length,
-        purelyPaid: comparison.filter((c) => !c.hasOrganic).length,
-        potentialSavings: comparison
-          .filter((c) => c.hasOrganic && (c.organic?.avgPosition || 99) <= 5)
-          .reduce((s, c) => s + (c.paid.cost || 0), 0),
-      },
-    };
   }
 }

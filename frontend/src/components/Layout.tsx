@@ -9,6 +9,7 @@ import {
   Lightbulb,
   MessageSquare,
   Activity,
+  PiggyBank,
   Clock,
 } from "lucide-react";
 
@@ -18,6 +19,7 @@ import { api } from "../lib/api";
 
 const NAV = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/profitability", icon: PiggyBank, label: "Rentowność" },
   { to: "/insights", icon: Lightbulb, label: "Insights" },
   { to: "/timeline", icon: Clock, label: "Timeline" },
   { to: "/ai-links", icon: Zap, label: "AI Links" },

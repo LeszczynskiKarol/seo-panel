@@ -166,6 +166,14 @@ export async function integrationRoutes(fastify: FastifyInstance) {
       result = await ga4.verifyAccess(integration.propertyId!);
     } else if (integration.provider === "GOOGLE_MERCHANT") {
       result = await merchant.verifyAccess(integration.merchantId!);
+    } else if (integration.provider === "GOOGLE_ADS") {
+      const hasConfig =
+        !!process.env.GOOGLE_ADS_REFRESH_TOKEN &&
+        process.env.GOOGLE_ADS_REFRESH_TOKEN !== "PENDING";
+      result = {
+        ok: hasConfig,
+        error: hasConfig ? undefined : "GOOGLE_ADS_REFRESH_TOKEN not set",
+      };
     } else {
       return { ok: false, error: "Unsupported provider" };
     }
@@ -211,6 +219,24 @@ export async function integrationRoutes(fastify: FastifyInstance) {
         start,
         end,
       );
+    } else if (integration.provider === "GOOGLE_ADS") {
+      const { AdsService } = await import("../services/ads.service.js");
+      const ads = new AdsService();
+      const domainId = integration.domainId;
+
+      let campaigns, products, searchTerms;
+      try {
+        campaigns = await ads.syncCampaignDaily(domainId, d);
+      } catch (e: any) {
+        campaigns = { error: e.message };
+      }
+      try {
+        products = await ads.syncProductDaily(domainId, d);
+      } catch (e: any) {
+        products = { error: e.message };
+      }
+
+      return { campaigns, products, searchTerms };
     }
 
     return { error: "Unsupported provider" };

@@ -361,19 +361,17 @@ export const api = {
     request<any>(`/ads/${domainId}/campaigns?days=${days}`),
   getAdsProducts: (domainId: string, days = 30) =>
     request<any>(`/ads/${domainId}/products?days=${days}`),
-  getAdsSearchTerms: (domainId: string, days = 30) =>
-    request<any>(`/ads/${domainId}/search-terms?days=${days}`),
-  getAdsVsOrganic: (domainId: string, days = 30) =>
-    request<any>(`/ads/${domainId}/ads-vs-organic?days=${days}`),
+
   syncAdsCampaigns: (domainId: string) =>
     request<any>(`/ads/${domainId}/sync-campaigns`, { method: "POST" }),
   syncAdsProducts: (domainId: string) =>
     request<any>(`/ads/${domainId}/sync-products`, { method: "POST" }),
-  syncAdsSearchTerms: (domainId: string) =>
-    request<any>(`/ads/${domainId}/sync-search-terms`, { method: "POST" }),
 
   detectAlerts: () =>
     request<any>("/analytics/detect-alerts", { method: "POST" }),
+
+  getProfitability: (domainId: string, days = 30) =>
+    request<any>(`/profitability/${domainId}?days=${days}`),
 
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
