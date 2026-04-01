@@ -264,4 +264,57 @@ export async function costRoutes(fastify: FastifyInstance) {
       costBreakdown,
     };
   });
+
+  // ─── STOJAN BACKFILL (one-time) ───
+  fastify.post("/stojan-backfill", async (request) => {
+    const STOJAN_API_URL =
+      process.env.STOJAN_API_URL || "http://16.171.6.205:4000";
+    const STOJAN_API_KEY = process.env.STOJAN_API_KEY || "";
+    const STOJAN_INTEGRATION_ID = process.env.STOJAN_INTEGRATION_ID || "";
+
+    if (!STOJAN_API_KEY || !STOJAN_INTEGRATION_ID) {
+      return {
+        error: "STOJAN_API_KEY and STOJAN_INTEGRATION_ID required in .env",
+      };
+    }
+
+    const url = `${STOJAN_API_URL}/api/integration/daily-stats?startDate=2020-01-01&endDate=${new Date().toISOString().split("T")[0]}&apiKey=${STOJAN_API_KEY}`;
+    const res = await fetch(url);
+    if (!res.ok) return { error: `Stojan API: ${res.status}` };
+
+    const data = await res.json();
+    let upserted = 0;
+
+    for (const day of data.daily) {
+      await prisma.integrationDaily.upsert({
+        where: {
+          integrationId_date: {
+            integrationId: STOJAN_INTEGRATION_ID,
+            date: new Date(day.date),
+          },
+        },
+        update: {
+          conversions: day.orders,
+          revenue: day.revenue,
+        },
+        create: {
+          integrationId: STOJAN_INTEGRATION_ID,
+          date: new Date(day.date),
+          sessions: 0,
+          users: 0,
+          conversions: day.orders,
+          revenue: day.revenue,
+        },
+      });
+      upserted++;
+    }
+
+    return {
+      totalOrders: data.totals.orders,
+      totalRevenue: data.totals.revenue,
+      daysUpserted: upserted,
+      firstDay: data.daily[0]?.date,
+      lastDay: data.daily[data.daily.length - 1]?.date,
+    };
+  });
 }

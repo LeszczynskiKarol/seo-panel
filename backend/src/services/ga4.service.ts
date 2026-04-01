@@ -254,12 +254,19 @@ export class GA4Service {
         provider: "GOOGLE_ANALYTICS",
         status: { in: ["ACTIVE", "ERROR"] },
       },
-      include: { domain: { select: { domain: true, label: true } } },
+      include: {
+        domain: { select: { domain: true, label: true, category: true } },
+      },
     });
+
+    // Skip ECOMMERCE domains — their data comes from shop API, not GA4
+    const filtered = integrations.filter(
+      (int) => int.domain.category !== "ECOMMERCE",
+    );
 
     const results: { domain: string; days: number; error?: string }[] = [];
 
-    for (const int of integrations) {
+    for (const int of filtered) {
       const result = await this.pullDailyData(
         int.id,
         int.propertyId!,

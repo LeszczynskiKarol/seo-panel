@@ -10,6 +10,9 @@ import { IndexingService } from "../services/indexing.service.js";
 import { LinkCrawlerService } from "../services/link-crawler.service.js";
 import { TimelineService } from "../services/timeline.service.js";
 
+const STOJAN_API_URL = process.env.STOJAN_API_URL || "http://16.171.6.205:4000";
+const STOJAN_API_KEY = process.env.STOJAN_API_KEY || "";
+const STOJAN_INTEGRATION_ID = process.env.STOJAN_INTEGRATION_ID || "";
 const ga4Service = new GA4Service();
 const merchantService = new MerchantService();
 const gsc = new GscService();
@@ -270,6 +273,19 @@ export function startScheduler() {
     }
   });
 
+  // Every 2 hours — Stojan Shop order sync (real orders from Stojan API)
+  cron.schedule("15 */2 * * *", () => {
+    runJob("stojan_order_sync", async () => {
+      const threeDaysAgo = new Date(Date.now() - 3 * 86400000)
+        .toISOString()
+        .split("T")[0];
+      const today = new Date().toISOString().split("T")[0];
+      return syncStojanDaily(threeDaysAgo, today);
+    });
+  });
+
+  console.log("  🛒 Stojan orders:    every 2h (:15)");
+
   // Daily 08:30 — Merchant Center sync
   cron.schedule("30 8 * * *", async () => {
     console.log("⏰ [CRON] Merchant Center daily sync starting...");
@@ -290,10 +306,49 @@ export function startScheduler() {
     result.checks.forEach((c) => console.log(`   ${c}`));
   });
 
-  console.log("  🕷️  Link crawl:      daily 03:00");
-  console.log("  📊 GSC pull:         daily 06:00");
-  console.log("  🗺️  Sitemap sync:    daily 07:00");
-  console.log("  🔍 Indexing check:   daily 08:00");
-  console.log("  📈 Detect changes:   daily 09:00");
-  console.log("  🎯 Domain keywords:  daily 10:00");
+  async function syncStojanDaily(startDate: string, endDate: string) {
+    if (!STOJAN_API_KEY || !STOJAN_INTEGRATION_ID) {
+      console.log("⚠️ Stojan API not configured, skipping");
+      return { skipped: true };
+    }
+
+    const url = `${STOJAN_API_URL}/api/integration/daily-stats?startDate=${startDate}&endDate=${endDate}&apiKey=${STOJAN_API_KEY}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Stojan API error: ${res.status}`);
+
+    const data = await res.json();
+    let upserted = 0;
+
+    for (const day of data.daily) {
+      await prisma.integrationDaily.upsert({
+        where: {
+          integrationId_date: {
+            integrationId: STOJAN_INTEGRATION_ID,
+            date: new Date(day.date),
+          },
+        },
+        update: {
+          sessions: 0,
+          users: 0,
+          conversions: day.orders,
+          revenue: day.revenue,
+        },
+        create: {
+          integrationId: STOJAN_INTEGRATION_ID,
+          date: new Date(day.date),
+          sessions: 0,
+          users: 0,
+          conversions: day.orders,
+          revenue: day.revenue,
+        },
+      });
+      upserted++;
+    }
+
+    return {
+      orders: data.totals.orders,
+      revenue: data.totals.revenue,
+      daysUpserted: upserted,
+    };
+  }
 }
