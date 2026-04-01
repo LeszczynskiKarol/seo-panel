@@ -221,6 +221,13 @@ export function GlobalProfitabilityPanel() {
             >
               <Plus className="w-3 h-3" /> Dodaj koszt
             </button>
+
+            <button
+              onClick={() => setShowAddRevenue(true)}
+              className="btn btn-primary text-[10px] flex items-center gap-1 bg-accent-green hover:bg-accent-green/80"
+            >
+              <Plus className="w-3 h-3" /> Dodaj przychód
+            </button>
             <button
               onClick={() => setShowCostsTable(!showCostsTable)}
               className={cn(
@@ -229,12 +236,6 @@ export function GlobalProfitabilityPanel() {
               )}
             >
               Historia finansów
-            </button>
-            <button
-              onClick={() => setShowAddRevenue(true)}
-              className="btn btn-primary text-[10px] flex items-center gap-1 bg-accent-green hover:bg-accent-green/80"
-            >
-              <Plus className="w-3 h-3" /> Dodaj przychód
             </button>
           </div>
         </div>
