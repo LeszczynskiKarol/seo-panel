@@ -95,74 +95,114 @@ export function ProfitabilityTab({ domainId }: { domainId: string }) {
           color="#a855f7"
           sub={`${t.conversions} zamówień`}
         />
-        <BigStat
-          label="Moja prowizja (12%)"
-          value={`${fmtNumber(Math.round(t.commission))} zł`}
-          color="#f59e0b"
-        />
-        <BigStat
-          label="Koszt Google Ads"
-          value={`${fmtNumber(Math.round(t.adsCost))} zł`}
-          color="#ef4444"
-        />
+        {data.isCommissionBased ? (
+          <BigStat
+            label="Moja prowizja (12%)"
+            value={`${fmtNumber(Math.round(t.commission))} zł`}
+            color="#f59e0b"
+          />
+        ) : (
+          <BigStat
+            label="Mój przychód"
+            value={`${fmtNumber(Math.round(t.revenue))} zł`}
+            color="#22c55e"
+          />
+        )}
+        {data.hasAds ? (
+          <BigStat
+            label="Koszt Google Ads"
+            value={`${fmtNumber(Math.round(t.adsCost))} zł`}
+            color="#ef4444"
+          />
+        ) : (
+          <BigStat
+            label="Koszt Ads"
+            value="—"
+            color="#64748b"
+            sub="brak integracji"
+          />
+        )}
         <BigStat
           label={t.profit >= 0 ? "ZYSK NETTO" : "STRATA NETTO"}
           value={`${t.profit >= 0 ? "+" : ""}${fmtNumber(Math.round(t.profit))} zł`}
           color={t.profit >= 0 ? "#22c55e" : "#ef4444"}
           highlight
         />
-        <BigStat
-          label="Realny ROAS"
-          value={`${(t.realRoas * 100).toFixed(1)}%`}
-          color={t.realRoas >= 1 ? "#22c55e" : "#ef4444"}
-          sub={t.realRoas >= 1 ? "zyskowne" : "stratne"}
-        />
+        {data.hasAds ? (
+          <BigStat
+            label="Realny ROAS"
+            value={`${(t.realRoas * 100).toFixed(1)}%`}
+            color={t.realRoas >= 1 ? "#22c55e" : "#ef4444"}
+            sub={t.realRoas >= 1 ? "zyskowne" : "stratne"}
+          />
+        ) : (
+          <BigStat
+            label="Śr. zamówienie"
+            value={`${k.avgOrderValue.toFixed(0)} zł`}
+            color="#a855f7"
+          />
+        )}
       </div>
 
       {/* ═══ BUSINESS KPIs ═══ */}
-      <div className="grid grid-cols-7 gap-2">
+      <div
+        className={cn(
+          "grid gap-2",
+          data.hasAds ? "grid-cols-7" : "grid-cols-4",
+        )}
+      >
         <MiniStat
           label="Śr. zamówienie"
           value={`${k.avgOrderValue.toFixed(0)} zł`}
           color="#a855f7"
         />
-        <MiniStat
-          label="Prowizja/zamów."
-          value={`${k.commissionPerOrder.toFixed(2)} zł`}
-          color="#f59e0b"
-        />
-        <MiniStat
-          label="CAC (koszt klienta)"
-          value={`${k.cac.toFixed(2)} zł`}
-          color="#ef4444"
-        />
+        {data.isCommissionBased && (
+          <MiniStat
+            label="Prowizja/zamów."
+            value={`${k.commissionPerOrder.toFixed(2)} zł`}
+            color="#f59e0b"
+          />
+        )}
+        {data.hasAds && (
+          <MiniStat
+            label="CAC (koszt klienta)"
+            value={`${k.cac.toFixed(2)} zł`}
+            color="#ef4444"
+          />
+        )}
         <MiniStat
           label="Konwersja"
           value={`${k.conversionRate}%`}
           color="#06b6d4"
         />
-        <MiniStat
-          label="Prowizja/wizytę"
-          value={`${k.commissionPerVisit.toFixed(4)} zł`}
-          color="#f59e0b"
-        />
+        {data.isCommissionBased && (
+          <MiniStat
+            label="Prowizja/wizytę"
+            value={`${k.commissionPerVisit.toFixed(4)} zł`}
+            color="#f59e0b"
+          />
+        )}
         <MiniStat
           label="Dni z zyskiem"
           value={`${k.profitableDays}/${k.totalDays}`}
           color={k.profitableDays > k.totalDays / 2 ? "#22c55e" : "#ef4444"}
         />
-        <MiniStat
-          label="Break-even/dzień"
-          value={`${fmtNumber(k.breakEvenDailyRevenue)} zł`}
-          color="#3b82f6"
-        />
+        {data.hasAds && (
+          <MiniStat
+            label="Break-even/dzień"
+            value={`${fmtNumber(k.breakEvenDailyRevenue)} zł`}
+            color="#3b82f6"
+          />
+        )}
       </div>
 
       {/* ═══ DAILY P&L CHART ═══ */}
       {data.daily?.length > 0 && (
         <div className="bg-panel-card border border-panel-border rounded-lg p-4">
           <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
-            Dzienny zysk/strata — prowizja 12% minus koszt Ads
+            Dzienny zysk/strata —{" "}
+            {data.isCommissionBased ? "prowizja 12%" : "przychód"} minus koszt
+            Ads
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={data.daily}>
@@ -218,7 +258,8 @@ export function ProfitabilityTab({ domainId }: { domainId: string }) {
       {data.daily?.length > 0 && (
         <div className="bg-panel-card border border-panel-border rounded-lg p-4">
           <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
-            Prowizja vs Koszt Ads — linia trendu
+            {data.isCommissionBased ? "Prowizja" : "Przychód"} vs Koszt Ads —
+            linia trendu
           </div>
           <ResponsiveContainer width="100%" height={140}>
             <AreaChart data={data.daily}>
@@ -478,7 +519,7 @@ function InsightBox({ data }: { data: any }) {
     const organicPct = Math.round((organicCh.revenue / t.revenue) * 100);
     if (organicPct > 50)
       insights.push({
-        text: `${organicPct}% sprzedaży pochodzi z organic — darmowy ruch generuje większość przychodu.`,
+        text: `${organicPct}% przychodu pochodzi z organic — darmowy ruch generuje większość dochodu.`,
         type: "good",
       });
     else
@@ -491,7 +532,7 @@ function InsightBox({ data }: { data: any }) {
   // Profit status
   if (t.profit >= 0)
     insights.push({
-      text: `Jesteś na plusie: ${t.profit.toFixed(2)} zł zysku w ${k.totalDays} dni.`,
+      text: `Jesteś na plusie: ${t.profit.toFixed(2)} zł ${data.isCommissionBased ? "zysku" : "przychodu"} w ${k.totalDays} dni.`,
       type: "good",
     });
   else

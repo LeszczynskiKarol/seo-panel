@@ -3,7 +3,7 @@
 import { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 
-const COMMISSION_RATE = 0.12; // 12%
+const STOJAN_DOMAIN_ID = "cmn9fo4dn0004qrdye8hjou1g";
 
 export async function profitabilityRoutes(fastify: FastifyInstance) {
   fastify.get("/:domainId", async (request) => {
@@ -11,6 +11,9 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
     const { days } = request.query as { days?: string };
     const d = parseInt(days || "30");
     const since = new Date(Date.now() - d * 86400000);
+    // Stojan = komisja 12% od sprzedaży, reszta = przychód bezpośredni (100%)
+    const isCommissionBased = domainId === STOJAN_DOMAIN_ID;
+    const COMMISSION_RATE = isCommissionBased ? 0.12 : 1.0;
 
     // ─── 1. GA4 daily (all revenue, all channels) ───
     const integration = await prisma.domainIntegration.findFirst({
@@ -268,6 +271,8 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
       products: productProfit.slice(0, 200),
       hasGA4: !!integration,
       hasAds: adsCampaignDaily.length > 0,
+      isCommissionBased,
+      commissionRate: COMMISSION_RATE,
     };
   });
 }

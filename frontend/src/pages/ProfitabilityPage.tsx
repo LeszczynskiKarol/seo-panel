@@ -26,9 +26,7 @@ export function ProfitabilityPage() {
   }
 
   // Filter domains that have GA4 or Ads integrations
-  const domainsWithIntegrations = (domains || []).filter(
-    (d: any) => d.totalClicks > 0 || d.category === "ECOMMERCE",
-  );
+  const domainsWithIntegrations = domains || [];
 
   return (
     <div className="p-6 space-y-6">
@@ -184,16 +182,26 @@ function DomainProfitCard({
           value={`${fmtNumber(Math.round(t.revenue))} zł`}
           color="#a855f7"
         />
-        <MiniStat
-          label="Prowizja 12%"
-          value={`${fmtNumber(Math.round(t.commission))} zł`}
-          color="#f59e0b"
-        />
-        <MiniStat
-          label="Koszt Ads"
-          value={`${fmtNumber(Math.round(t.adsCost))} zł`}
-          color="#ef4444"
-        />
+        {data.isCommissionBased ? (
+          <MiniStat
+            label="Prowizja 12%"
+            value={`${fmtNumber(Math.round(t.commission))} zł`}
+            color="#f59e0b"
+          />
+        ) : (
+          <MiniStat
+            label="Przychód"
+            value={`${fmtNumber(Math.round(t.revenue))} zł`}
+            color="#22c55e"
+          />
+        )}
+        {data.hasAds ? (
+          <MiniStat
+            label="Koszt Ads"
+            value={`${fmtNumber(Math.round(t.adsCost))} zł`}
+            color="#ef4444"
+          />
+        ) : null}
         <MiniStat
           label={t.profit >= 0 ? "Zysk" : "Strata"}
           value={`${t.profit >= 0 ? "+" : ""}${fmtNumber(Math.round(t.profit))} zł`}
@@ -205,11 +213,13 @@ function DomainProfitCard({
           value={`${k.avgOrderValue.toFixed(0)} zł`}
           color="#a855f7"
         />
-        <MiniStat
-          label="CAC"
-          value={k.cac > 0 ? `${k.cac.toFixed(2)} zł` : "—"}
-          color="#ef4444"
-        />
+        {data.hasAds && (
+          <MiniStat
+            label="CAC"
+            value={k.cac > 0 ? `${k.cac.toFixed(2)} zł` : "—"}
+            color="#ef4444"
+          />
+        )}
       </div>
 
       {/* Channel mini breakdown */}
