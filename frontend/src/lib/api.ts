@@ -438,6 +438,23 @@ export const api = {
   getConversionGlobal: (days = 30) =>
     request<any>(`/conversions/global?days=${days}`),
 
+  // Manual costs
+  getCosts: (params?: string) =>
+    request<any>(`/costs${params ? `?${params}` : ""}`),
+  addCost: (data: any) =>
+    request<any>("/costs", { method: "POST", body: JSON.stringify(data) }),
+  updateCost: (id: string, data: any) =>
+    request<any>(`/costs/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteCost: (id: string) =>
+    request<any>(`/costs/${id}`, { method: "DELETE" }),
+  getGlobalSummary: (startDate: string, endDate: string) =>
+    request<any>(
+      `/costs/global-summary?startDate=${startDate}&endDate=${endDate}`,
+    ),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

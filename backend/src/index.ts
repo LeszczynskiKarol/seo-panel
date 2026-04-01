@@ -17,6 +17,7 @@ import { startScheduler } from "./jobs/scheduler.js";
 import { prisma } from "./lib/prisma.js";
 import { importRoutes } from "./routes/import.js";
 import { analyticsRoutes } from "./routes/analytics.js";
+import { costRoutes } from "./routes/costs.js";
 import { alertRoutes } from "./routes/alerts.js";
 import { timelineRoutes } from "./routes/timeline.js";
 
@@ -50,6 +51,7 @@ fastify.register(backfillRoutes, { prefix: "/api/backfill" });
 fastify.register(integrationRoutes, { prefix: "/api/domains" });
 fastify.register(aiRoutes, { prefix: "/api/ai" });
 fastify.register(chatRoutes, { prefix: "/api/chat" });
+fastify.register(costRoutes, { prefix: "/api/costs" });
 fastify.register(alertRoutes, { prefix: "/api/alerts" });
 
 // Health check

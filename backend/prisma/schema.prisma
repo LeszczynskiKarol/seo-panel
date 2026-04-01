@@ -59,7 +59,9 @@ model Domain {
   backlinks       BacklinkSnapshot[]
   domainKeywords  DomainKeyword[]
   integrations DomainIntegration[]
-  
+  manualCosts ManualCost[]
+
+
   @@index([isActive])
 }
 
@@ -138,6 +140,39 @@ model Page {
   @@index([domainId, indexingVerdict])
   @@index([domainId, clicks(sort: Desc)])
   @@index([url])
+}
+
+model ManualCost {
+  id          String       @id @default(cuid())
+  
+  category    CostCategory
+  label       String       // np. "AWS EC2 eu-central-1", "ZUS marzec 2026"
+  amount      Float        // kwota w PLN
+  date        DateTime     @db.Date
+  
+  // Opcjonalne powiązanie z domeną
+  domainId    String?
+  domain      Domain?      @relation(fields: [domainId], references: [id])
+  
+  isRecurring Boolean      @default(false)  // czy powtarza się co miesiąc
+  notes       String?
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  @@index([date])
+  @@index([category])
+  @@index([domainId])
+}
+
+enum CostCategory {
+  GOOGLE_ADS
+  INFRASTRUCTURE  // AWS, serwery, domeny, SSL
+  TAXES           // podatek dochodowy, VAT
+  ZUS             // składki ZUS
+  TOOLS           // narzędzia: Moz, Stripe fees, inne SaaS
+  MARKETING       // inne koszty marketingowe
+  OTHER
 }
 
 

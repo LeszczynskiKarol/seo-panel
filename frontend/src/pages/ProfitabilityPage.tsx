@@ -3,17 +3,37 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { GlobalProfitabilityPanel } from "../components/GlobalProfitabilityPanel";
 import { cn, fmtNumber } from "../lib/utils";
 import { ProfitabilityTab } from "../components/ProfitabilityTab";
 import { PiggyBank, RefreshCw, Globe } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 export function ProfitabilityPage() {
-  const navigate = useNavigate();
   const { data: domains, isLoading } = useQuery({
     queryKey: ["domains"],
     queryFn: api.getDomains,
   });
+
+  const DOMAIN_ORDER: Record<string, number> = {
+    cmn9fo4dn0004qrdye8hjou1g: 1, // Stojan Shop
+    cmn9fo4db0001qrdyh34ldxul: 2, // Smart-Edu.ai
+    cmn9fo4d50000qrdy96h2sdr6: 3, // MaturaPolski
+    cmn9fo4dr0005qrdyj39z8k9e: 4, // Ebook Copywriting
+    cmn9fo4df0002qrdywpl8ymwe: 5, // Smart-Copy
+    cmn9fo4e50009qrdyog51y31k: 6, // Praca-Magisterska
+  };
+
+  const sorted = [...(domains ?? [])]
+    .sort((a: any, b: any) => {
+      const aOrder = DOMAIN_ORDER[a.id] || 100;
+      const bOrder = DOMAIN_ORDER[b.id] || 100;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return (a.label || a.domain).localeCompare(b.label || b.domain, "pl");
+    })
+    .map((d: any) => ({
+      domainId: d.id,
+      label: d.label || d.domain.replace("www.", ""),
+    }));
 
   const [selectedDomainId, setSelectedDomainId] = useState<string | null>(null);
 
@@ -26,7 +46,7 @@ export function ProfitabilityPage() {
   }
 
   // Filter domains that have GA4 or Ads integrations
-  const domainsWithIntegrations = domains || [];
+  const domainsWithIntegrations = sorted;
 
   return (
     <div className="p-6 space-y-6">
@@ -39,6 +59,8 @@ export function ProfitabilityPage() {
           Prowizja, koszty Ads, zysk netto — per domena
         </p>
       </div>
+
+      <GlobalProfitabilityPanel />
 
       {/* Domain selector */}
       <div className="flex gap-2 flex-wrap">
