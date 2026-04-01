@@ -292,6 +292,10 @@ export function GlobalProfitabilityPanel() {
         </div>
       </div>
 
+      {showCostsTable && (
+        <FinancialHistoryPanel startDate={startDate} endDate={endDate} />
+      )}
+
       {/* ═══ KPI CARDS ═══ */}
       <div className="grid grid-cols-5 gap-2">
         <KpiCard
@@ -500,10 +504,6 @@ export function GlobalProfitabilityPanel() {
             ))}
           </div>
         </div>
-      )}
-
-      {showCostsTable && (
-        <FinancialHistoryPanel startDate={startDate} endDate={endDate} />
       )}
 
       {/* ═══ ADD COST MODAL ═══ */}

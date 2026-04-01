@@ -211,22 +211,6 @@ export function FinancialHistoryPanel({
     );
   }
 
-  // All categories for filter dropdown
-  const allCategories = [
-    ...Object.entries(COST_CATEGORIES).map(([k, v]) => ({
-      key: k,
-      label: v.label,
-      icon: v.icon,
-      type: "cost",
-    })),
-    ...Object.entries(REVENUE_CATEGORIES).map(([k, v]) => ({
-      key: k,
-      label: v.label,
-      icon: v.icon,
-      type: "revenue",
-    })),
-  ];
-
   const toggleSort = (field: "date" | "amount") => {
     if (sortField === field) {
       setSortDir(sortDir === "desc" ? "asc" : "desc");
