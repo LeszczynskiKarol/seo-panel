@@ -182,7 +182,7 @@ export function FinancialHistoryPanel({
   const hasMore = pageSize !== -1 && visibleCount < filtered.length;
 
   // Update visible count when page size changes
-  const handlePageSizeChange = (size: PageSize) => {
+  const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setVisibleCount(size === -1 ? filtered.length : size);
   };
