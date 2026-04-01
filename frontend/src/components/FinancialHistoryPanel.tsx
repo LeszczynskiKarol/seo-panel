@@ -75,14 +75,13 @@ export function FinancialHistoryPanel({
   endDate: string;
 }) {
   const qc = useQueryClient();
-  const [pageSize, setPageSize] = useState<PageSize>(20);
+  const [pageSize, setPageSize] = useState<number>(20);
   const [visibleCount, setVisibleCount] = useState<number>(20);
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [filterCategory, setFilterCategory] = useState<string>("");
   const [filterDomain, setFilterDomain] = useState<string>("");
   const [sortField, setSortField] = useState<"date" | "amount">("date");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
-  const [showFilters, setShowFilters] = useState(false);
 
   // Fetch both costs and revenues
   const { data: costs, isLoading: costsLoading } = useQuery({
