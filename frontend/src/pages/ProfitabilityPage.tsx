@@ -68,7 +68,9 @@ export function ProfitabilityPage() {
           <button
             key={d.id}
             onClick={() =>
-              setSelectedDomainId(selectedDomainId === d.id ? null : d.id)
+              setSelectedDomainId(
+                selectedDomainId === d.domainId ? null : d.domainId,
+              )
             }
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
@@ -98,9 +100,8 @@ function AllDomainsProfitability({ domains }: { domains: any[] }) {
 
   // Fetch profitability for all domains with integrations
   const queries = domains.map((d: any) => ({
-    domainId: d.id,
-    label: d.label || d.domain.replace("www.", ""),
-    domain: d.domain,
+    domainId: d.domainId,
+    label: d.label,
   }));
 
   return (

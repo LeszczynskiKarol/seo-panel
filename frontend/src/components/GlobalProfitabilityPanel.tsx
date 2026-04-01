@@ -72,6 +72,28 @@ const PRESETS = [
     ],
   },
   {
+    label: "W tym miesiącu",
+    getDates: () => {
+      const now = new Date();
+      return [
+        now.getFullYear() +
+          "-" +
+          String(now.getMonth() + 1).padStart(2, "0") +
+          "-01",
+        fmt(now),
+      ];
+    },
+  },
+  {
+    label: "Poprzedni miesiąc",
+    getDates: () => {
+      const now = new Date();
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+      return [fmt(prevMonth), fmt(lastDay)];
+    },
+  },
+  {
     label: "90d",
     getDates: () => [
       fmt(new Date(Date.now() - 90 * 86400000)),
@@ -92,7 +114,7 @@ function fmt(d: Date) {
 
 export function GlobalProfitabilityPanel() {
   const qc = useQueryClient();
-  const [presetIdx, setPresetIdx] = useState(3); // default 30d
+  const [presetIdx, setPresetIdx] = useState(4); // default: W tym miesiącu
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [compare, setCompare] = useState(false);
