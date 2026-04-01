@@ -68,7 +68,7 @@ export function ProfitabilityTab({ domainId }: { domainId: string }) {
       {/* Period selector */}
       <div className="flex items-center gap-2">
         <PiggyBank className="w-4 h-4 text-accent-green" />
-        <span className="text-xs font-semibold">Rentowność — Stojan</span>
+        <span className="text-xs font-semibold">Rentowność</span>
         <div className="ml-auto flex gap-1">
           {[7, 14, 30, 90].map((d) => (
             <button

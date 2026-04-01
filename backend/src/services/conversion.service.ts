@@ -219,6 +219,33 @@ export class ConversionService {
       };
     });
 
+    // ─── MERGE backfilled conversions into byDevice ───
+    // When GA4 live shows 0 conversions but IntegrationDaily has data,
+    // attribute to the device with most sessions (usually desktop)
+    const totalDeviceConv = byDevice.reduce((s, d) => s + d.conversions, 0);
+    if (totalDeviceConv === 0) {
+      const localAggForDevice = await prisma.integrationDaily.aggregate({
+        where: {
+          integrationId: integration.id,
+          date: { gte: new Date(startDate), lte: new Date(endDate) },
+        },
+        _sum: { conversions: true, revenue: true },
+      });
+      const backfillConv = localAggForDevice._sum.conversions || 0;
+      const backfillRev = localAggForDevice._sum.revenue || 0;
+      if (backfillConv > 0 && byDevice.length > 0) {
+        // Add to device with most sessions
+        const topDevice = byDevice.sort((a, b) => b.sessions - a.sessions)[0];
+        topDevice.conversions += backfillConv;
+        topDevice.revenue += backfillRev;
+        topDevice.purchases += backfillConv;
+        topDevice.conversionRate =
+          topDevice.sessions > 0
+            ? topDevice.conversions / topDevice.sessions
+            : 0;
+      }
+    }
+
     // ─── 1d. By channel group ───
     const channelRes = (await analytics.properties.runReport({
       property: propertyId,
@@ -252,6 +279,59 @@ export class ConversionService {
         commission: Math.round(revenue * COMMISSION_RATE * 100) / 100,
       };
     });
+
+    // ─── MERGE cachedData.bySource into byChannel (backfill support) ───
+    // If GA4 live shows 0 conversions across all channels but cachedData has
+    // backfilled conversion data in bySource, merge it in.
+    const totalLiveConv = byChannel.reduce((s, ch) => s + ch.conversions, 0);
+    if (totalLiveConv === 0) {
+      const cached = integration.cachedData as any;
+      const cachedBySource = cached?.bySource as any[] | undefined;
+      if (cachedBySource?.length) {
+        for (const src of cachedBySource) {
+          if (!src.conversions || src.conversions <= 0) continue;
+          // Map sourceMedium to channel name
+          const sm = (src.sourceMedium || "").toLowerCase();
+          let channelName = "Other";
+          if (sm.includes("organic") && !sm.includes("shopping"))
+            channelName = "Organic Search";
+          else if (sm.includes("organic") && sm.includes("shopping"))
+            channelName = "Organic Shopping";
+          else if (sm.includes("cpc") || sm.includes("paid"))
+            channelName = "Paid Search";
+          else if (sm.includes("direct") || sm.includes("(none)"))
+            channelName = "Direct";
+          else if (sm.includes("referral")) channelName = "Referral";
+
+          const existing = byChannel.find((ch) => ch.channel === channelName);
+          if (existing) {
+            existing.conversions += src.conversions;
+            existing.revenue += src.revenue || 0;
+            existing.commission =
+              Math.round(existing.revenue * COMMISSION_RATE * 100) / 100;
+            existing.conversionRate =
+              existing.sessions > 0
+                ? existing.conversions / existing.sessions
+                : 0;
+          } else {
+            byChannel.push({
+              channel: channelName,
+              sessions: src.sessions || 0,
+              conversions: src.conversions,
+              revenue: src.revenue || 0,
+              purchases: src.conversions,
+              users: src.users || 0,
+              conversionRate:
+                (src.sessions || 0) > 0 ? src.conversions / src.sessions : 0,
+              commission:
+                Math.round((src.revenue || 0) * COMMISSION_RATE * 100) / 100,
+            });
+          }
+        }
+        // Re-sort by conversions desc
+        byChannel.sort((a, b) => b.conversions - a.conversions);
+      }
+    }
 
     // ─── 1e. Period comparison ───
     const dayCount =

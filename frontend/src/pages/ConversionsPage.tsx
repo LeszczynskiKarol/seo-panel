@@ -35,15 +35,29 @@ import {
 
 type Tab = "overview" | "keywords" | "funnel" | "top-pages";
 
+const STOJAN_DOMAIN_ID = "cmn9fo4dn0004qrdye8hjou1g";
+
 export function ConversionsPage() {
   const [tab, setTab] = useState<Tab>("overview");
   const [selectedDomain, setSelectedDomain] = useState<string>("");
   const [days, setDays] = useState(30);
+  const [customDateFrom, setCustomDateFrom] = useState("");
+  const [customDateTo, setCustomDateTo] = useState("");
 
   const { data: domains } = useQuery({
     queryKey: ["domains"],
     queryFn: () => api.getDomains(),
   });
+
+  // Sort domains alphabetically
+  const sortedDomains = (domains || [])
+    .slice()
+    .sort((a: any, b: any) =>
+      (a.label || a.domain).localeCompare(b.label || b.domain, "pl"),
+    );
+
+  const isCustomRange = !!(customDateFrom && customDateTo);
+  const isStojan = selectedDomain === STOJAN_DOMAIN_ID;
 
   const TABS: { key: Tab; label: string; icon: any }[] = [
     { key: "overview", label: "Przegląd", icon: BarChart3 },
@@ -66,7 +80,7 @@ export function ConversionsPage() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="text-xs text-panel-muted">Domena:</span>
           <select
@@ -75,7 +89,7 @@ export function ConversionsPage() {
             onChange={(e) => setSelectedDomain(e.target.value)}
           >
             <option value="">— Wybierz domenę —</option>
-            {(domains || []).map((d: any) => (
+            {sortedDomains.map((d: any) => (
               <option key={d.id} value={d.id}>
                 {d.label || d.domain}
               </option>
@@ -87,10 +101,14 @@ export function ConversionsPage() {
           {[7, 14, 30, 90].map((d) => (
             <button
               key={d}
-              onClick={() => setDays(d)}
+              onClick={() => {
+                setDays(d);
+                setCustomDateFrom("");
+                setCustomDateTo("");
+              }}
               className={cn(
                 "px-2 py-1 rounded text-[10px] font-mono",
-                days === d
+                days === d && !isCustomRange
                   ? "bg-accent-blue/20 text-accent-blue font-semibold"
                   : "text-panel-muted hover:text-panel-text",
               )}
@@ -98,6 +116,34 @@ export function ConversionsPage() {
               {d}d
             </button>
           ))}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-panel-muted">od:</span>
+          <input
+            type="date"
+            className="input text-[10px] py-1 w-[120px]"
+            value={customDateFrom}
+            onChange={(e) => setCustomDateFrom(e.target.value)}
+          />
+          <span className="text-[10px] text-panel-muted">do:</span>
+          <input
+            type="date"
+            className="input text-[10px] py-1 w-[120px]"
+            value={customDateTo}
+            onChange={(e) => setCustomDateTo(e.target.value)}
+          />
+          {isCustomRange && (
+            <button
+              className="text-[10px] text-accent-red hover:underline ml-1"
+              onClick={() => {
+                setCustomDateFrom("");
+                setCustomDateTo("");
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
@@ -130,16 +176,38 @@ export function ConversionsPage() {
           </div>
 
           {tab === "overview" && (
-            <OverviewTab domainId={selectedDomain} days={days} />
+            <OverviewTab
+              domainId={selectedDomain}
+              days={days}
+              startDate={customDateFrom}
+              endDate={customDateTo}
+              isStojan={isStojan}
+            />
           )}
           {tab === "keywords" && (
-            <KeywordsTab domainId={selectedDomain} days={days} />
+            <KeywordsTab
+              domainId={selectedDomain}
+              days={days}
+              startDate={customDateFrom}
+              endDate={customDateTo}
+            />
           )}
           {tab === "funnel" && (
-            <FunnelTab domainId={selectedDomain} days={days} />
+            <FunnelTab
+              domainId={selectedDomain}
+              days={days}
+              startDate={customDateFrom}
+              endDate={customDateTo}
+            />
           )}
           {tab === "top-pages" && (
-            <TopPagesTab domainId={selectedDomain} days={days} />
+            <TopPagesTab
+              domainId={selectedDomain}
+              days={days}
+              startDate={customDateFrom}
+              endDate={customDateTo}
+              isStojan={isStojan}
+            />
           )}
         </>
       )}
@@ -151,10 +219,24 @@ export function ConversionsPage() {
 // TAB 1: OVERVIEW
 // ═══════════════════════════════════════════════════════════════
 
-function OverviewTab({ domainId, days }: { domainId: string; days: number }) {
+function OverviewTab({
+  domainId,
+  days,
+  startDate,
+  endDate,
+  isStojan,
+}: {
+  domainId: string;
+  days: number;
+  startDate?: string;
+  endDate?: string;
+  isStojan: boolean;
+}) {
+  const isCustomRange = !!(startDate && endDate);
   const { data, isLoading } = useQuery({
-    queryKey: ["conv-overview", domainId, days],
-    queryFn: () => api.getConversionOverview(domainId, days),
+    queryKey: ["conv-overview", domainId, days, startDate, endDate],
+    queryFn: () =>
+      api.getConversionOverview(domainId, days, startDate, endDate),
     enabled: !!domainId,
   });
 
@@ -169,7 +251,9 @@ function OverviewTab({ domainId, days }: { domainId: string; days: number }) {
   return (
     <div className="space-y-4">
       {/* Stat cards */}
-      <div className="grid grid-cols-5 gap-2">
+      <div
+        className={cn("grid gap-2", isStojan ? "grid-cols-5" : "grid-cols-4")}
+      >
         <StatCard
           label="Konwersje"
           value={t.conversions}
@@ -182,11 +266,13 @@ function OverviewTab({ domainId, days }: { domainId: string; days: number }) {
           color="#a855f7"
           change={comp?.change?.revenue}
         />
-        <StatCard
-          label="Prowizja (12%)"
-          value={`${t.commission.toFixed(0)} zł`}
-          color="#f59e0b"
-        />
+        {isStojan && (
+          <StatCard
+            label="Prowizja (12%)"
+            value={`${t.commission.toFixed(0)} zł`}
+            color="#f59e0b"
+          />
+        )}
         <StatCard
           label="Conv. Rate"
           value={`${t.conversionRate}%`}
@@ -212,7 +298,8 @@ function OverviewTab({ domainId, days }: { domainId: string; days: number }) {
       {data.daily.length > 0 && (
         <div className="bg-panel-card border border-panel-border rounded-lg p-4">
           <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
-            Konwersje i przychód — {days}d
+            Konwersje i przychód —{" "}
+            {isCustomRange ? `${startDate} → ${endDate}` : `${days}d`}
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={data.daily}>
@@ -405,7 +492,17 @@ function OverviewTab({ domainId, days }: { domainId: string; days: number }) {
 // TAB 2: KEYWORDS → CONVERSIONS
 // ═══════════════════════════════════════════════════════════════
 
-function KeywordsTab({ domainId, days }: { domainId: string; days: number }) {
+function KeywordsTab({
+  domainId,
+  days,
+  startDate,
+  endDate,
+}: {
+  domainId: string;
+  days: number;
+  startDate?: string;
+  endDate?: string;
+}) {
   const [subTab, setSubTab] = useState<"aggregated" | "pages" | "ads">(
     "aggregated",
   );
@@ -413,8 +510,9 @@ function KeywordsTab({ domainId, days }: { domainId: string; days: number }) {
   const [showCount, setShowCount] = useState(50);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["conv-keywords", domainId, days],
-    queryFn: () => api.getConversionKeywords(domainId, days),
+    queryKey: ["conv-keywords", domainId, days, startDate, endDate],
+    queryFn: () =>
+      api.getConversionKeywords(domainId, days, 100, startDate, endDate),
     enabled: !!domainId,
   });
 
@@ -813,10 +911,20 @@ function AdsKeywordsTable({
 // TAB 3: FUNNEL
 // ═══════════════════════════════════════════════════════════════
 
-function FunnelTab({ domainId, days }: { domainId: string; days: number }) {
+function FunnelTab({
+  domainId,
+  days,
+  startDate,
+  endDate,
+}: {
+  domainId: string;
+  days: number;
+  startDate?: string;
+  endDate?: string;
+}) {
   const { data, isLoading } = useQuery({
-    queryKey: ["conv-funnel", domainId, days],
-    queryFn: () => api.getConversionFunnel(domainId, days),
+    queryKey: ["conv-funnel", domainId, days, startDate, endDate],
+    queryFn: () => api.getConversionFunnel(domainId, days, startDate, endDate),
     enabled: !!domainId,
   });
 
@@ -979,12 +1087,25 @@ function FunnelTab({ domainId, days }: { domainId: string; days: number }) {
 // TAB 4: TOP CONVERTING PAGES
 // ═══════════════════════════════════════════════════════════════
 
-function TopPagesTab({ domainId, days }: { domainId: string; days: number }) {
+function TopPagesTab({
+  domainId,
+  days,
+  startDate,
+  endDate,
+  isStojan,
+}: {
+  domainId: string;
+  days: number;
+  startDate?: string;
+  endDate?: string;
+  isStojan?: boolean;
+}) {
   const [showCount, setShowCount] = useState(50);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["conv-top-pages", domainId, days],
-    queryFn: () => api.getConversionTopPages(domainId, days),
+    queryKey: ["conv-top-pages", domainId, days, startDate, endDate],
+    queryFn: () =>
+      api.getConversionTopPages(domainId, days, 50, startDate, endDate),
     enabled: !!domainId,
   });
 
@@ -1016,7 +1137,7 @@ function TopPagesTab({ domainId, days }: { domainId: string; days: number }) {
               <th>Conv.</th>
               <th>CR%</th>
               <th>Przychód</th>
-              <th>Prowizja</th>
+              {isStojan && <th>Prowizja</th>}
               <th>zł/sesję</th>
               <th>Bounce</th>
               <th>GSC klik.</th>
@@ -1047,9 +1168,11 @@ function TopPagesTab({ domainId, days }: { domainId: string; days: number }) {
                 <td className="text-accent-purple font-mono font-semibold">
                   {p.revenue.toFixed(0)} zł
                 </td>
-                <td className="text-accent-amber font-mono">
-                  {p.commission.toFixed(0)} zł
-                </td>
+                {isStojan && (
+                  <td className="text-accent-amber font-mono">
+                    {p.commission.toFixed(0)} zł
+                  </td>
+                )}
                 <td className="text-panel-muted font-mono">
                   {p.revenuePerSession.toFixed(1)}
                 </td>

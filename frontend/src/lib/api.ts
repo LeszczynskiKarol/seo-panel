@@ -32,7 +32,7 @@ export const api = {
   // Overview
   getOverview: () => request<any>("/overview"),
   getAlerts: (params?: string) =>
-    request<any>(`/alerts${params ? `?${params}` : ""}`),
+    request<any[]>(`/alerts${params ? `?${params}` : ""}`),
   resolveAlert: (id: string) =>
     request<any>(`/alerts/${id}/resolve`, { method: "PATCH" }),
 
@@ -57,6 +57,7 @@ export const api = {
     ),
   getPageDetail: (domainId: string, pageId: string) =>
     request<any>(`/domains/${domainId}/pages/${pageId}`),
+  getOrphanPages: (id: string) => request<any[]>(`/domains/${id}/orphan-pages`),
   getBrokenLinks: (id: string) => request<any[]>(`/domains/${id}/broken-links`),
   getQueries: (id: string, params?: string) =>
     request<any[]>(`/domains/${id}/queries${params ? `?${params}` : ""}`),
@@ -374,21 +375,65 @@ export const api = {
 
   // ─── CONVERSIONS ─────────────────────────────────────────────
 
-  getConversionOverview: (domainId: string, days = 30) =>
-    request<any>(`/conversions/${domainId}/overview?days=${days}`),
+  getConversionOverview: (
+    domainId: string,
+    days = 30,
+    startDate?: string,
+    endDate?: string,
+  ) => {
+    const p = new URLSearchParams();
+    if (startDate && endDate) {
+      p.set("startDate", startDate);
+      p.set("endDate", endDate);
+    } else p.set("days", String(days));
+    return request<any>(`/conversions/${domainId}/overview?${p.toString()}`);
+  },
 
-  getConversionKeywords: (domainId: string, days = 30, limit = 100) =>
-    request<any>(
-      `/conversions/${domainId}/keywords?days=${days}&limit=${limit}`,
-    ),
+  getConversionKeywords: (
+    domainId: string,
+    days = 30,
+    limit = 100,
+    startDate?: string,
+    endDate?: string,
+  ) => {
+    const p = new URLSearchParams();
+    if (startDate && endDate) {
+      p.set("startDate", startDate);
+      p.set("endDate", endDate);
+    } else p.set("days", String(days));
+    p.set("limit", String(limit));
+    return request<any>(`/conversions/${domainId}/keywords?${p.toString()}`);
+  },
 
-  getConversionFunnel: (domainId: string, days = 30) =>
-    request<any>(`/conversions/${domainId}/funnel?days=${days}`),
+  getConversionFunnel: (
+    domainId: string,
+    days = 30,
+    startDate?: string,
+    endDate?: string,
+  ) => {
+    const p = new URLSearchParams();
+    if (startDate && endDate) {
+      p.set("startDate", startDate);
+      p.set("endDate", endDate);
+    } else p.set("days", String(days));
+    return request<any>(`/conversions/${domainId}/funnel?${p.toString()}`);
+  },
 
-  getConversionTopPages: (domainId: string, days = 30, limit = 50) =>
-    request<any>(
-      `/conversions/${domainId}/top-pages?days=${days}&limit=${limit}`,
-    ),
+  getConversionTopPages: (
+    domainId: string,
+    days = 30,
+    limit = 50,
+    startDate?: string,
+    endDate?: string,
+  ) => {
+    const p = new URLSearchParams();
+    if (startDate && endDate) {
+      p.set("startDate", startDate);
+      p.set("endDate", endDate);
+    } else p.set("days", String(days));
+    p.set("limit", String(limit));
+    return request<any>(`/conversions/${domainId}/top-pages?${p.toString()}`);
+  },
 
   getConversionGlobal: (days = 30) =>
     request<any>(`/conversions/global?days=${days}`),

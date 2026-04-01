@@ -967,6 +967,10 @@ function SourcesTable({ sources }: { sources: any[] }) {
   );
 }
 
+// PATCH for IntegrationsTab.tsx — replace the LandingPagesTable function
+
+// Find and replace the existing LandingPagesTable function with this one:
+
 function LandingPagesTable({ pages }: { pages: any[] }) {
   if (!pages.length) {
     return (
@@ -987,84 +991,97 @@ function LandingPagesTable({ pages }: { pages: any[] }) {
           <thead>
             <tr>
               <th>URL</th>
-              <th className="text-accent-amber">GA4 Sesje</th>
-              <th className="text-accent-amber">GA4 Conv.</th>
+              <th className="text-accent-amber">Sesje</th>
+              <th className="text-accent-amber">Conv.</th>
               <th className="text-accent-amber">Conv. Rate</th>
-              <th className="text-accent-amber">GA4 Revenue</th>
+              <th className="text-accent-amber">Revenue</th>
               <th className="text-accent-cyan">GSC Clicks</th>
               <th className="text-accent-cyan">GSC Pos.</th>
               <th>Index</th>
             </tr>
           </thead>
           <tbody>
-            {pages.map((p: any, i: number) => (
-              <tr key={i}>
-                <td className="max-w-[250px] truncate">
-                  <a
-                    href={p.path}
-                    target="_blank"
-                    className="text-accent-blue hover:underline"
-                  >
-                    {p.path}
-                  </a>
-                </td>
-                <td className="text-accent-amber font-semibold">
-                  {fmtNumber(p.ga4Sessions)}
-                </td>
-                <td
-                  className={cn(
-                    p.ga4Conversions > 0
-                      ? "text-accent-green font-semibold"
-                      : "text-panel-muted",
-                  )}
-                >
-                  {p.ga4Conversions}
-                </td>
-                <td
-                  className={cn(
-                    "font-mono",
-                    p.conversionRate >= 5
-                      ? "text-accent-green"
-                      : p.conversionRate >= 1
-                        ? "text-accent-amber"
-                        : "text-panel-muted",
-                  )}
-                >
-                  {p.conversionRate.toFixed(1)}%
-                </td>
-                <td
-                  className={cn(
-                    p.ga4Revenue > 0 ? "text-accent-green" : "text-panel-muted",
-                  )}
-                >
-                  {p.ga4Revenue > 0 ? `${fmtNumber(p.ga4Revenue)} zł` : "—"}
-                </td>
-                <td className="text-accent-cyan">
-                  {p.gscClicks > 0 ? fmtNumber(p.gscClicks) : "—"}
-                </td>
-                <td
-                  className={cn(
-                    "font-mono",
-                    p.gscPosition && p.gscPosition <= 3
-                      ? "text-accent-green font-bold"
-                      : p.gscPosition && p.gscPosition <= 10
-                        ? "text-accent-cyan"
-                        : "",
-                  )}
-                >
-                  {p.gscPosition ? p.gscPosition.toFixed(1) : "—"}
-                </td>
-                <td>
-                  {p.indexingVerdict && (
-                    <span
-                      className={cn("badge", verdictBadge(p.indexingVerdict))}
+            {pages.map((p: any, i: number) => {
+              // Handle both formats: correlated (ga4Sessions) and cached (sessions)
+              const sessions = p.ga4Sessions ?? p.sessions ?? 0;
+              const conversions = p.ga4Conversions ?? p.conversions ?? 0;
+              const revenue = p.ga4Revenue ?? p.revenue ?? 0;
+              const convRate =
+                p.conversionRate ??
+                (sessions > 0
+                  ? Math.round((conversions / sessions) * 10000) / 100
+                  : 0);
+              const bounceRate = p.ga4BounceRate ?? p.bounceRate ?? 0;
+
+              return (
+                <tr key={i}>
+                  <td className="max-w-[250px] truncate">
+                    <a
+                      href={p.path}
+                      target="_blank"
+                      className="text-accent-blue hover:underline"
                     >
-                      {p.indexingVerdict}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
+                      {p.path}
+                    </a>
+                  </td>
+                  <td className="text-accent-amber font-semibold">
+                    {fmtNumber(sessions)}
+                  </td>
+                  <td
+                    className={cn(
+                      conversions > 0
+                        ? "text-accent-green font-semibold"
+                        : "text-panel-muted",
+                    )}
+                  >
+                    {conversions}
+                  </td>
+                  <td
+                    className={cn(
+                      "font-mono",
+                      convRate >= 5
+                        ? "text-accent-green"
+                        : convRate >= 1
+                          ? "text-accent-amber"
+                          : "text-panel-muted",
+                    )}
+                  >
+                    {typeof convRate === "number" ? convRate.toFixed(1) : "0"}%
+                  </td>
+                  <td
+                    className={cn(
+                      revenue > 0 ? "text-accent-green" : "text-panel-muted",
+                    )}
+                  >
+                    {revenue > 0 ? `${fmtNumber(revenue)} zł` : "—"}
+                  </td>
+                  <td className="text-accent-cyan">
+                    {(p.gscClicks ?? 0) > 0 ? fmtNumber(p.gscClicks) : "—"}
+                  </td>
+                  <td
+                    className={cn(
+                      "font-mono",
+                      p.gscPosition && p.gscPosition <= 3
+                        ? "text-accent-green font-bold"
+                        : p.gscPosition && p.gscPosition <= 10
+                          ? "text-accent-cyan"
+                          : "",
+                    )}
+                  >
+                    {p.gscPosition ? p.gscPosition.toFixed(1) : "—"}
+                  </td>
+                  <td>
+                    {p.indexingVerdict && (
+                      <span
+                        className={cn("badge", verdictBadge(p.indexingVerdict))}
+                      >
+                        {p.indexingVerdict}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
