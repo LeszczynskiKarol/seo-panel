@@ -139,7 +139,7 @@ export function AlertsPage() {
   ]);
 
   // ─── Data queries ───
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<any>({
     queryKey: ["alerts-v2", queryParams],
     queryFn: () => api.getAlerts(queryParams),
   });
