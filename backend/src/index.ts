@@ -61,7 +61,11 @@ fastify.post("/api/webhook/stojan-order", async (request, reply) => {
   return { ok: true, date, orders, revenue };
 });
 
-fastify.addHook("onRequest", authGuard);
+fastify.addHook("onRequest", async (request, reply) => {
+  if (request.url.startsWith("/api/webhook/")) return;
+  if (request.url === "/api/health") return;
+  return authGuard(request, reply);
+});
 
 // Routes
 fastify.register(domainRoutes, { prefix: "/api/domains" });
