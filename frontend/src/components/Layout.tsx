@@ -4,6 +4,7 @@ import {
   Globe,
   Shield,
   Eye,
+  ShoppingCart,
   Bell,
   Zap,
   Lightbulb,
@@ -20,6 +21,7 @@ import { api } from "../lib/api";
 const NAV = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/profitability", icon: PiggyBank, label: "Rentowność" },
+  { to: "/conversions", icon: ShoppingCart, label: "Konwersje" },
   { to: "/insights", icon: Lightbulb, label: "Insights" },
   { to: "/timeline", icon: Clock, label: "Timeline" },
   { to: "/ai-links", icon: Zap, label: "AI Links" },

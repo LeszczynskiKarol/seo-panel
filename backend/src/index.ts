@@ -8,6 +8,8 @@ import { profitabilityRoutes } from "./routes/profitability.js";
 import { integrationRoutes } from "./routes/integrations.js";
 import { mozRoutes } from "./routes/moz.js";
 import { chatRoutes } from "./routes/chat.js";
+import { conversionRoutes } from "./routes/conversions.js";
+import { backfillRoutes } from "./routes/backfill.js";
 import { registerAuth, authGuard } from "./lib/auth.js";
 import { overviewRoutes } from "./routes/overview.js";
 import { watchlistRoutes } from "./routes/watchlist.js";
@@ -15,6 +17,7 @@ import { startScheduler } from "./jobs/scheduler.js";
 import { prisma } from "./lib/prisma.js";
 import { importRoutes } from "./routes/import.js";
 import { analyticsRoutes } from "./routes/analytics.js";
+import { alertRoutes } from "./routes/alerts.js";
 import { timelineRoutes } from "./routes/timeline.js";
 
 const fastify = Fastify();
@@ -42,9 +45,12 @@ fastify.register(adsRoutes, { prefix: "/api/ads" });
 fastify.register(profitabilityRoutes, { prefix: "/api/profitability" });
 fastify.register(watchlistRoutes, { prefix: "/api/watchlist" });
 fastify.register(mozRoutes, { prefix: "/api/moz" });
+fastify.register(conversionRoutes, { prefix: "/api/conversions" });
+fastify.register(backfillRoutes, { prefix: "/api/backfill" });
 fastify.register(integrationRoutes, { prefix: "/api/domains" });
 fastify.register(aiRoutes, { prefix: "/api/ai" });
 fastify.register(chatRoutes, { prefix: "/api/chat" });
+fastify.register(alertRoutes, { prefix: "/api/alerts" });
 
 // Health check
 fastify.get("/api/health", async () => ({

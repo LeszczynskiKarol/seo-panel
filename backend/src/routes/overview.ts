@@ -17,7 +17,10 @@ export async function overviewRoutes(fastify: FastifyInstance) {
     const totalPages = domains.reduce((s, d) => s + d.totalPages, 0);
     const totalIndexed = domains.reduce((s, d) => s + d.indexedPages, 0);
     const totalClicks = domains.reduce((s, d) => s + d.totalClicks, 0);
-    const totalImpressions = domains.reduce((s, d) => s + d.totalImpressions, 0);
+    const totalImpressions = domains.reduce(
+      (s, d) => s + d.totalImpressions,
+      0,
+    );
 
     // Unresolved alerts
     const alertCount = await prisma.alert.count({
@@ -39,7 +42,8 @@ export async function overviewRoutes(fastify: FastifyInstance) {
       domains: domains.length,
       totalPages,
       totalIndexed,
-      indexRate: totalPages > 0 ? Math.round((totalIndexed / totalPages) * 100) : 0,
+      indexRate:
+        totalPages > 0 ? Math.round((totalIndexed / totalPages) * 100) : 0,
       totalClicks,
       totalImpressions,
       alertCount,
@@ -49,37 +53,6 @@ export async function overviewRoutes(fastify: FastifyInstance) {
         impressions: r._sum.impressions || 0,
       })),
     };
-  });
-
-  // ─── ALERTS ────────────────────────────────────────────────
-  fastify.get("/alerts", async (request) => {
-    const { resolved, type, limit } = request.query as any;
-
-    const where: any = {};
-    if (resolved === "false") where.isResolved = false;
-    if (resolved === "true") where.isResolved = true;
-    if (type) where.type = type;
-
-    const alerts = await prisma.alert.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: parseInt(limit) || 50,
-      include: {
-        domain: { select: { domain: true, label: true } },
-        page: { select: { path: true, url: true } },
-      },
-    });
-
-    return alerts;
-  });
-
-  // Resolve alert
-  fastify.patch("/alerts/:id/resolve", async (request) => {
-    const { id } = request.params as { id: string };
-    return prisma.alert.update({
-      where: { id },
-      data: { isResolved: true, resolvedAt: new Date() },
-    });
   });
 
   // ─── BULK ACTIONS ──────────────────────────────────────────
@@ -94,7 +67,9 @@ export async function overviewRoutes(fastify: FastifyInstance) {
     const { days } = request.body as any;
     const d = parseInt(days) || 3;
     const end = new Date().toISOString().split("T")[0];
-    const start = new Date(Date.now() - d * 86400000).toISOString().split("T")[0];
+    const start = new Date(Date.now() - d * 86400000)
+      .toISOString()
+      .split("T")[0];
     return gsc.pullAllDomains(start, end);
   });
 

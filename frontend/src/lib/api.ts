@@ -32,7 +32,7 @@ export const api = {
   // Overview
   getOverview: () => request<any>("/overview"),
   getAlerts: (params?: string) =>
-    request<any[]>(`/alerts${params ? `?${params}` : ""}`),
+    request<any>(`/alerts${params ? `?${params}` : ""}`),
   resolveAlert: (id: string) =>
     request<any>(`/alerts/${id}/resolve`, { method: "PATCH" }),
 
@@ -57,7 +57,6 @@ export const api = {
     ),
   getPageDetail: (domainId: string, pageId: string) =>
     request<any>(`/domains/${domainId}/pages/${pageId}`),
-  getOrphanPages: (id: string) => request<any[]>(`/domains/${id}/orphan-pages`),
   getBrokenLinks: (id: string) => request<any[]>(`/domains/${id}/broken-links`),
   getQueries: (id: string, params?: string) =>
     request<any[]>(`/domains/${id}/queries${params ? `?${params}` : ""}`),
@@ -372,6 +371,27 @@ export const api = {
 
   getProfitability: (domainId: string, days = 30) =>
     request<any>(`/profitability/${domainId}?days=${days}`),
+
+  // ─── CONVERSIONS ─────────────────────────────────────────────
+
+  getConversionOverview: (domainId: string, days = 30) =>
+    request<any>(`/conversions/${domainId}/overview?days=${days}`),
+
+  getConversionKeywords: (domainId: string, days = 30, limit = 100) =>
+    request<any>(
+      `/conversions/${domainId}/keywords?days=${days}&limit=${limit}`,
+    ),
+
+  getConversionFunnel: (domainId: string, days = 30) =>
+    request<any>(`/conversions/${domainId}/funnel?days=${days}`),
+
+  getConversionTopPages: (domainId: string, days = 30, limit = 50) =>
+    request<any>(
+      `/conversions/${domainId}/top-pages?days=${days}&limit=${limit}`,
+    ),
+
+  getConversionGlobal: (days = 30) =>
+    request<any>(`/conversions/global?days=${days}`),
 
   // Jobs
   getJobs: () => request<any[]>("/jobs"),

@@ -127,7 +127,6 @@ export function ChatPage() {
     "Porównaj DA moich domen",
     "Które strony tracą pozycje?",
     "Jaką strategię linkowania dla grupy MOTORS?",
-    "Które domeny mają najwięcej orphan pages?",
   ];
 
   return (

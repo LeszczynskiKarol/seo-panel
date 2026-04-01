@@ -40,7 +40,6 @@ type Tab =
   | "tracked"
   | "links"
   | "broken"
-  | "orphans"
   | "integrations"
   | "profitability";
 
@@ -129,12 +128,6 @@ export function DomainDetailPage() {
     enabled: !!id && tab === "tracked" && trackedCompare,
   });
 
-  const { data: orphans } = useQuery({
-    queryKey: ["orphans", id],
-    queryFn: () => api.getOrphanPages(id!),
-    enabled: !!id && tab === "orphans",
-  });
-
   const removeKw = useMutation({
     mutationFn: ({
       domainId,
@@ -217,7 +210,6 @@ export function DomainDetailPage() {
     mutationFn: () => api.crawlLinks(id!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["broken", id] });
-      qc.invalidateQueries({ queryKey: ["orphans", id] });
     },
   });
 
@@ -467,7 +459,7 @@ export function DomainDetailPage() {
             "tracked",
             "links",
             "broken",
-            "orphans",
+
             "profitability",
             "integrations",
           ] as Tab[]
@@ -487,7 +479,7 @@ export function DomainDetailPage() {
             {t === "tracked" && "Śledzone"}
             {t === "links" && "Linkowanie"}
             {t === "broken" && "Złamane linki"}
-            {t === "orphans" && "Orphan pages"}
+
             {t === "profitability" && "Rentowność"}
             {t === "integrations" && "Integracje"}
           </button>
@@ -904,77 +896,6 @@ export function DomainDetailPage() {
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-      )}
-
-      {tab === "orphans" && (
-        <div className="bg-panel-card border border-panel-border rounded-lg table-scroll-wrapper">
-          {orphans?.length === 0 ? (
-            <div className="p-8 text-center text-panel-muted text-sm">
-              Brak orphan pages
-            </div>
-          ) : (
-            <>
-              <div className="px-5 py-3 border-b border-panel-border text-xs text-panel-muted flex items-center gap-2">
-                <FileWarning className="w-3.5 h-3.5" />
-                Strony w sitemapie bez żadnego linku wewnętrznego prowadzącego
-                do nich
-              </div>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>URL</th>
-                    <th>Status</th>
-                    <th>Kliknięcia</th>
-                    <th>Pozycja</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(orphans || []).map((p: any) => (
-                    <tr key={p.id}>
-                      <td className="max-w-[300px] truncate flex items-center gap-1.5">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleTrack.mutate({ domainId: id!, pageId: p.id });
-                          }}
-                          className="shrink-0"
-                        >
-                          <Star
-                            className={cn(
-                              "w-3.5 h-3.5 transition-colors",
-                              p.isTracked
-                                ? "text-accent-amber fill-accent-amber"
-                                : "text-panel-border hover:text-panel-muted",
-                            )}
-                          />
-                        </button>
-                        <a
-                          href={p.url}
-                          target="_blank"
-                          className="text-accent-blue hover:underline truncate"
-                        >
-                          {p.path}
-                        </a>
-                      </td>
-                      <td>
-                        <span
-                          className={cn(
-                            "badge",
-                            verdictBadge(p.indexingVerdict),
-                          )}
-                        >
-                          {p.indexingVerdict}
-                        </span>
-                      </td>
-                      <td className="text-accent-cyan">{p.clicks}</td>
-                      <td>{fmtPosition(p.position)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
           )}
         </div>
       )}

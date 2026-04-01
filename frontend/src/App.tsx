@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { WatchlistPage } from "./pages/WatchlistPage";
 import { ProfitabilityPage } from "./pages/ProfitabilityPage";
+import { ConversionsPage } from "./pages/ConversionsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ChatPage } from "./pages/ChatPage";
 import { MozAnalyticsPage } from "./pages/MozAnalyticsPage";
@@ -28,6 +29,7 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="/domains/:id" element={<DomainDetailPage />} />
         <Route path="/profitability" element={<ProfitabilityPage />} />
+        <Route path="/conversions" element={<ConversionsPage />} />
         <Route path="/insights" element={<InsightsPage />} />
         <Route path="/timeline" element={<TimelinePage />} />
         <Route path="/ai-links" element={<AILinksPage />} />

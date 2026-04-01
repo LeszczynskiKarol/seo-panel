@@ -324,7 +324,7 @@ export class AnalyticsService {
       failCount,
       neutralCount,
       brokenCount,
-      orphanCount,
+
       unresolvedAlerts,
     ] = await Promise.all([
       prisma.page.count({ where: { domainId, inSitemap: true } }),
@@ -348,7 +348,7 @@ export class AnalyticsService {
     const indexingScore = pages > 0 ? (passCount / pages) * 100 : 0;
     const noFailScore = pages > 0 ? ((pages - failCount) / pages) * 100 : 100;
     const brokenLinkScore = Math.max(0, 100 - brokenCount * 10);
-    const orphanScore = pages > 0 ? ((pages - orphanCount) / pages) * 100 : 100;
+
     const alertScore = Math.max(0, 100 - unresolvedAlerts * 15);
 
     // Weighted total
@@ -356,7 +356,6 @@ export class AnalyticsService {
       indexingScore * 0.35 +
         noFailScore * 0.2 +
         brokenLinkScore * 0.15 +
-        orphanScore * 0.15 +
         alertScore * 0.15,
     );
 
@@ -375,10 +374,7 @@ export class AnalyticsService {
           score: Math.round(brokenLinkScore),
           detail: `${brokenCount} złamanych linków`,
         },
-        internalLinking: {
-          score: Math.round(orphanScore),
-          detail: `${orphanCount} orphan pages`,
-        },
+
         alerts: {
           score: Math.round(alertScore),
           detail: `${unresolvedAlerts} nierozwiązanych`,
@@ -388,7 +384,7 @@ export class AnalyticsService {
         indexingScore,
         failCount,
         brokenCount,
-        orphanCount,
+
         unresolvedAlerts,
         pages,
       }),
@@ -504,7 +500,7 @@ function generateRecommendations(data: {
   indexingScore: number;
   failCount: number;
   brokenCount: number;
-  orphanCount: number;
+
   unresolvedAlerts: number;
   pages: number;
 }): string[] {
@@ -525,12 +521,6 @@ function generateRecommendations(data: {
   if (data.brokenCount > 0) {
     recs.push(
       `${data.brokenCount} złamanych linków zewnętrznych — napraw lub usuń linki do nieistniejących stron.`,
-    );
-  }
-
-  if (data.orphanCount > 3) {
-    recs.push(
-      `${data.orphanCount} stron bez linków wewnętrznych (orphan pages) — dodaj linkowanie z powiązanych treści.`,
     );
   }
 

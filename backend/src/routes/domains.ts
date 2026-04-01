@@ -256,22 +256,6 @@ export async function domainRoutes(fastify: FastifyInstance) {
     return { ...page, history, linksOut, linksIn };
   });
 
-  // ─── ORPHAN PAGES ──────────────────────────────────────────
-  fastify.get("/:id/orphan-pages", async (request) => {
-    const { id } = request.params as { id: string };
-
-    const pages = await prisma.page.findMany({
-      where: {
-        domainId: id,
-        inSitemap: true,
-        internalLinksIn: 0,
-      },
-      orderBy: { clicks: "desc" },
-    });
-
-    return pages;
-  });
-
   // ─── BROKEN LINKS ──────────────────────────────────────────
   fastify.get("/:id/broken-links", async (request) => {
     const { id } = request.params as { id: string };

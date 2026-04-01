@@ -497,8 +497,7 @@ ${
 
 ZADANIE:
 1. Znajdź 5-15 najlepszych okazji do linkowania wewnętrznego.
-2. Priorytet:
-   - Strony z dużą liczbą wyświetleń ale małą liczbą linków IN (orphan-like)
+2. Priorytet:   
    - Strony z ruchem które mogą przekazać link juice do ważnych stron
    - Tematyczne powiązania (np. strona kategorii → produkty, blog → usługi)
 3. Dla każdej propozycji: strona źródłowa, strona docelowa (path), anchor text, uzasadnienie.
@@ -1005,9 +1004,8 @@ ${internalLinks.slice(0, 100).join("\n") || "BRAK"}
 ZADANIE:
 1. Przeanalizuj strukturę URL-i z sitemapy — zidentyfikuj kategorie, produkty, artykuły, strony informacyjne.
 2. Znajdź 10-20 najlepszych okazji do linkowania wewnętrznego.
-3. Priorytet: orphan pages z ruchem, strony kategorii → produkty, blog → usługi, cross-kategorie.
-4. Dla każdej propozycji podaj KONKRETNE wskazówki implementacji (np. "na stronie /kategoria dodaj sekcję 'Polecane produkty' z linkami do X, Y, Z").
-5. Nie proponuj linków które już istnieją.
+3. Dla każdej propozycji podaj KONKRETNE wskazówki implementacji (np. "na stronie /kategoria dodaj sekcję 'Polecane produkty' z linkami do X, Y, Z").
+4. Nie proponuj linków które już istnieją.
 
 ${LINK_DENSITY_RULES}
 
