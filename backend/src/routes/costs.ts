@@ -460,4 +460,34 @@ export async function costRoutes(fastify: FastifyInstance) {
       lastDay: data.daily[data.daily.length - 1]?.date,
     };
   });
+
+  // ─── STOJAN WEBHOOK — order created/paid ───
+  fastify.post("/webhook/stojan-order", async (request, reply) => {
+    const { apiKey, date, revenue, orders } = request.body as any;
+
+    if (apiKey !== process.env.STOJAN_API_KEY) {
+      return reply.code(401).send({ error: "Invalid API key" });
+    }
+
+    const intId = process.env.STOJAN_INTEGRATION_ID;
+    if (!intId)
+      return reply.code(500).send({ error: "STOJAN_INTEGRATION_ID not set" });
+
+    const dateObj = new Date(date);
+
+    await prisma.integrationDaily.upsert({
+      where: { integrationId_date: { integrationId: intId, date: dateObj } },
+      update: { conversions: orders, revenue },
+      create: {
+        integrationId: intId,
+        date: dateObj,
+        sessions: 0,
+        users: 0,
+        conversions: orders,
+        revenue,
+      },
+    });
+
+    return { ok: true, date, orders, revenue };
+  });
 }

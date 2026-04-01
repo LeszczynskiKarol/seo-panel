@@ -273,17 +273,6 @@ export function startScheduler() {
     }
   });
 
-  // Every 2 hours — Stojan Shop order sync (real orders from Stojan API)
-  cron.schedule("15 */2 * * *", () => {
-    runJob("stojan_order_sync", async () => {
-      const threeDaysAgo = new Date(Date.now() - 3 * 86400000)
-        .toISOString()
-        .split("T")[0];
-      const today = new Date().toISOString().split("T")[0];
-      return syncStojanDaily(threeDaysAgo, today);
-    });
-  });
-
   console.log("  🛒 Stojan orders:    every 2h (:15)");
 
   // Daily 08:30 — Merchant Center sync
