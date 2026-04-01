@@ -34,6 +34,33 @@ fastify.register(cors, {
 });
 
 registerAuth(fastify);
+
+// Public webhooks (no auth)
+fastify.post("/api/webhook/stojan-order", async (request, reply) => {
+  const { apiKey, date, revenue, orders } = request.body as any;
+  if (apiKey !== process.env.STOJAN_API_KEY) {
+    return reply.code(401).send({ error: "Invalid API key" });
+  }
+  const intId = process.env.STOJAN_INTEGRATION_ID;
+  if (!intId)
+    return reply.code(500).send({ error: "STOJAN_INTEGRATION_ID not set" });
+  await prisma.integrationDaily.upsert({
+    where: {
+      integrationId_date: { integrationId: intId, date: new Date(date) },
+    },
+    update: { conversions: orders, revenue },
+    create: {
+      integrationId: intId,
+      date: new Date(date),
+      sessions: 0,
+      users: 0,
+      conversions: orders,
+      revenue,
+    },
+  });
+  return { ok: true, date, orders, revenue };
+});
+
 fastify.addHook("onRequest", authGuard);
 
 // Routes
