@@ -16,6 +16,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { AddDomainModal } from "../components/AddDomainModal";
 import {
   Globe,
   FileCheck,
@@ -23,12 +24,15 @@ import {
   Eye,
   AlertTriangle,
   RefreshCw,
+  Plus,
   TrendingUp,
 } from "lucide-react";
+import { useState } from "react";
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [showAddDomain, setShowAddDomain] = useState(false);
 
   const { data: overview, isLoading } = useQuery({
     queryKey: ["overview"],
@@ -85,6 +89,13 @@ export function DashboardPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => setShowAddDomain(true)}
+            className="btn btn-primary text-xs flex items-center gap-1"
+          >
+            <Plus className="w-3 h-3" /> Dodaj domenę
+          </button>
+
           <button
             className="btn btn-ghost text-xs"
             onClick={() => syncAll.mutate()}
@@ -326,6 +337,9 @@ export function DashboardPage() {
             ))}
           </div>
         </div>
+      )}
+      {showAddDomain && (
+        <AddDomainModal onClose={() => setShowAddDomain(false)} />
       )}
     </div>
   );

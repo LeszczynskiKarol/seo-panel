@@ -4,7 +4,72 @@ import { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 
 export async function costRoutes(fastify: FastifyInstance) {
-  // ─── LIST COSTS ───
+  // ═══════════════════════════════════════════════════════════
+  // MANUAL REVENUE — CRUD
+  // ═══════════════════════════════════════════════════════════
+
+  fastify.get("/revenues", async (request) => {
+    const { startDate, endDate, category, domainId } = request.query as any;
+
+    const where: any = {};
+    if (startDate && endDate) {
+      where.date = { gte: new Date(startDate), lte: new Date(endDate) };
+    } else if (startDate) {
+      where.date = { gte: new Date(startDate) };
+    }
+    if (category) where.category = category;
+    if (domainId) where.domainId = domainId;
+
+    return prisma.manualRevenue.findMany({
+      where,
+      include: { domain: { select: { id: true, label: true, domain: true } } },
+      orderBy: { date: "desc" },
+    });
+  });
+
+  fastify.post("/revenues", async (request, reply) => {
+    const { category, label, amount, date, domainId, isRecurring, notes } =
+      request.body as any;
+
+    if (!category || !label || amount == null || !date) {
+      return reply
+        .code(400)
+        .send({ error: "category, label, amount, date required" });
+    }
+
+    const revenue = await prisma.manualRevenue.create({
+      data: {
+        category,
+        label,
+        amount: parseFloat(amount),
+        date: new Date(date),
+        domainId: domainId || null,
+        isRecurring: isRecurring || false,
+        notes: notes || null,
+      },
+    });
+
+    return reply.code(201).send(revenue);
+  });
+
+  fastify.patch("/revenues/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const data = request.body as any;
+    if (data.date) data.date = new Date(data.date);
+    if (data.amount) data.amount = parseFloat(data.amount);
+    return prisma.manualRevenue.update({ where: { id }, data });
+  });
+
+  fastify.delete("/revenues/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await prisma.manualRevenue.delete({ where: { id } });
+    return reply.code(204).send();
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // MANUAL COSTS — CRUD
+  // ═══════════════════════════════════════════════════════════
+
   fastify.get("/", async (request) => {
     const { startDate, endDate, category, domainId } = request.query as any;
 
@@ -17,16 +82,13 @@ export async function costRoutes(fastify: FastifyInstance) {
     if (category) where.category = category;
     if (domainId) where.domainId = domainId;
 
-    const costs = await prisma.manualCost.findMany({
+    return prisma.manualCost.findMany({
       where,
       include: { domain: { select: { id: true, label: true, domain: true } } },
       orderBy: { date: "desc" },
     });
-
-    return costs;
   });
 
-  // ─── ADD COST ───
   fastify.post("/", async (request, reply) => {
     const { category, label, amount, date, domainId, isRecurring, notes } =
       request.body as any;
@@ -52,25 +114,24 @@ export async function costRoutes(fastify: FastifyInstance) {
     return reply.code(201).send(cost);
   });
 
-  // ─── UPDATE COST ───
   fastify.patch("/:id", async (request) => {
     const { id } = request.params as { id: string };
     const data = request.body as any;
-
     if (data.date) data.date = new Date(data.date);
     if (data.amount) data.amount = parseFloat(data.amount);
-
     return prisma.manualCost.update({ where: { id }, data });
   });
 
-  // ─── DELETE COST ───
   fastify.delete("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     await prisma.manualCost.delete({ where: { id } });
     return reply.code(204).send();
   });
 
-  // ─── GLOBAL PROFITABILITY SUMMARY ───
+  // ═══════════════════════════════════════════════════════════
+  // GLOBAL PROFITABILITY SUMMARY
+  // ═══════════════════════════════════════════════════════════
+
   fastify.get("/global-summary", async (request) => {
     const { startDate, endDate } = request.query as any;
 
@@ -81,14 +142,28 @@ export async function costRoutes(fastify: FastifyInstance) {
     const since = new Date(startDate);
     const until = new Date(endDate);
 
-    // 1. All GA4 revenue across all domains
+    // ─── 1. All GA4 integrations + domain categories ───
     const allIntegrations = await prisma.domainIntegration.findMany({
       where: { provider: "GOOGLE_ANALYTICS", status: "ACTIVE" },
-      select: { id: true, domainId: true, cachedData: true },
+      select: { id: true, domainId: true },
     });
 
     const intIds = allIntegrations.map((i) => i.id);
+    const domainIds = [...new Set(allIntegrations.map((i) => i.domainId))];
 
+    // Load domain categories once (no N+1)
+    const domainInfos = await prisma.domain.findMany({
+      where: { id: { in: domainIds } },
+      select: { id: true, category: true, label: true, domain: true },
+    });
+    const domainCategoryMap = new Map(
+      domainInfos.map((d) => [d.id, d.category]),
+    );
+    const domainLabelMap = new Map(
+      domainInfos.map((d) => [d.id, d.label || d.domain]),
+    );
+
+    // ─── 2. GA4 daily revenue ───
     const ga4Daily = await prisma.integrationDaily.findMany({
       where: {
         integrationId: { in: intIds },
@@ -96,14 +171,12 @@ export async function costRoutes(fastify: FastifyInstance) {
       },
     });
 
-    // Group by integration → domain
     const intToDomain = new Map(allIntegrations.map((i) => [i.id, i.domainId]));
 
-    const STOJAN_ID = "cmn9fo4dn0004qrdye8hjou1g";
-
     let totalRevenue = 0;
-    let totalCommission = 0; // revenue after commission logic
+    let totalCommission = 0;
     let totalConversions = 0;
+
     const dailyMap = new Map<
       string,
       {
@@ -112,16 +185,32 @@ export async function costRoutes(fastify: FastifyInstance) {
         commission: number;
         adsCost: number;
         manualCosts: number;
+        manualRevenue: number;
         profit: number;
         conversions: number;
       }
     >();
-    const domainRevenue = new Map<string, number>();
+
+    const domainRevenue = new Map<
+      string,
+      { revenue: number; conversions: number }
+    >();
+
+    const emptyDay = (dateStr: string) => ({
+      date: dateStr,
+      revenue: 0,
+      commission: 0,
+      adsCost: 0,
+      manualCosts: 0,
+      manualRevenue: 0,
+      profit: 0,
+      conversions: 0,
+    });
 
     for (const g of ga4Daily) {
       const domainId = intToDomain.get(g.integrationId) || "";
-      const isStorjan = domainId === STOJAN_ID;
-      const rate = isStorjan ? 0.12 : 1.0;
+      const isCommissionBased = domainCategoryMap.get(domainId) === "ECOMMERCE";
+      const rate = isCommissionBased ? 0.12 : 1.0;
       const rev = g.revenue || 0;
       const comm = rev * rate;
 
@@ -129,25 +218,23 @@ export async function costRoutes(fastify: FastifyInstance) {
       totalCommission += comm;
       totalConversions += g.conversions || 0;
 
-      domainRevenue.set(domainId, (domainRevenue.get(domainId) || 0) + rev);
-
-      const dateStr = g.date.toISOString().split("T")[0];
-      const d = dailyMap.get(dateStr) || {
-        date: dateStr,
+      const prev = domainRevenue.get(domainId) || {
         revenue: 0,
-        commission: 0,
-        adsCost: 0,
-        manualCosts: 0,
-        profit: 0,
         conversions: 0,
       };
+      prev.revenue += rev;
+      prev.conversions += g.conversions || 0;
+      domainRevenue.set(domainId, prev);
+
+      const dateStr = g.date.toISOString().split("T")[0];
+      const d = dailyMap.get(dateStr) || emptyDay(dateStr);
       d.revenue += rev;
       d.commission += comm;
       d.conversions += g.conversions || 0;
       dailyMap.set(dateStr, d);
     }
 
-    // 2. All Ads costs
+    // ─── 3. All Ads costs ───
     const adsCosts = await prisma.adsCampaignDaily.findMany({
       where: { date: { gte: since, lte: until } },
     });
@@ -156,20 +243,12 @@ export async function costRoutes(fastify: FastifyInstance) {
     for (const a of adsCosts) {
       totalAdsCost += a.cost;
       const dateStr = a.date.toISOString().split("T")[0];
-      const d = dailyMap.get(dateStr) || {
-        date: dateStr,
-        revenue: 0,
-        commission: 0,
-        adsCost: 0,
-        manualCosts: 0,
-        profit: 0,
-        conversions: 0,
-      };
+      const d = dailyMap.get(dateStr) || emptyDay(dateStr);
       d.adsCost += a.cost;
       dailyMap.set(dateStr, d);
     }
 
-    // 3. Manual costs
+    // ─── 4. Manual costs ───
     const manualCosts = await prisma.manualCost.findMany({
       where: { date: { gte: since, lte: until } },
     });
@@ -185,61 +264,116 @@ export async function costRoutes(fastify: FastifyInstance) {
       );
 
       const dateStr = mc.date.toISOString().split("T")[0];
-      const d = dailyMap.get(dateStr) || {
-        date: dateStr,
-        revenue: 0,
-        commission: 0,
-        adsCost: 0,
-        manualCosts: 0,
-        profit: 0,
-        conversions: 0,
-      };
+      const d = dailyMap.get(dateStr) || emptyDay(dateStr);
       d.manualCosts += mc.amount;
       dailyMap.set(dateStr, d);
     }
 
-    // Add Google Ads to costsByCategory
-    costsByCategory.set(
-      "GOOGLE_ADS",
-      (costsByCategory.get("GOOGLE_ADS") || 0) + totalAdsCost,
-    );
+    // ─── 5. Manual revenues ───
+    const manualRevenues = await prisma.manualRevenue.findMany({
+      where: { date: { gte: since, lte: until } },
+    });
 
-    // 4. Calculate daily profit
+    let totalManualRevenue = 0;
+    const revenueByCategory = new Map<string, number>();
+    const manualRevByDomain = new Map<string, number>();
+
+    for (const mr of manualRevenues) {
+      totalManualRevenue += mr.amount;
+      revenueByCategory.set(
+        mr.category,
+        (revenueByCategory.get(mr.category) || 0) + mr.amount,
+      );
+
+      if (mr.domainId) {
+        manualRevByDomain.set(
+          mr.domainId,
+          (manualRevByDomain.get(mr.domainId) || 0) + mr.amount,
+        );
+      }
+
+      const dateStr = mr.date.toISOString().split("T")[0];
+      const d = dailyMap.get(dateStr) || emptyDay(dateStr);
+      d.manualRevenue += mr.amount;
+      dailyMap.set(dateStr, d);
+    }
+
+    // Add Google Ads to costsByCategory
+    if (totalAdsCost > 0) {
+      costsByCategory.set(
+        "GOOGLE_ADS",
+        (costsByCategory.get("GOOGLE_ADS") || 0) + totalAdsCost,
+      );
+    }
+
+    // ─── 6. Calculate daily profit ───
     const daily = Array.from(dailyMap.values())
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((d) => ({
         ...d,
-        profit: d.commission - d.adsCost - d.manualCosts,
+        profit: d.commission + d.manualRevenue - d.adsCost - d.manualCosts,
       }));
 
     const totalCosts = totalAdsCost + totalManualCosts;
-    const totalProfit = totalCommission - totalCosts;
+    const totalProfit = totalCommission + totalManualRevenue - totalCosts;
 
-    // 5. Per-domain breakdown
-    const domainBreakdown = [];
+    // ─── 7. Per-domain breakdown ───
+    const domainBreakdown: any[] = [];
+
     for (const int of allIntegrations) {
-      const rev = domainRevenue.get(int.domainId) || 0;
-      if (rev === 0) continue;
-      const isStorjan = int.domainId === STOJAN_ID;
-      const rate = isStorjan ? 0.12 : 1.0;
+      const stats = domainRevenue.get(int.domainId);
+      if (!stats || (stats.revenue === 0 && stats.conversions === 0)) continue;
 
-      const domain = await prisma.domain.findUnique({
-        where: { id: int.domainId },
-        select: { label: true, domain: true },
-      });
+      const isCommissionBased =
+        domainCategoryMap.get(int.domainId) === "ECOMMERCE";
+      const rate = isCommissionBased ? 0.12 : 1.0;
 
       domainBreakdown.push({
         domainId: int.domainId,
-        label: domain?.label || domain?.domain || int.domainId,
-        revenue: rev,
-        commission: rev * rate,
-        isCommissionBased: isStorjan,
+        label: domainLabelMap.get(int.domainId) || int.domainId,
+        revenue: stats.revenue,
+        commission: stats.revenue * rate,
+        manualRevenue: manualRevByDomain.get(int.domainId) || 0,
+        conversions: stats.conversions,
+        isCommissionBased,
       });
     }
-    domainBreakdown.sort((a, b) => b.commission - a.commission);
 
-    // 6. Cost breakdown
+    // Add domains with ONLY manual revenue (no GA4)
+    for (const [dId, amount] of manualRevByDomain) {
+      if (!domainBreakdown.find((d) => d.domainId === dId)) {
+        // Fetch label if not already loaded
+        let label = domainLabelMap.get(dId);
+        if (!label) {
+          const dom = await prisma.domain.findUnique({
+            where: { id: dId },
+            select: { label: true, domain: true },
+          });
+          label = dom?.label || dom?.domain || dId;
+        }
+        domainBreakdown.push({
+          domainId: dId,
+          label,
+          revenue: 0,
+          commission: 0,
+          manualRevenue: amount,
+          conversions: 0,
+          isCommissionBased: false,
+        });
+      }
+    }
+
+    domainBreakdown.sort(
+      (a, b) =>
+        b.commission + b.manualRevenue - (a.commission + a.manualRevenue),
+    );
+
+    // ─── 8. Breakdowns ───
     const costBreakdown = Array.from(costsByCategory.entries())
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const revenueBreakdown = Array.from(revenueByCategory.entries())
       .map(([category, amount]) => ({ category, amount }))
       .sort((a, b) => b.amount - a.amount);
 
@@ -252,21 +386,30 @@ export async function costRoutes(fastify: FastifyInstance) {
       totals: {
         revenue: totalRevenue,
         commission: totalCommission,
+        manualRevenue: totalManualRevenue,
+        totalIncome: totalCommission + totalManualRevenue,
         adsCost: totalAdsCost,
         manualCosts: totalManualCosts,
         totalCosts,
         profit: totalProfit,
         conversions: totalConversions,
-        margin: totalCommission > 0 ? (totalProfit / totalCommission) * 100 : 0,
+        margin:
+          totalCommission + totalManualRevenue > 0
+            ? (totalProfit / (totalCommission + totalManualRevenue)) * 100
+            : 0,
       },
       daily,
       domainBreakdown,
       costBreakdown,
+      revenueBreakdown,
     };
   });
 
-  // ─── STOJAN BACKFILL (one-time) ───
-  fastify.post("/stojan-backfill", async (request) => {
+  // ═══════════════════════════════════════════════════════════
+  // STOJAN BACKFILL (one-time)
+  // ═══════════════════════════════════════════════════════════
+
+  fastify.post("/stojan-backfill", async () => {
     const STOJAN_API_URL =
       process.env.STOJAN_API_URL || "http://16.171.6.205:4000";
     const STOJAN_API_KEY = process.env.STOJAN_API_KEY || "";
@@ -282,7 +425,7 @@ export async function costRoutes(fastify: FastifyInstance) {
     const res = await fetch(url);
     if (!res.ok) return { error: `Stojan API: ${res.status}` };
 
-    const data = await res.json();
+    const data = (await res.json()) as any;
     let upserted = 0;
 
     for (const day of data.daily) {

@@ -455,6 +455,22 @@ export const api = {
       `/costs/global-summary?startDate=${startDate}&endDate=${endDate}`,
     ),
 
+  // Manual revenues
+  getRevenues: (params?: string) =>
+    request<any>(`/costs/revenues${params ? `?${params}` : ""}`),
+  addRevenue: (data: any) =>
+    request<any>("/costs/revenues", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateRevenue: (id: string, data: any) =>
+    request<any>(`/costs/revenues/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteRevenue: (id: string) =>
+    request<any>(`/costs/revenues/${id}`, { method: "DELETE" }),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };

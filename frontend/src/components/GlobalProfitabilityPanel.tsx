@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { FinancialHistoryPanel } from "./FinancialHistoryPanel";
 import { cn, fmtNumber } from "../lib/utils";
 import {
   BarChart,
@@ -110,10 +111,24 @@ function fmt(d: Date) {
   return d.toISOString().split("T")[0];
 }
 
+const REVENUE_CATEGORIES: Record<
+  string,
+  { label: string; icon: string; color: string }
+> = {
+  ECOMMERCE: { label: "E-commerce", icon: "🛒", color: "#22c55e" },
+  SAAS: { label: "SaaS", icon: "💻", color: "#3b82f6" },
+  EBOOK: { label: "Ebooki", icon: "📚", color: "#a855f7" },
+  FREELANCE: { label: "Freelance", icon: "✍️", color: "#f59e0b" },
+  AFFILIATE: { label: "Afiliacja", icon: "🤝", color: "#06b6d4" },
+  CONSULTING: { label: "Konsultacje", icon: "💼", color: "#ec4899" },
+  OTHER: { label: "Inne", icon: "📋", color: "#64748b" },
+};
+
 // ─── MAIN COMPONENT ───
 
 export function GlobalProfitabilityPanel() {
   const qc = useQueryClient();
+
   const [presetIdx, setPresetIdx] = useState(4); // default: W tym miesiącu
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -126,7 +141,14 @@ export function GlobalProfitabilityPanel() {
     if (customStart && customEnd) return [customStart, customEnd];
     return PRESETS[presetIdx].getDates();
   }, [presetIdx, customStart, customEnd]);
+  const [showAddRevenue, setShowAddRevenue] = useState(false);
+  const [showRevenuesTable, setShowRevenuesTable] = useState(false);
 
+  const { data: revenues, refetch: refetchRevenues } = useQuery({
+    queryKey: ["revenues", startDate, endDate],
+    queryFn: () => api.getRevenues(`startDate=${startDate}&endDate=${endDate}`),
+    enabled: showRevenuesTable,
+  });
   // Calculate previous period for comparison
   const days =
     Math.round(
@@ -206,7 +228,13 @@ export function GlobalProfitabilityPanel() {
                 showCostsTable && "bg-accent-blue/10 text-accent-blue",
               )}
             >
-              Historia kosztów
+              Historia finansów
+            </button>
+            <button
+              onClick={() => setShowAddRevenue(true)}
+              className="btn btn-primary text-[10px] flex items-center gap-1 bg-accent-green hover:bg-accent-green/80"
+            >
+              <Plus className="w-3 h-3" /> Dodaj przychód
             </button>
           </div>
         </div>
@@ -267,12 +295,16 @@ export function GlobalProfitabilityPanel() {
       <div className="grid grid-cols-5 gap-2">
         <KpiCard
           label="Przychód netto"
-          value={t.commission}
-          prev={compare ? pt?.commission : undefined}
+          value={t.totalIncome || t.commission}
+          prev={compare ? pt?.totalIncome || pt?.commission : undefined}
           format="pln"
           color="#22c55e"
           icon={<TrendingUp className="w-4 h-4" />}
-          sub={`GMV: ${fmtNumber(Math.round(t.revenue))} zł`}
+          sub={
+            t.manualRevenue > 0
+              ? `GA4: ${fmtNumber(Math.round(t.commission))} + ręczne: ${fmtNumber(Math.round(t.manualRevenue))} zł`
+              : `GMV: ${fmtNumber(Math.round(t.revenue))} zł`
+          }
         />
         <KpiCard
           label="Koszty łączne"
@@ -469,14 +501,8 @@ export function GlobalProfitabilityPanel() {
         </div>
       )}
 
-      {/* ═══ COSTS TABLE ═══ */}
       {showCostsTable && (
-        <CostsTable
-          costs={costs || []}
-          onRefresh={refetchCosts}
-          startDate={startDate}
-          endDate={endDate}
-        />
+        <FinancialHistoryPanel startDate={startDate} endDate={endDate} />
       )}
 
       {/* ═══ ADD COST MODAL ═══ */}
@@ -486,6 +512,24 @@ export function GlobalProfitabilityPanel() {
           onAdded={() => {
             qc.invalidateQueries({ queryKey: ["global-summary"] });
             qc.invalidateQueries({ queryKey: ["costs"] });
+          }}
+        />
+      )}
+      {showRevenuesTable && (
+        <RevenuesTable
+          revenues={revenues || []}
+          onRefresh={refetchRevenues}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      )}
+
+      {showAddRevenue && (
+        <AddRevenueModal
+          onClose={() => setShowAddRevenue(false)}
+          onAdded={() => {
+            qc.invalidateQueries({ queryKey: ["global-summary"] });
+            qc.invalidateQueries({ queryKey: ["revenues"] });
           }}
         />
       )}
@@ -851,6 +895,284 @@ function AddCostModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AddRevenueModal({
+  onClose,
+  onAdded,
+}: {
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [category, setCategory] = useState("SAAS");
+  const [label, setLabel] = useState("");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(fmt(new Date()));
+  const [domainId, setDomainId] = useState("");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [notes, setNotes] = useState("");
+
+  const { data: domains } = useQuery({
+    queryKey: ["domains"],
+    queryFn: api.getDomains,
+  });
+
+  const addRevenue = useMutation({
+    mutationFn: (data: any) => api.addRevenue(data),
+    onSuccess: () => {
+      onAdded();
+      onClose();
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!label || !amount || !date) return;
+    addRevenue.mutate({
+      category,
+      label,
+      amount: parseFloat(amount),
+      date,
+      domainId: domainId || null,
+      isRecurring,
+      notes: notes || null,
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-panel-card border border-panel-border rounded-xl p-6 w-[480px] space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-accent-green">
+            Dodaj przychód
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-panel-muted hover:text-panel-text"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Category */}
+        <div>
+          <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+            Kategoria
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(REVENUE_CATEGORIES).map(([key, cat]) => (
+              <button
+                key={key}
+                onClick={() => setCategory(key)}
+                className={cn(
+                  "px-2 py-1 rounded text-[10px] border transition-all flex items-center gap-1",
+                  category === key
+                    ? "border-accent-green bg-accent-green/10 text-accent-green"
+                    : "border-panel-border text-panel-muted hover:text-panel-text",
+                )}
+              >
+                <span>{cat.icon}</span> {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+            Opis
+          </label>
+          <input
+            className="input w-full"
+            placeholder="np. Smart-Edu subskrypcja marzec, Ebook sprzedaż..."
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+              Kwota (PLN)
+            </label>
+            <input
+              className="input w-full"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+              Data
+            </label>
+            <input
+              className="input w-full"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+            Domena (opcjonalnie)
+          </label>
+          <select
+            className="input w-full"
+            value={domainId}
+            onChange={(e) => setDomainId(e.target.value)}
+          >
+            <option value="">— Ogólny (nie przypisany) —</option>
+            {(domains || []).map((d: any) => (
+              <option key={d.id} value={d.id}>
+                {d.label || d.domain}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-[11px] text-panel-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isRecurring}
+              onChange={(e) => setIsRecurring(e.target.checked)}
+              className="rounded"
+            />
+            Powtarzalny miesięcznie
+          </label>
+        </div>
+
+        <div>
+          <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+            Notatki
+          </label>
+          <textarea
+            className="input w-full h-16 resize-none"
+            placeholder="Dodatkowe informacje..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="btn btn-ghost text-xs">
+            Anuluj
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!label || !amount || addRevenue.isPending}
+            className="btn text-xs flex items-center gap-1 bg-accent-green text-white hover:bg-accent-green/80"
+          >
+            {addRevenue.isPending ? (
+              <RefreshCw className="w-3 h-3 animate-spin" />
+            ) : (
+              <Plus className="w-3 h-3" />
+            )}
+            Dodaj przychód
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RevenuesTable({
+  revenues,
+  onRefresh,
+  startDate,
+  endDate,
+}: {
+  revenues: any[];
+  onRefresh: () => void;
+  startDate: string;
+  endDate: string;
+}) {
+  const qc = useQueryClient();
+
+  const deleteRevenue = useMutation({
+    mutationFn: (id: string) => api.deleteRevenue(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["revenues"] });
+      qc.invalidateQueries({ queryKey: ["global-summary"] });
+    },
+  });
+
+  return (
+    <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
+      <div className="px-4 py-2.5 border-b border-panel-border flex items-center gap-2">
+        <span className="text-[10px] text-panel-muted uppercase tracking-wider">
+          Przychody ręczne ({startDate} → {endDate})
+        </span>
+        <span className="text-[10px] text-panel-dim ml-auto">
+          {revenues.length} wpisów
+        </span>
+      </div>
+      {revenues.length === 0 ? (
+        <div className="p-6 text-center text-panel-muted text-sm">
+          Brak ręcznych przychodów w tym okresie
+        </div>
+      ) : (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Kategoria</th>
+              <th>Opis</th>
+              <th>Kwota</th>
+              <th>Domena</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {revenues.map((r: any) => {
+              const cat = REVENUE_CATEGORIES[r.category] || {
+                label: r.category,
+                icon: "📋",
+                color: "#64748b",
+              };
+              return (
+                <tr key={r.id}>
+                  <td className="text-panel-muted font-mono">
+                    {new Date(r.date).toLocaleDateString("pl-PL")}
+                  </td>
+                  <td>
+                    <span className="flex items-center gap-1 text-[10px]">
+                      <span>{cat.icon}</span>
+                      <span style={{ color: cat.color }}>{cat.label}</span>
+                    </span>
+                  </td>
+                  <td className="text-panel-text">{r.label}</td>
+                  <td className="text-accent-green font-mono font-bold">
+                    +{r.amount.toFixed(2)} zł
+                  </td>
+                  <td className="text-panel-muted">
+                    {r.domain?.label || r.domain?.domain || "—"}
+                  </td>
+                  <td>
+                    <button
+                      onClick={() => deleteRevenue.mutate(r.id)}
+                      className="text-panel-muted hover:text-accent-red text-[10px]"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

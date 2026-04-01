@@ -60,7 +60,7 @@ model Domain {
   domainKeywords  DomainKeyword[]
   integrations DomainIntegration[]
   manualCosts ManualCost[]
-
+  manualRevenues ManualRevenue[]
 
   @@index([isActive])
 }
@@ -756,6 +756,39 @@ model AdsSearchTerm {
   @@unique([searchTerm, campaignId, date])
   @@index([domainId, date(sort: Desc)])
   @@index([searchTerm])
+}
+
+
+model ManualRevenue {
+  id          String          @id @default(cuid())
+  
+  category    RevenueCategory
+  label       String          // np. "Ebook Copywriting - sprzedaż", "Smart-Edu subskrypcja"
+  amount      Float           // kwota w PLN
+  date        DateTime        @db.Date
+  
+  domainId    String?
+  domain      Domain?         @relation(fields: [domainId], references: [id])
+  
+  isRecurring Boolean         @default(false)
+  notes       String?
+  
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  
+  @@index([date])
+  @@index([category])
+  @@index([domainId])
+}
+
+enum RevenueCategory {
+  ECOMMERCE       // sprzedaż produktów (Stojan)
+  SAAS            // subskrypcje SaaS (Smart-Edu, MaturaPolski)
+  EBOOK           // sprzedaż ebooków
+  FREELANCE       // zlecenia freelance / copywriting
+  AFFILIATE       // prowizje partnerskie
+  CONSULTING      // konsultacje
+  OTHER
 }
 
 enum IntegrationProvider {

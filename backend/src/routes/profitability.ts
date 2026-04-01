@@ -3,16 +3,19 @@
 import { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 
-const STOJAN_DOMAIN_ID = "cmn9fo4dn0004qrdye8hjou1g";
-
 export async function profitabilityRoutes(fastify: FastifyInstance) {
   fastify.get("/:domainId", async (request) => {
     const { domainId } = request.params as { domainId: string };
     const { days } = request.query as { days?: string };
     const d = parseInt(days || "30");
     const since = new Date(Date.now() - d * 86400000);
-    // Stojan = komisja 12% od sprzedaży, reszta = przychód bezpośredni (100%)
-    const isCommissionBased = domainId === STOJAN_DOMAIN_ID;
+
+    // Determine commission rate by domain category
+    const domainInfo = await prisma.domain.findUnique({
+      where: { id: domainId },
+      select: { category: true },
+    });
+    const isCommissionBased = domainInfo?.category === "ECOMMERCE";
     const COMMISSION_RATE = isCommissionBased ? 0.12 : 1.0;
 
     // ─── 1. GA4 daily (all revenue, all channels) ───
@@ -50,7 +53,15 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
       },
     });
 
-    // ─── 4. Build daily P&L ───
+    // ─── 4. Manual revenue for this domain ───
+    const manualRevenues = await prisma.manualRevenue.findMany({
+      where: { domainId, date: { gte: since } },
+      orderBy: { date: "asc" },
+    });
+
+    let totalManualRevenue = 0;
+
+    // ─── 5. Build daily P&L ───
     const dailyMap = new Map<
       string,
       {
@@ -63,26 +74,30 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
         adsClicks: number;
         adsConversions: number;
         adsRevenue: number;
+        manualRevenue: number;
         commission: number;
         profit: number;
       }
     >();
 
+    const emptyDay = (dateStr: string) => ({
+      date: dateStr,
+      ga4Revenue: 0,
+      ga4Sessions: 0,
+      ga4Conversions: 0,
+      ga4Users: 0,
+      adsCost: 0,
+      adsClicks: 0,
+      adsConversions: 0,
+      adsRevenue: 0,
+      manualRevenue: 0,
+      commission: 0,
+      profit: 0,
+    });
+
     for (const g of ga4Daily) {
       const dateStr = g.date.toISOString().split("T")[0];
-      const e = dailyMap.get(dateStr) || {
-        date: dateStr,
-        ga4Revenue: 0,
-        ga4Sessions: 0,
-        ga4Conversions: 0,
-        ga4Users: 0,
-        adsCost: 0,
-        adsClicks: 0,
-        adsConversions: 0,
-        adsRevenue: 0,
-        commission: 0,
-        profit: 0,
-      };
+      const e = dailyMap.get(dateStr) || emptyDay(dateStr);
       e.ga4Revenue += g.revenue || 0;
       e.ga4Sessions += g.sessions || 0;
       e.ga4Conversions += g.conversions || 0;
@@ -92,19 +107,7 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
 
     for (const a of adsCampaignDaily) {
       const dateStr = a.date.toISOString().split("T")[0];
-      const e = dailyMap.get(dateStr) || {
-        date: dateStr,
-        ga4Revenue: 0,
-        ga4Sessions: 0,
-        ga4Conversions: 0,
-        ga4Users: 0,
-        adsCost: 0,
-        adsClicks: 0,
-        adsConversions: 0,
-        adsRevenue: 0,
-        commission: 0,
-        profit: 0,
-      };
+      const e = dailyMap.get(dateStr) || emptyDay(dateStr);
       e.adsCost += a.cost;
       e.adsClicks += a.clicks;
       e.adsConversions += a.conversions;
@@ -112,25 +115,39 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
       dailyMap.set(dateStr, e);
     }
 
+    for (const mr of manualRevenues) {
+      totalManualRevenue += mr.amount;
+      const dateStr = mr.date.toISOString().split("T")[0];
+      const e = dailyMap.get(dateStr) || emptyDay(dateStr);
+      e.manualRevenue += mr.amount;
+      dailyMap.set(dateStr, e);
+    }
+
     // Calculate commission & profit per day
-    for (const [, d] of dailyMap) {
-      d.commission = d.ga4Revenue * COMMISSION_RATE;
-      d.profit = d.commission - d.adsCost;
+    for (const [, day] of dailyMap) {
+      day.commission = day.ga4Revenue * COMMISSION_RATE;
+      day.profit = day.commission + day.manualRevenue - day.adsCost;
     }
 
     const daily = Array.from(dailyMap.values()).sort((a, b) =>
       a.date.localeCompare(b.date),
     );
 
-    // ─── 5. Totals ───
-    const totalRevenue = daily.reduce((s, d) => s + d.ga4Revenue, 0);
+    // ─── 6. Totals ───
+    const totalRevenue = daily.reduce((s, day) => s + day.ga4Revenue, 0);
     const totalCommission = totalRevenue * COMMISSION_RATE;
-    const totalAdsCost = daily.reduce((s, d) => s + d.adsCost, 0);
-    const totalProfit = totalCommission - totalAdsCost;
-    const totalSessions = daily.reduce((s, d) => s + d.ga4Sessions, 0);
-    const totalConversions = daily.reduce((s, d) => s + d.ga4Conversions, 0);
-    const totalUsers = daily.reduce((s, d) => s + d.ga4Users, 0);
-    const totalAdsConversions = daily.reduce((s, d) => s + d.adsConversions, 0);
+    const totalAdsCost = daily.reduce((s, day) => s + day.adsCost, 0);
+    const totalProfit = totalCommission + totalManualRevenue - totalAdsCost;
+    const totalSessions = daily.reduce((s, day) => s + day.ga4Sessions, 0);
+    const totalConversions = daily.reduce(
+      (s, day) => s + day.ga4Conversions,
+      0,
+    );
+    const totalUsers = daily.reduce((s, day) => s + day.ga4Users, 0);
+    const totalAdsConversions = daily.reduce(
+      (s, day) => s + day.adsConversions,
+      0,
+    );
 
     const avgOrderValue =
       totalConversions > 0 ? totalRevenue / totalConversions : 0;
@@ -143,13 +160,13 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
       totalSessions > 0 ? totalCommission / totalSessions : 0;
     const conversionRate =
       totalSessions > 0 ? totalConversions / totalSessions : 0;
-    const profitableDays = daily.filter((d) => d.profit >= 0).length;
+    const profitableDays = daily.filter((day) => day.profit >= 0).length;
     const breakEvenDailyRevenue =
       totalAdsCost > 0 && daily.length > 0
         ? totalAdsCost / daily.length / COMMISSION_RATE
         : 0;
 
-    // ─── 6. Channel breakdown (from GA4 bySource) ───
+    // ─── 7. Channel breakdown (from GA4 bySource) ───
     const channels = bySource
       .map((s: any) => {
         const isOrganic = s.sourceMedium?.includes("organic");
@@ -216,7 +233,7 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
       (a, b) => b.revenue - a.revenue,
     );
 
-    // ─── 7. Product profitability (top products) ───
+    // ─── 8. Product profitability (top products) ───
     const productProfit = adsProducts
       .map((p) => {
         const revenue = p._sum.conversionValue || 0;
@@ -246,6 +263,8 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
       totals: {
         revenue: totalRevenue,
         commission: totalCommission,
+        manualRevenue: totalManualRevenue,
+        totalIncome: totalCommission + totalManualRevenue,
         adsCost: totalAdsCost,
         profit: totalProfit,
         sessions: totalSessions,
