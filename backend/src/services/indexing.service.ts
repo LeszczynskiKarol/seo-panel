@@ -18,7 +18,7 @@ export class IndexingService {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ inspectionUrl: url, siteUrl }),
-      }
+      },
     );
 
     if (!res.ok) {
@@ -44,12 +44,15 @@ export class IndexingService {
   /**
    * Check indexing status for all unchecked/non-PASS pages of a domain
    */
-  async checkDomain(domainId: string): Promise<{ checked: number; errors: number }> {
+  async checkDomain(
+    domainId: string,
+  ): Promise<{ checked: number; errors: number }> {
     const domain = await prisma.domain.findUniqueOrThrow({
       where: { id: domainId },
     });
 
-    const siteUrl = `sc-domain:${domain.domain.replace(/^www\./, "")}`;
+    const siteUrl =
+      domain.gscProperty || `sc-domain:${domain.domain.replace(/^www\./, "")}`;
 
     const pages = await prisma.page.findMany({
       where: {
@@ -102,7 +105,11 @@ export class IndexingService {
         });
 
         // Create alert if deindexed
-        if (statusChanged && page.indexingVerdict === "PASS" && verdict !== "PASS") {
+        if (
+          statusChanged &&
+          page.indexingVerdict === "PASS" &&
+          verdict !== "PASS"
+        ) {
           await prisma.alert.create({
             data: {
               domainId,
@@ -132,7 +139,8 @@ export class IndexingService {
       _count: { id: true },
     });
 
-    const indexed = stats.find((s) => s.indexingVerdict === "PASS")?._count.id || 0;
+    const indexed =
+      stats.find((s) => s.indexingVerdict === "PASS")?._count.id || 0;
     const total = stats.reduce((sum, s) => sum + s._count.id, 0);
 
     await prisma.domain.update({
@@ -146,7 +154,10 @@ export class IndexingService {
   /**
    * Submit URL to Google Indexing API
    */
-  async submitUrl(url: string, type: "URL_UPDATED" | "URL_DELETED" = "URL_UPDATED") {
+  async submitUrl(
+    url: string,
+    type: "URL_UPDATED" | "URL_DELETED" = "URL_UPDATED",
+  ) {
     const token = await getAccessToken();
 
     const res = await fetch(
@@ -158,7 +169,7 @@ export class IndexingService {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ url, type }),
-      }
+      },
     );
 
     return { url, type, status: res.status, ok: res.ok };
