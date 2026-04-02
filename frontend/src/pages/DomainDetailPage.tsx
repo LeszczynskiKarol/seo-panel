@@ -369,7 +369,87 @@ export function DomainDetailPage() {
           color="#ef4444"
         />
       </div>
+      {/* Traffic chart — DualMetricChart with position */}
+      {d.dailyStats?.length > 0 && (
+        <div className="bg-panel-card border border-panel-border rounded-lg p-4">
+          <DualMetricChart data={d.dailyStats} height={180} showPosition />
+        </div>
+      )}
 
+      {d.mozDA != null && (
+        <div>
+          <div className="grid grid-cols-5 gap-3">
+            <MiniStat
+              label="Domain Authority"
+              value={d.mozDA?.toFixed(0) || "—"}
+              color={
+                d.mozDA >= 40
+                  ? "#22c55e"
+                  : d.mozDA >= 20
+                    ? "#f59e0b"
+                    : "#ef4444"
+              }
+            />
+            <MiniStat
+              label="Page Authority"
+              value={d.mozPA?.toFixed(0) || "—"}
+              color="#3b82f6"
+            />
+            <MiniStat
+              label="Spam Score"
+              value={d.mozSpamScore?.toFixed(0) || "—"}
+              color={
+                (d.mozSpamScore || 0) <= 30
+                  ? "#22c55e"
+                  : (d.mozSpamScore || 0) <= 60
+                    ? "#f59e0b"
+                    : "#ef4444"
+              }
+            />
+            <MiniStat
+              label="External Links"
+              value={fmtNumber(d.mozLinks || 0)}
+              color="#06b6d4"
+            />
+            <MiniStat
+              label="Linking Domains"
+              value={fmtNumber(d.mozDomains || 0)}
+              color="#a855f7"
+            />
+          </div>
+          {d.mozLastSync && (
+            <div className="text-[9px] text-panel-dim mt-1 text-right">
+              Moz sync: {fmtDate(d.mozLastSync)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Indexing breakdown */}
+      {d.indexingStats?.length > 0 && (
+        <div className="flex gap-3">
+          {d.indexingStats.map((s: any) => (
+            <button
+              key={s.verdict}
+              onClick={() => {
+                setTab("pages");
+                setVerdictFilter(s.verdict === verdictFilter ? "" : s.verdict);
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-all border",
+                verdictFilter === s.verdict
+                  ? "border-accent-blue bg-accent-blue/10"
+                  : "border-panel-border bg-panel-card hover:bg-panel-hover",
+              )}
+            >
+              <span className={cn("badge", verdictBadge(s.verdict))}>
+                {s.verdict}
+              </span>
+              <span className="font-mono font-bold">{s.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {/* ===== TABS — jedna jedyna sekcja nawigacji ===== */}
       <div className="flex gap-1 border-b border-panel-border">
         {(
@@ -823,88 +903,6 @@ export function DomainDetailPage() {
       )}
 
       {tab === "integrations" && <IntegrationsTab domainId={id!} />}
-
-      {/* Traffic chart — DualMetricChart with position */}
-      {d.dailyStats?.length > 0 && (
-        <div className="bg-panel-card border border-panel-border rounded-lg p-4">
-          <DualMetricChart data={d.dailyStats} height={180} showPosition />
-        </div>
-      )}
-
-      {d.mozDA != null && (
-        <div>
-          <div className="grid grid-cols-5 gap-3">
-            <MiniStat
-              label="Domain Authority"
-              value={d.mozDA?.toFixed(0) || "—"}
-              color={
-                d.mozDA >= 40
-                  ? "#22c55e"
-                  : d.mozDA >= 20
-                    ? "#f59e0b"
-                    : "#ef4444"
-              }
-            />
-            <MiniStat
-              label="Page Authority"
-              value={d.mozPA?.toFixed(0) || "—"}
-              color="#3b82f6"
-            />
-            <MiniStat
-              label="Spam Score"
-              value={d.mozSpamScore?.toFixed(0) || "—"}
-              color={
-                (d.mozSpamScore || 0) <= 30
-                  ? "#22c55e"
-                  : (d.mozSpamScore || 0) <= 60
-                    ? "#f59e0b"
-                    : "#ef4444"
-              }
-            />
-            <MiniStat
-              label="External Links"
-              value={fmtNumber(d.mozLinks || 0)}
-              color="#06b6d4"
-            />
-            <MiniStat
-              label="Linking Domains"
-              value={fmtNumber(d.mozDomains || 0)}
-              color="#a855f7"
-            />
-          </div>
-          {d.mozLastSync && (
-            <div className="text-[9px] text-panel-dim mt-1 text-right">
-              Moz sync: {fmtDate(d.mozLastSync)}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Indexing breakdown */}
-      {d.indexingStats?.length > 0 && (
-        <div className="flex gap-3">
-          {d.indexingStats.map((s: any) => (
-            <button
-              key={s.verdict}
-              onClick={() => {
-                setTab("pages");
-                setVerdictFilter(s.verdict === verdictFilter ? "" : s.verdict);
-              }}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-all border",
-                verdictFilter === s.verdict
-                  ? "border-accent-blue bg-accent-blue/10"
-                  : "border-panel-border bg-panel-card hover:bg-panel-hover",
-              )}
-            >
-              <span className={cn("badge", verdictBadge(s.verdict))}>
-                {s.verdict}
-              </span>
-              <span className="font-mono font-bold">{s.count}</span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
