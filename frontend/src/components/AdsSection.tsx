@@ -997,7 +997,8 @@ const PERF_LABELS_PL: Record<string, string> = {
   UNKNOWN: "Brak danych",
 };
 
-const FIELD_TYPE_PL: Record<string, string> = {
+const FIELD_TYPE_PL: Record<string | number, string> = {
+  // String values
   HEADLINE: "Nagłówek",
   LONG_HEADLINE: "Długi nagłówek",
   DESCRIPTION: "Opis",
@@ -1009,6 +1010,27 @@ const FIELD_TYPE_PL: Record<string, string> = {
   PORTRAIT_MARKETING_IMAGE: "Obraz pionowy",
   YOUTUBE_VIDEO: "Film YouTube",
   CALL_TO_ACTION_SELECTION: "CTA",
+  // Numeric enum values from API
+  2: "Nagłówek",
+  3: "Opis",
+  5: "Obraz (landscape)",
+  7: "Film YouTube",
+  17: "Długi nagłówek",
+  18: "Nazwa firmy",
+  19: "Obraz kwadratowy",
+  20: "Obraz pionowy",
+  21: "Logo",
+  26: "CTA",
+};
+
+const AG_STATUS: Record<string | number, string> = {
+  2: "ENABLED",
+  3: "PAUSED",
+  4: "REMOVED",
+  5: "PENDING",
+  ENABLED: "ENABLED",
+  PAUSED: "PAUSED",
+  REMOVED: "REMOVED",
 };
 
 function PMaxInsightsTab({
@@ -1124,7 +1146,9 @@ function PMaxInsightsTab({
                             : "badge-neutral",
                         )}
                       >
-                        {g.primaryStatus || g.status}
+                        {AG_STATUS[g.primaryStatus] ||
+                          AG_STATUS[g.status] ||
+                          g.status}
                       </span>
                     </td>
                   </tr>
