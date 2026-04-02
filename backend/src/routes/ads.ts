@@ -34,6 +34,26 @@ export async function adsRoutes(fastify: FastifyInstance) {
     return ads.syncProductDaily(domainId);
   });
 
+  // Asset group performance
+  fastify.get("/:domainId/asset-groups", async (request) => {
+    const { domainId } = request.params as { domainId: string };
+    const { days } = request.query as { days?: string };
+    return ads.syncAssetGroupPerformance(domainId, parseInt(days || "30"));
+  });
+
+  // Asset performance (headlines, images, etc.)
+  fastify.get("/:domainId/asset-performance", async (request) => {
+    const { domainId } = request.params as { domainId: string };
+    const { days } = request.query as { days?: string };
+    return ads.syncAssetPerformance(domainId, parseInt(days || "30"));
+  });
+
+  // Audience signals
+  fastify.get("/:domainId/audience-signals", async (request) => {
+    const { domainId } = request.params as { domainId: string };
+    return ads.getAudienceSignals(domainId);
+  });
+
   fastify.get("/accessible-customers", async () => {
     return ads.listAccessibleCustomers();
   });

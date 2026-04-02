@@ -349,6 +349,224 @@ export class AdsService {
       .sort((a, b) => b.revenue - a.revenue);
   }
 
+  // ─── SYNC ASSET GROUP PERFORMANCE ─────────────────────────
+  async syncAssetGroupPerformance(domainId: string, days = 30) {
+    if (!this.isConfigured()) return { error: "Google Ads not configured" };
+
+    try {
+      const customer = this.getCustomer();
+      console.log("[Ads] Syncing asset group performance...");
+
+      const rows = await customer.query(`
+        SELECT
+          asset_group.id,
+          asset_group.name,
+          asset_group.status,
+          asset_group.primary_status,
+          asset_group.primary_status_reasons,
+          campaign.id,
+          campaign.name,
+          metrics.cost_micros,
+          metrics.clicks,
+          metrics.impressions,
+          metrics.conversions,
+          metrics.conversions_value,
+          metrics.all_conversions,
+          metrics.interactions
+        FROM asset_group
+        WHERE segments.date DURING LAST_${days}_DAYS
+          AND campaign.advertising_channel_type = 'PERFORMANCE_MAX'
+        ORDER BY metrics.conversions_value DESC
+      `);
+
+      console.log(`[Ads] Got ${rows.length} asset group rows`);
+
+      const groups = rows.map((row: any) => ({
+        assetGroupId: String(row.asset_group?.id),
+        assetGroupName: row.asset_group?.name || "Unknown",
+        status: row.asset_group?.status,
+        primaryStatus: row.asset_group?.primary_status,
+        primaryStatusReasons: row.asset_group?.primary_status_reasons || [],
+        campaignId: String(row.campaign?.id),
+        campaignName: row.campaign?.name || "Unknown",
+        cost: (row.metrics?.cost_micros || 0) / 1_000_000,
+        clicks: row.metrics?.clicks || 0,
+        impressions: row.metrics?.impressions || 0,
+        conversions: row.metrics?.conversions || 0,
+        conversionValue: row.metrics?.conversions_value || 0,
+        allConversions: row.metrics?.all_conversions || 0,
+        interactions: row.metrics?.interactions || 0,
+      }));
+
+      // Aggregate by asset group (rows are per-day)
+      const byGroup = new Map<string, any>();
+      for (const g of groups) {
+        const existing = byGroup.get(g.assetGroupId);
+        if (!existing) {
+          byGroup.set(g.assetGroupId, { ...g });
+        } else {
+          existing.cost += g.cost;
+          existing.clicks += g.clicks;
+          existing.impressions += g.impressions;
+          existing.conversions += g.conversions;
+          existing.conversionValue += g.conversionValue;
+          existing.allConversions += g.allConversions;
+          existing.interactions += g.interactions;
+        }
+      }
+
+      const result = Array.from(byGroup.values())
+        .map((g) => ({
+          ...g,
+          roas: g.cost > 0 ? g.conversionValue / g.cost : 0,
+          cpc: g.clicks > 0 ? g.cost / g.clicks : 0,
+          ctr: g.impressions > 0 ? g.clicks / g.impressions : 0,
+          convRate: g.clicks > 0 ? g.conversions / g.clicks : 0,
+        }))
+        .sort((a, b) => b.conversionValue - a.conversionValue);
+
+      return { assetGroups: result, total: result.length };
+    } catch (e: any) {
+      console.error("[Ads] Asset group error:", e.message);
+      return { error: e.message, assetGroups: [] };
+    }
+  }
+
+  // ─── SYNC ASSET PERFORMANCE (headlines, images, etc.) ─────
+  async syncAssetPerformance(domainId: string, days = 30) {
+    if (!this.isConfigured()) return { error: "Google Ads not configured" };
+
+    try {
+      const customer = this.getCustomer();
+      console.log("[Ads] Syncing asset performance...");
+
+      const rows = await customer.query(`
+  SELECT
+    asset_group_asset.field_type,
+    asset_group_asset.status,
+    asset.id,
+    asset.name,
+    asset.type,
+    asset.text_asset.text,
+    asset_group.id,
+    asset_group.name,
+    campaign.name
+  FROM asset_group_asset
+  WHERE campaign.advertising_channel_type = 'PERFORMANCE_MAX'
+    AND asset_group_asset.status = 'ENABLED'
+`);
+
+      console.log(`[Ads] Got ${rows.length} asset performance rows`);
+
+      const assets = rows.map((row: any) => ({
+        assetId: String(row.asset?.id),
+        assetName: row.asset?.name || null,
+        assetType: row.asset?.type,
+        fieldType: row.asset_group_asset?.field_type,
+        performanceLabel: "UNAVAILABLE",
+        status: row.asset_group_asset?.status,
+        // Content based on type
+        text: row.asset?.text_asset?.text || null,
+        imageUrl: null,
+        videoTitle: null,
+        // Context
+        assetGroupId: String(row.asset_group?.id),
+        assetGroupName: row.asset_group?.name || "Unknown",
+        campaignName: row.campaign?.name || "Unknown",
+      }));
+
+      // Group by fieldType for summary
+      const byFieldType = new Map<
+        string,
+        {
+          total: number;
+          best: number;
+          good: number;
+          low: number;
+          learning: number;
+          unknown: number;
+        }
+      >();
+      for (const a of assets) {
+        const ft = a.fieldType || "OTHER";
+        const existing = byFieldType.get(ft) || {
+          total: 0,
+          best: 0,
+          good: 0,
+          low: 0,
+          learning: 0,
+          unknown: 0,
+        };
+        existing.total++;
+        switch (a.performanceLabel) {
+          case "BEST":
+            existing.best++;
+            break;
+          case "GOOD":
+            existing.good++;
+            break;
+          case "LOW":
+            existing.low++;
+            break;
+          case "LEARNING":
+            existing.learning++;
+            break;
+          default:
+            existing.unknown++;
+            break;
+        }
+        byFieldType.set(ft, existing);
+      }
+
+      return {
+        assets,
+        total: assets.length,
+        byFieldType: Object.fromEntries(byFieldType),
+      };
+    } catch (e: any) {
+      const errDetail = e.errors
+        ? JSON.stringify(e.errors, null, 2)
+        : e.message || JSON.stringify(e);
+      console.error("[Ads] Asset performance error:", errDetail);
+      return { error: errDetail, assets: [], byFieldType: {} };
+    }
+  }
+
+  // ─── GET AUDIENCE SIGNALS ─────────────────────────────────
+  async getAudienceSignals(domainId: string) {
+    if (!this.isConfigured()) return { error: "Google Ads not configured" };
+
+    try {
+      const customer = this.getCustomer();
+      console.log("[Ads] Fetching audience signals...");
+
+      const rows = await customer.query(`
+  SELECT
+    asset_group.id,
+    asset_group.name,
+    campaign.name
+  FROM asset_group_signal
+  WHERE campaign.advertising_channel_type = 'PERFORMANCE_MAX'
+`);
+
+      console.log(`[Ads] Got ${rows.length} audience signal rows`);
+
+      const signals = rows.map((row: any) => ({
+        assetGroupId: String(row.asset_group?.id),
+        assetGroupName: row.asset_group?.name || "Unknown",
+        campaignName: row.campaign?.name || "Unknown",
+        audiences: row.asset_group_signal?.audience_signal?.audiences || [],
+        searchThemes:
+          row.asset_group_signal?.audience_signal?.search_themes || [],
+      }));
+
+      return { signals, total: signals.length };
+    } catch (e: any) {
+      console.error("[Ads] Audience signals error:", e.message);
+      return { error: e.message, signals: [] };
+    }
+  }
+
   async listAccessibleCustomers() {
     try {
       const customers = await this.client.listAccessibleCustomers(

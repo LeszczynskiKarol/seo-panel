@@ -24,7 +24,7 @@ import {
 
 const COMMISSION_RATE = 0.12; // 12%
 
-type AdsTab = "overview" | "products" | "profitability";
+type AdsTab = "overview" | "products" | "profitability" | "pmax";
 
 export function AdsSection({ domainId }: { domainId: string }) {
   const qc = useQueryClient();
@@ -189,6 +189,7 @@ export function AdsSection({ domainId }: { domainId: string }) {
             label: "Rentowność",
             icon: PiggyBank,
           },
+          { key: "pmax" as AdsTab, label: "PMax Insights", icon: TrendingUp },
         ].map((t) => (
           <button
             key={t.key}
@@ -363,6 +364,8 @@ export function AdsSection({ domainId }: { domainId: string }) {
           isLoading={productsLoading}
         />
       )}
+
+      {tab === "pmax" && <PMaxInsightsTab domainId={domainId} days={days} />}
 
       {/* Empty state */}
       {!campaigns?.chartData?.length &&
@@ -974,6 +977,400 @@ function MiniStat({
         {value}
       </div>
       <div className="text-[9px] text-panel-muted">{label}</div>
+    </div>
+  );
+}
+
+const PERF_COLORS: Record<string, string> = {
+  BEST: "#22c55e",
+  GOOD: "#3b82f6",
+  LOW: "#ef4444",
+  LEARNING: "#f59e0b",
+  UNKNOWN: "#64748b",
+};
+
+const PERF_LABELS_PL: Record<string, string> = {
+  BEST: "Najlepszy",
+  GOOD: "Dobry",
+  LOW: "Słaby",
+  LEARNING: "Uczenie",
+  UNKNOWN: "Brak danych",
+};
+
+const FIELD_TYPE_PL: Record<string, string> = {
+  HEADLINE: "Nagłówek",
+  LONG_HEADLINE: "Długi nagłówek",
+  DESCRIPTION: "Opis",
+  BUSINESS_NAME: "Nazwa firmy",
+  LOGO: "Logo",
+  LANDSCAPE_LOGO: "Logo poziome",
+  MARKETING_IMAGE: "Obraz",
+  SQUARE_MARKETING_IMAGE: "Obraz kwadratowy",
+  PORTRAIT_MARKETING_IMAGE: "Obraz pionowy",
+  YOUTUBE_VIDEO: "Film YouTube",
+  CALL_TO_ACTION_SELECTION: "CTA",
+};
+
+function PMaxInsightsTab({
+  domainId,
+  days,
+}: {
+  domainId: string;
+  days: number;
+}) {
+  const { data: groupsData, isLoading: groupsLoading } = useQuery({
+    queryKey: ["ads-asset-groups", domainId, days],
+    queryFn: () => api.getAdsAssetGroups(domainId, days),
+  });
+
+  const { data: assetsData, isLoading: assetsLoading } = useQuery({
+    queryKey: ["ads-asset-performance", domainId, days],
+    queryFn: () => api.getAdsAssetPerformance(domainId, days),
+  });
+
+  const { data: signalsData } = useQuery({
+    queryKey: ["ads-audience-signals", domainId],
+    queryFn: () => api.getAdsAudienceSignals(domainId),
+  });
+
+  const isLoading = groupsLoading || assetsLoading;
+
+  const groups = groupsData?.assetGroups || [];
+  const assets = assetsData?.assets || [];
+  const byFieldType = assetsData?.byFieldType || {};
+  const signals = signalsData?.signals || [];
+
+  if (groupsData?.error && assetsData?.error) {
+    return (
+      <div className="bg-accent-red/5 border border-accent-red/20 rounded-lg p-4 text-center text-sm text-accent-red">
+        Błąd: {groupsData.error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {isLoading && (
+        <div className="flex items-center gap-2 text-xs text-panel-muted">
+          <RefreshCw className="w-3 h-3 animate-spin" /> Pobieram dane PMax...
+        </div>
+      )}
+
+      {/* ═══ ASSET GROUPS ═══ */}
+      {groups.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] text-panel-muted uppercase tracking-wider">
+            Asset Groups — Performance ({days}d)
+          </div>
+          <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Asset Group</th>
+                  <th>Kampania</th>
+                  <th>Koszt</th>
+                  <th>Sprzedaż</th>
+                  <th>ROAS</th>
+                  <th>Konw.</th>
+                  <th>Klik.</th>
+                  <th>CTR</th>
+                  <th>Conv Rate</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((g: any) => (
+                  <tr key={g.assetGroupId}>
+                    <td className="font-semibold text-panel-text">
+                      {g.assetGroupName}
+                    </td>
+                    <td className="text-panel-muted text-[10px]">
+                      {g.campaignName}
+                    </td>
+                    <td className="text-accent-red font-mono">
+                      {g.cost.toFixed(0)} zł
+                    </td>
+                    <td className="text-accent-green font-mono font-semibold">
+                      {g.conversionValue.toFixed(0)} zł
+                    </td>
+                    <td
+                      className={cn(
+                        "font-mono font-bold",
+                        g.roas >= 2.5
+                          ? "text-accent-green"
+                          : g.roas >= 1.5
+                            ? "text-accent-amber"
+                            : "text-accent-red",
+                      )}
+                    >
+                      {(g.roas * 100).toFixed(0)}%
+                    </td>
+                    <td className="text-accent-purple">
+                      {g.conversions.toFixed(1)}
+                    </td>
+                    <td className="text-accent-cyan">{g.clicks}</td>
+                    <td className="text-panel-muted">
+                      {(g.ctr * 100).toFixed(1)}%
+                    </td>
+                    <td className="text-panel-muted">
+                      {(g.convRate * 100).toFixed(1)}%
+                    </td>
+                    <td>
+                      <span
+                        className={cn(
+                          "badge text-[9px]",
+                          g.primaryStatus === "ELIGIBLE"
+                            ? "badge-success"
+                            : "badge-neutral",
+                        )}
+                      >
+                        {g.primaryStatus || g.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ASSET PERFORMANCE SUMMARY ═══ */}
+      {Object.keys(byFieldType).length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] text-panel-muted uppercase tracking-wider">
+            Asset Performance — podsumowanie per typ
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {Object.entries(byFieldType).map(([type, stats]: [string, any]) => (
+              <div
+                key={type}
+                className="bg-panel-card border border-panel-border rounded-lg p-3"
+              >
+                <div className="text-[10px] font-semibold text-panel-text mb-2">
+                  {FIELD_TYPE_PL[type] || type}
+                </div>
+                <div className="text-[9px] text-panel-muted mb-1">
+                  {stats.total} komponentów
+                </div>
+                <div className="flex gap-1">
+                  {stats.best > 0 && (
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold"
+                      style={{
+                        background: `${PERF_COLORS.BEST}20`,
+                        color: PERF_COLORS.BEST,
+                      }}
+                    >
+                      {stats.best} BEST
+                    </span>
+                  )}
+                  {stats.good > 0 && (
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[9px] font-mono"
+                      style={{
+                        background: `${PERF_COLORS.GOOD}20`,
+                        color: PERF_COLORS.GOOD,
+                      }}
+                    >
+                      {stats.good} GOOD
+                    </span>
+                  )}
+                  {stats.low > 0 && (
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[9px] font-mono"
+                      style={{
+                        background: `${PERF_COLORS.LOW}20`,
+                        color: PERF_COLORS.LOW,
+                      }}
+                    >
+                      {stats.low} LOW
+                    </span>
+                  )}
+                  {stats.learning > 0 && (
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[9px] font-mono"
+                      style={{
+                        background: `${PERF_COLORS.LEARNING}20`,
+                        color: PERF_COLORS.LEARNING,
+                      }}
+                    >
+                      {stats.learning} LEARN
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ INDIVIDUAL ASSETS TABLE ═══ */}
+      {assets.length > 0 && <AssetPerformanceTable assets={assets} />}
+
+      {/* ═══ AUDIENCE SIGNALS ═══ */}
+      {signals.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] text-panel-muted uppercase tracking-wider">
+            Audience Signals
+          </div>
+          <div className="space-y-2">
+            {signals.map((s: any, i: number) => (
+              <div
+                key={i}
+                className="bg-panel-card border border-panel-border rounded-lg p-3"
+              >
+                <div className="text-[10px] font-semibold text-panel-text mb-1">
+                  {s.assetGroupName}
+                  <span className="text-panel-muted font-normal ml-2">
+                    {s.campaignName}
+                  </span>
+                </div>
+                {s.searchThemes?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {s.searchThemes.slice(0, 20).map((t: any, j: number) => (
+                      <span
+                        key={j}
+                        className="px-1.5 py-0.5 bg-accent-blue/10 text-accent-blue rounded text-[9px]"
+                      >
+                        {t.text || t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {s.audiences?.length > 0 && (
+                  <div className="text-[9px] text-panel-muted mt-1">
+                    {s.audiences.length} segmentów odbiorców
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && groups.length === 0 && assets.length === 0 && (
+        <div className="bg-panel-card border border-panel-border rounded-lg p-8 text-center text-panel-muted text-sm">
+          Brak danych PMax. Upewnij się że masz aktywną kampanię Performance
+          Max.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssetPerformanceTable({ assets }: { assets: any[] }) {
+  const [filter, setFilter] = useState<string>("ALL");
+  const [perfFilter, setPerfFilter] = useState<string>("ALL");
+
+  const fieldTypes = [...new Set(assets.map((a) => a.fieldType))].sort();
+
+  const filtered = assets.filter((a) => {
+    if (filter !== "ALL" && a.fieldType !== filter) return false;
+    if (perfFilter !== "ALL" && a.performanceLabel !== perfFilter) return false;
+    return true;
+  });
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] text-panel-muted uppercase tracking-wider">
+          Wszystkie komponenty ({filtered.length})
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            className="input text-[10px] py-0.5 px-1.5 w-auto"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="ALL">Wszystkie typy</option>
+            {fieldTypes.map((ft) => (
+              <option key={ft} value={ft}>
+                {FIELD_TYPE_PL[ft] || ft}
+              </option>
+            ))}
+          </select>
+          <select
+            className="input text-[10px] py-0.5 px-1.5 w-auto"
+            value={perfFilter}
+            onChange={(e) => setPerfFilter(e.target.value)}
+          >
+            <option value="ALL">Wszystkie oceny</option>
+            <option value="BEST">BEST</option>
+            <option value="GOOD">GOOD</option>
+            <option value="LOW">LOW</option>
+            <option value="LEARNING">LEARNING</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Typ</th>
+              <th>Treść</th>
+              <th>Ocena</th>
+              <th>Asset Group</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.slice(0, 100).map((a: any, i: number) => {
+              const content =
+                a.text ||
+                a.videoTitle ||
+                (a.imageUrl ? "🖼️ Obraz" : a.assetName) ||
+                "—";
+              const perfColor =
+                PERF_COLORS[a.performanceLabel] || PERF_COLORS.UNKNOWN;
+              return (
+                <tr key={i}>
+                  <td>
+                    <span className="badge badge-neutral text-[9px]">
+                      {FIELD_TYPE_PL[a.fieldType] || a.fieldType}
+                    </span>
+                  </td>
+                  <td className="max-w-[350px]">
+                    {a.imageUrl ? (
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={a.imageUrl}
+                          alt=""
+                          className="w-8 h-8 rounded object-cover"
+                        />
+                        <span className="text-panel-muted text-[10px] truncate">
+                          {a.assetName || "Obraz"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-panel-text text-[11px]">
+                        {content}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <span
+                      className="px-2 py-0.5 rounded text-[9px] font-mono font-bold"
+                      style={{ background: `${perfColor}20`, color: perfColor }}
+                    >
+                      {PERF_LABELS_PL[a.performanceLabel] || a.performanceLabel}
+                    </span>
+                  </td>
+                  <td className="text-panel-muted text-[10px]">
+                    {a.assetGroupName}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {filtered.length > 100 && (
+          <div className="px-4 py-2 text-[10px] text-panel-muted border-t border-panel-border">
+            Pokazano 100 z {filtered.length}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

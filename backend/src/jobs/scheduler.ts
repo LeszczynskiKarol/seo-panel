@@ -273,8 +273,6 @@ export function startScheduler() {
     }
   });
 
-  console.log("  🛒 Stojan orders:    every 2h (:15)");
-
   // Daily 08:30 — Merchant Center sync
   cron.schedule("30 8 * * *", async () => {
     console.log("⏰ [CRON] Merchant Center daily sync starting...");
@@ -294,50 +292,4 @@ export function startScheduler() {
     console.log(`🚨 Alert detection done: ${result.created} new alerts`);
     result.checks.forEach((c) => console.log(`   ${c}`));
   });
-
-  async function syncStojanDaily(startDate: string, endDate: string) {
-    if (!STOJAN_API_KEY || !STOJAN_INTEGRATION_ID) {
-      console.log("⚠️ Stojan API not configured, skipping");
-      return { skipped: true };
-    }
-
-    const url = `${STOJAN_API_URL}/api/integration/daily-stats?startDate=${startDate}&endDate=${endDate}&apiKey=${STOJAN_API_KEY}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Stojan API error: ${res.status}`);
-
-    const data = await res.json();
-    let upserted = 0;
-
-    for (const day of data.daily) {
-      await prisma.integrationDaily.upsert({
-        where: {
-          integrationId_date: {
-            integrationId: STOJAN_INTEGRATION_ID,
-            date: new Date(day.date),
-          },
-        },
-        update: {
-          sessions: 0,
-          users: 0,
-          conversions: day.orders,
-          revenue: day.revenue,
-        },
-        create: {
-          integrationId: STOJAN_INTEGRATION_ID,
-          date: new Date(day.date),
-          sessions: 0,
-          users: 0,
-          conversions: day.orders,
-          revenue: day.revenue,
-        },
-      });
-      upserted++;
-    }
-
-    return {
-      orders: data.totals.orders,
-      revenue: data.totals.revenue,
-      daysUpserted: upserted,
-    };
-  }
 }

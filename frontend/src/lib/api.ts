@@ -471,6 +471,13 @@ export const api = {
   deleteRevenue: (id: string) =>
     request<any>(`/costs/revenues/${id}`, { method: "DELETE" }),
 
+  getAdsAssetGroups: (domainId: string, days = 30) =>
+    request<any>(`/ads/${domainId}/asset-groups?days=${days}`),
+  getAdsAssetPerformance: (domainId: string, days = 30) =>
+    request<any>(`/ads/${domainId}/asset-performance?days=${days}`),
+  getAdsAudienceSignals: (domainId: string) =>
+    request<any>(`/ads/${domainId}/audience-signals`),
+
   // Jobs
   getJobs: () => request<any[]>("/jobs"),
 };
