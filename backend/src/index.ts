@@ -36,22 +36,21 @@ fastify.register(cors, {
 registerAuth(fastify);
 
 // Public webhooks (no auth)
-fastify.post("/api/webhook/stojan-order", async (request, reply) => {
-  const { apiKey, date, revenue, orders } = request.body as any;
-  if (apiKey !== process.env.STOJAN_API_KEY) {
+fastify.post("/api/webhook/conversion", async (request, reply) => {
+  const { apiKey, integrationId, date, revenue, orders } = request.body as any;
+  if (apiKey !== process.env.WEBHOOK_API_KEY) {
     return reply.code(401).send({ error: "Invalid API key" });
   }
-  const intId = process.env.STOJAN_INTEGRATION_ID;
-  if (!intId)
-    return reply.code(500).send({ error: "STOJAN_INTEGRATION_ID not set" });
+  if (!integrationId) {
+    return reply.code(400).send({ error: "integrationId required" });
+  }
+  const dateObj = new Date(date);
   await prisma.integrationDaily.upsert({
-    where: {
-      integrationId_date: { integrationId: intId, date: new Date(date) },
-    },
+    where: { integrationId_date: { integrationId, date: dateObj } },
     update: { conversions: orders, revenue },
     create: {
-      integrationId: intId,
-      date: new Date(date),
+      integrationId,
+      date: dateObj,
       sessions: 0,
       users: 0,
       conversions: orders,
