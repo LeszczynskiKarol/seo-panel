@@ -1,6 +1,6 @@
 // frontend/src/components/GlobalProfitabilityPanel.tsx
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { FinancialHistoryPanel } from "./FinancialHistoryPanel";
@@ -16,8 +16,6 @@ import {
   Cell,
   PieChart,
   Pie,
-  AreaChart,
-  Area,
 } from "recharts";
 import {
   TrendingUp,
@@ -126,7 +124,11 @@ const REVENUE_CATEGORIES: Record<
 
 // ─── MAIN COMPONENT ───
 
-export function GlobalProfitabilityPanel() {
+export function GlobalProfitabilityPanel({
+  onDateChange,
+}: {
+  onDateChange?: (startDate: string, endDate: string) => void;
+} = {}) {
   const qc = useQueryClient();
 
   const [presetIdx, setPresetIdx] = useState(4); // default: W tym miesiącu
@@ -143,6 +145,10 @@ export function GlobalProfitabilityPanel() {
   }, [presetIdx, customStart, customEnd]);
   const [showAddRevenue, setShowAddRevenue] = useState(false);
   const [showRevenuesTable, setShowRevenuesTable] = useState(false);
+
+  useEffect(() => {
+    onDateChange?.(startDate, endDate);
+  }, [startDate, endDate, onDateChange]);
 
   const { data: revenues, refetch: refetchRevenues } = useQuery({
     queryKey: ["revenues", startDate, endDate],
@@ -170,12 +176,6 @@ export function GlobalProfitabilityPanel() {
     queryKey: ["global-summary-prev", prevStart, prevEnd],
     queryFn: () => api.getGlobalSummary(prevStart, prevEnd),
     enabled: compare && !!prevStart && !!prevEnd,
-  });
-
-  const { data: costs, refetch: refetchCosts } = useQuery({
-    queryKey: ["costs", startDate, endDate],
-    queryFn: () => api.getCosts(`startDate=${startDate}&endDate=${endDate}`),
-    enabled: showCostsTable,
   });
 
   const applyPreset = (idx: number) => {

@@ -1,12 +1,14 @@
-// frontend/src/pages/ProfitabilityPage.tsx
-
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { GlobalProfitabilityPanel } from "../components/GlobalProfitabilityPanel";
 import { cn, fmtNumber } from "../lib/utils";
 import { ProfitabilityTab } from "../components/ProfitabilityTab";
 import { PiggyBank, RefreshCw, Globe } from "lucide-react";
+
+function fmt(d: Date) {
+  return d.toISOString().split("T")[0];
+}
 
 export function ProfitabilityPage() {
   const { data: domains, isLoading } = useQuery({
@@ -15,12 +17,12 @@ export function ProfitabilityPage() {
   });
 
   const DOMAIN_ORDER: Record<string, number> = {
-    cmn9fo4dn0004qrdye8hjou1g: 1, // Stojan Shop
-    cmn9fo4db0001qrdyh34ldxul: 2, // Smart-Edu.ai
-    cmn9fo4d50000qrdy96h2sdr6: 3, // MaturaPolski
-    cmn9fo4dr0005qrdyj39z8k9e: 4, // Ebook Copywriting
-    cmn9fo4df0002qrdywpl8ymwe: 5, // Smart-Copy
-    cmn9fo4e50009qrdyog51y31k: 6, // Praca-Magisterska
+    cmn9fo4dn0004qrdye8hjou1g: 1,
+    cmn9fo4db0001qrdyh34ldxul: 2,
+    cmn9fo4d50000qrdy96h2sdr6: 3,
+    cmn9fo4dr0005qrdyj39z8k9e: 4,
+    cmn9fo4df0002qrdywpl8ymwe: 5,
+    cmn9fo4e50009qrdyog51y31k: 6,
   };
 
   const sorted = [...(domains ?? [])]
@@ -37,6 +39,22 @@ export function ProfitabilityPage() {
 
   const [selectedDomainId, setSelectedDomainId] = useState<string | null>(null);
 
+  // Shared date state — default "W tym miesiącu"
+  const now = new Date();
+  const defaultStart =
+    now.getFullYear() +
+    "-" +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    "-01";
+  const defaultEnd = fmt(now);
+  const [sharedStart, setSharedStart] = useState(defaultStart);
+  const [sharedEnd, setSharedEnd] = useState(defaultEnd);
+
+  const handleDateChange = useCallback((start: string, end: string) => {
+    setSharedStart(start);
+    setSharedEnd(end);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -45,7 +63,6 @@ export function ProfitabilityPage() {
     );
   }
 
-  // Filter domains that have GA4 or Ads integrations
   const domainsWithIntegrations = sorted;
 
   return (
@@ -60,13 +77,13 @@ export function ProfitabilityPage() {
         </p>
       </div>
 
-      <GlobalProfitabilityPanel />
+      <GlobalProfitabilityPanel onDateChange={handleDateChange} />
 
       {/* Domain selector */}
       <div className="flex gap-2 flex-wrap">
         {domainsWithIntegrations.map((d: any) => (
           <button
-            key={d.id}
+            key={d.domainId}
             onClick={() =>
               setSelectedDomainId(
                 selectedDomainId === d.domainId ? null : d.domainId,
@@ -74,60 +91,55 @@ export function ProfitabilityPage() {
             }
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
-              selectedDomainId === d.id
+              selectedDomainId === d.domainId
                 ? "border-accent-green bg-accent-green/10 text-accent-green"
                 : "border-panel-border bg-panel-card text-panel-muted hover:text-panel-text hover:border-panel-text/20",
             )}
           >
             <Globe className="w-3 h-3" />
-            {d.label || d.domain.replace("www.", "")}
+            {d.label}
           </button>
         ))}
       </div>
 
-      {/* Show profitability for selected domain */}
       {selectedDomainId ? (
         <ProfitabilityTab domainId={selectedDomainId} />
       ) : (
-        <AllDomainsProfitability domains={domainsWithIntegrations} />
+        <AllDomainsProfitability
+          domains={domainsWithIntegrations}
+          startDate={sharedStart}
+          endDate={sharedEnd}
+        />
       )}
     </div>
   );
 }
 
-function AllDomainsProfitability({ domains }: { domains: any[] }) {
-  const [days, setDays] = useState(30);
-
-  // Fetch profitability for all domains with integrations
-  const queries = domains.map((d: any) => ({
-    domainId: d.domainId,
-    label: d.label,
-  }));
+function AllDomainsProfitability({
+  domains,
+  startDate,
+  endDate,
+}: {
+  domains: any[];
+  startDate: string;
+  endDate: string;
+}) {
+  const days =
+    Math.round(
+      (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000,
+    ) + 1;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <span className="text-xs font-semibold">Przegląd wszystkich domen</span>
-        <div className="ml-auto flex gap-1">
-          {[7, 14, 30, 90].map((d) => (
-            <button
-              key={d}
-              onClick={() => setDays(d)}
-              className={cn(
-                "px-2 py-0.5 rounded text-[10px] font-mono",
-                days === d
-                  ? "bg-accent-blue/20 text-accent-blue font-semibold"
-                  : "text-panel-muted",
-              )}
-            >
-              {d}d
-            </button>
-          ))}
-        </div>
+        <span className="text-[10px] text-panel-dim font-mono ml-auto">
+          {startDate} → {endDate} ({days}d)
+        </span>
       </div>
 
       <div className="space-y-3">
-        {queries.map((q) => (
+        {domains.map((q) => (
           <DomainProfitCard
             key={q.domainId}
             domainId={q.domainId}
@@ -245,7 +257,6 @@ function DomainProfitCard({
         )}
       </div>
 
-      {/* Channel mini breakdown */}
       {data.channels?.length > 0 && (
         <div className="flex gap-3 text-[10px]">
           {data.channels
