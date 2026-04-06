@@ -318,71 +318,11 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* ═══ TRAFFIC CHART + DOMAIN REVENUE BREAKDOWN ═══ */}
+      {/* ═══ MAIN CHART + DOMAIN REVENUE BREAKDOWN ═══ */}
       <div className="grid grid-cols-3 gap-3">
-        {/* Traffic chart */}
-        {o.recentTraffic.length > 0 && (
-          <div className="col-span-2 bg-panel-card border border-panel-border rounded-lg p-4">
-            <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
-              Ruch — ostatnie 7 dni (GSC)
-            </div>
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={o.recentTraffic}>
-                <defs>
-                  <linearGradient id="clicksGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 8, fill: "#64748b" }}
-                  tickFormatter={(d) =>
-                    new Date(d).toLocaleDateString("pl-PL", {
-                      day: "2-digit",
-                      month: "2-digit",
-                    })
-                  }
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 8, fill: "#64748b" }}
-                  tickFormatter={fmtNumber}
-                  axisLine={false}
-                  tickLine={false}
-                  width={40}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1a2235",
-                    border: "1px solid #1e2a3a",
-                    borderRadius: "4px",
-                    fontSize: "9px",
-                  }}
-                  formatter={(v: number) => [fmtNumber(v)]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="clicks"
-                  stroke="#3b82f6"
-                  fill="url(#clicksGrad)"
-                  strokeWidth={2}
-                  name="Kliknięcia"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="impressions"
-                  stroke="#a855f7"
-                  fill="none"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 2"
-                  name="Wyświetlenia"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+        <div className="col-span-2">
+          <DashboardChart />
+        </div>
 
         {/* Domain revenue breakdown (this month) */}
         {financial?.domainBreakdown?.length > 0 && (
@@ -658,6 +598,307 @@ export function DashboardPage() {
 
       {showAddDomain && (
         <AddDomainModal onClose={() => setShowAddDomain(false)} />
+      )}
+    </div>
+  );
+}
+
+// ─── DASHBOARD CHART — multi-metric with toggles ───
+
+const CHART_PRESETS = [
+  { label: "7d", days: 7 },
+  { label: "14d", days: 14 },
+  { label: "30d", days: 30 },
+  { label: "90d", days: 90 },
+  {
+    label: "Ten miesiąc",
+    getDates: () => {
+      const n = new Date();
+      return [
+        n.getFullYear() +
+          "-" +
+          String(n.getMonth() + 1).padStart(2, "0") +
+          "-01",
+        fmt(n),
+      ];
+    },
+  },
+  {
+    label: "Ten rok",
+    getDates: () => [new Date().getFullYear() + "-01-01", fmt(new Date())],
+  },
+];
+
+type MetricKey =
+  | "revenue"
+  | "commission"
+  | "conversions"
+  | "profit"
+  | "adsCost"
+  | "manualCosts";
+
+const METRICS: {
+  key: MetricKey;
+  label: string;
+  color: string;
+  yAxis: "money" | "count";
+  defaultOn: boolean;
+}[] = [
+  {
+    key: "commission",
+    label: "Przychód netto",
+    color: "#22c55e",
+    yAxis: "money",
+    defaultOn: true,
+  },
+  {
+    key: "profit",
+    label: "Zysk/Strata",
+    color: "#06b6d4",
+    yAxis: "money",
+    defaultOn: true,
+  },
+  {
+    key: "conversions",
+    label: "Konwersje",
+    color: "#f59e0b",
+    yAxis: "count",
+    defaultOn: true,
+  },
+  {
+    key: "revenue",
+    label: "GMV",
+    color: "#a855f7",
+    yAxis: "money",
+    defaultOn: false,
+  },
+  {
+    key: "adsCost",
+    label: "Koszt Ads",
+    color: "#ef4444",
+    yAxis: "money",
+    defaultOn: false,
+  },
+  {
+    key: "manualCosts",
+    label: "Koszty ręczne",
+    color: "#ec4899",
+    yAxis: "money",
+    defaultOn: false,
+  },
+];
+
+function DashboardChart() {
+  const [presetIdx, setPresetIdx] = useState(2); // 30d default
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [active, setActive] = useState<Set<MetricKey>>(
+    () => new Set(METRICS.filter((m) => m.defaultOn).map((m) => m.key)),
+  );
+
+  const [startDate, endDate] = useMemo(() => {
+    if (customStart && customEnd) return [customStart, customEnd];
+    const preset = CHART_PRESETS[presetIdx];
+    if ("getDates" in preset) return preset.getDates!();
+    const end = fmt(new Date());
+    const start = fmt(new Date(Date.now() - preset.days! * 86400000));
+    return [start, end];
+  }, [presetIdx, customStart, customEnd]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["global-summary", startDate, endDate],
+    queryFn: () => api.getGlobalSummary(startDate, endDate),
+    staleTime: 60_000,
+  });
+
+  const toggle = (key: MetricKey) => {
+    setActive((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const applyPreset = (idx: number) => {
+    setPresetIdx(idx);
+    setCustomStart("");
+    setCustomEnd("");
+  };
+
+  const daily = data?.daily || [];
+  const activeMetrics = METRICS.filter((m) => active.has(m.key));
+  const hasMoneyAxis = activeMetrics.some((m) => m.yAxis === "money");
+  const hasCountAxis = activeMetrics.some((m) => m.yAxis === "count");
+
+  return (
+    <div className="bg-panel-card border border-panel-border rounded-lg p-4">
+      {/* Header: presets + custom dates */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <BarChart3 className="w-3.5 h-3.5 text-panel-muted" />
+        <span className="text-[9px] text-panel-muted uppercase tracking-wider">
+          Trendy
+        </span>
+        {CHART_PRESETS.map((p, i) => (
+          <button
+            key={i}
+            onClick={() => applyPreset(i)}
+            className={cn(
+              "px-1.5 py-0.5 rounded text-[9px] font-mono transition-all",
+              presetIdx === i && !customStart
+                ? "bg-accent-blue/20 text-accent-blue font-bold"
+                : "text-panel-muted hover:text-panel-text",
+            )}
+          >
+            {p.label}
+          </button>
+        ))}
+        <span className="text-[9px] text-panel-muted ml-1">|</span>
+        <input
+          type="date"
+          className="input text-[9px] py-0 w-[100px]"
+          value={customStart || startDate}
+          onChange={(e) => {
+            setCustomStart(e.target.value);
+            setPresetIdx(-1);
+          }}
+        />
+        <span className="text-[9px] text-panel-muted">→</span>
+        <input
+          type="date"
+          className="input text-[9px] py-0 w-[100px]"
+          value={customEnd || endDate}
+          onChange={(e) => {
+            setCustomEnd(e.target.value);
+            setPresetIdx(-1);
+          }}
+        />
+      </div>
+
+      {/* Metric toggles */}
+      <div className="flex gap-1 mb-3 flex-wrap">
+        {METRICS.map((m) => {
+          const isOn = active.has(m.key);
+          return (
+            <button
+              key={m.key}
+              onClick={() => toggle(m.key)}
+              className={cn(
+                "flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-mono border transition-all",
+                isOn
+                  ? "border-current font-bold"
+                  : "border-panel-border text-panel-dim opacity-50 hover:opacity-80",
+              )}
+              style={
+                isOn ? { color: m.color, borderColor: m.color + "60" } : {}
+              }
+            >
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: isOn ? m.color : "#475569" }}
+              />
+              {m.label}
+              {m.yAxis === "count" && (
+                <span className="text-[7px] opacity-60">(→)</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Chart */}
+      {isLoading ? (
+        <div className="h-[180px] flex items-center justify-center">
+          <RefreshCw className="w-4 h-4 animate-spin text-panel-muted" />
+        </div>
+      ) : daily.length === 0 ? (
+        <div className="h-[180px] flex items-center justify-center text-[10px] text-panel-muted">
+          Brak danych dla wybranego okresu
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={180}>
+          <AreaChart data={daily}>
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 7, fill: "#64748b" }}
+              tickFormatter={(d: string) => {
+                const dt = new Date(d);
+                return `${dt.getDate()}.${dt.getMonth() + 1}`;
+              }}
+              axisLine={false}
+              tickLine={false}
+            />
+            {hasMoneyAxis && (
+              <YAxis
+                yAxisId="money"
+                tick={{ fontSize: 7, fill: "#64748b" }}
+                axisLine={false}
+                tickLine={false}
+                width={45}
+                tickFormatter={(v: number) =>
+                  `${v >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`
+                }
+              />
+            )}
+            {hasCountAxis && (
+              <YAxis
+                yAxisId="count"
+                orientation="right"
+                tick={{ fontSize: 7, fill: "#64748b" }}
+                axisLine={false}
+                tickLine={false}
+                width={30}
+              />
+            )}
+            <Tooltip
+              contentStyle={{
+                background: "#1a2235",
+                border: "1px solid #1e2a3a",
+                borderRadius: "4px",
+                fontSize: "9px",
+              }}
+              formatter={(v: number, name: string) => {
+                const m = METRICS.find((mm) => mm.key === name);
+                if (!m) return [v, name];
+                return [
+                  m.yAxis === "money" ? `${v.toFixed(2)} zł` : v,
+                  m.label,
+                ];
+              }}
+              labelFormatter={(d: string) => {
+                const dt = new Date(d);
+                return dt.toLocaleDateString("pl-PL");
+              }}
+            />
+            {hasMoneyAxis && (
+              <ReferenceLine
+                yAxisId="money"
+                y={0}
+                stroke="#475569"
+                strokeDasharray="2 2"
+              />
+            )}
+            {activeMetrics.map((m) => (
+              <Area
+                key={m.key}
+                yAxisId={m.yAxis}
+                type="monotone"
+                dataKey={m.key}
+                stroke={m.color}
+                fill="none"
+                strokeWidth={
+                  m.key === "profit" || m.key === "commission" ? 2 : 1.5
+                }
+                strokeDasharray={
+                  m.key === "adsCost" || m.key === "manualCosts"
+                    ? "4 2"
+                    : undefined
+                }
+                name={m.key}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
       )}
     </div>
   );
