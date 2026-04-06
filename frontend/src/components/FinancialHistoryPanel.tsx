@@ -5,13 +5,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { cn, fmtNumber } from "../lib/utils";
 import {
-  Plus,
   X,
   RefreshCw,
   ChevronDown,
   ArrowUpCircle,
   ArrowDownCircle,
-  Filter,
   Calendar,
 } from "lucide-react";
 
@@ -79,9 +77,10 @@ export function FinancialHistoryPanel({
   const [visibleCount, setVisibleCount] = useState<number>(20);
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [filterCategory, setFilterCategory] = useState<string>("");
-  const [filterDomain, setFilterDomain] = useState<string>("");
+  const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
   const [sortField, setSortField] = useState<"date" | "amount">("date");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const [filterDomain, setFilterDomain] = useState<string>("");
 
   // Fetch both costs and revenues
   const { data: costs, isLoading: costsLoading } = useQuery({
@@ -455,19 +454,28 @@ export function FinancialHistoryPanel({
                       {entry.domainLabel || "—"}
                     </td>
 
-                    {/* Delete */}
+                    {/* Actions */}
                     <td>
-                      <button
-                        onClick={() =>
-                          isCost
-                            ? deleteCost.mutate(entry.id)
-                            : deleteRevenue.mutate(entry.id)
-                        }
-                        className="text-panel-muted hover:text-accent-red text-[10px] transition-colors"
-                        title="Usuń"
-                      >
-                        ✕
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setEditingEntry(entry)}
+                          className="text-panel-muted hover:text-accent-blue text-[10px] transition-colors"
+                          title="Edytuj"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={() =>
+                            isCost
+                              ? deleteCost.mutate(entry.id)
+                              : deleteRevenue.mutate(entry.id)
+                          }
+                          className="text-panel-muted hover:text-accent-red text-[10px] transition-colors"
+                          title="Usuń"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -512,6 +520,206 @@ export function FinancialHistoryPanel({
             )}
           </button>
         )}
+      </div>
+      {editingEntry && (
+        <EditEntryModal
+          entry={editingEntry}
+          onClose={() => setEditingEntry(null)}
+          onSaved={() => {
+            setEditingEntry(null);
+            qc.invalidateQueries({ queryKey: ["costs"] });
+            qc.invalidateQueries({ queryKey: ["revenues"] });
+            qc.invalidateQueries({ queryKey: ["global-summary"] });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── EDIT ENTRY MODAL ───
+
+const COST_CATS_LIST = Object.entries(COST_CATEGORIES);
+const REV_CATS_LIST = Object.entries(REVENUE_CATEGORIES);
+
+function EditEntryModal({
+  entry,
+  onClose,
+  onSaved,
+}: {
+  entry: FinancialEntry;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isCost = entry.type === "cost";
+  const cats = isCost ? COST_CATS_LIST : REV_CATS_LIST;
+  const catsMap = isCost ? COST_CATEGORIES : REVENUE_CATEGORIES;
+
+  const [category, setCategory] = useState(entry.category);
+  const [label, setLabel] = useState(entry.label);
+  const [amount, setAmount] = useState(String(entry.amount));
+  const [date, setDate] = useState(entry.date.split("T")[0]);
+  const [isRecurring, setIsRecurring] = useState(entry.isRecurring);
+  const [notes, setNotes] = useState(entry.notes || "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!label || !amount || !date) return;
+    setSaving(true);
+    try {
+      const data = {
+        category,
+        label,
+        amount: parseFloat(amount),
+        date,
+        isRecurring,
+        notes: notes || null,
+      };
+      if (isCost) {
+        await api.updateCost(entry.id, data);
+      } else {
+        await api.updateRevenue(entry.id, data);
+      }
+      onSaved();
+    } catch (e: any) {
+      console.error("Edit failed:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-panel-card border border-panel-border rounded-xl p-6 w-[480px] space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold">
+            Edytuj {isCost ? "koszt" : "przychód"}
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-panel-muted hover:text-panel-text"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Category */}
+        <div>
+          <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+            Kategoria
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {cats
+              .filter(([k]) => !(isCost && k === "GOOGLE_ADS"))
+              .map(([key, cat]) => (
+                <button
+                  key={key}
+                  onClick={() => setCategory(key)}
+                  className={cn(
+                    "px-2 py-1 rounded text-[10px] border transition-all flex items-center gap-1",
+                    category === key
+                      ? isCost
+                        ? "border-accent-blue bg-accent-blue/10 text-accent-blue"
+                        : "border-accent-green bg-accent-green/10 text-accent-green"
+                      : "border-panel-border text-panel-muted hover:text-panel-text",
+                  )}
+                >
+                  <span>{cat.icon}</span> {cat.label}
+                </button>
+              ))}
+          </div>
+        </div>
+
+        {/* Label */}
+        <div>
+          <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+            Opis
+          </label>
+          <input
+            className="input w-full"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </div>
+
+        {/* Amount + Date */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+              Kwota (PLN)
+            </label>
+            <input
+              className="input w-full"
+              type="number"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+              Data
+            </label>
+            <input
+              className="input w-full"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Recurring */}
+        <label className="flex items-center gap-2 text-[11px] text-panel-muted cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isRecurring}
+            onChange={(e) => setIsRecurring(e.target.checked)}
+            className="rounded"
+          />
+          Powtarzalny miesięcznie
+        </label>
+
+        {/* Notes */}
+        <div>
+          <label className="text-[10px] text-panel-muted uppercase tracking-wider mb-1 block">
+            Notatki
+          </label>
+          <textarea
+            className="input w-full h-16 resize-none"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
+
+        {/* Buttons */}
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="btn btn-ghost text-xs">
+            Anuluj
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!label || !amount || saving}
+            className={cn(
+              "btn text-xs flex items-center gap-1 text-white",
+              isCost
+                ? "bg-accent-blue hover:bg-accent-blue/80"
+                : "bg-accent-green hover:bg-accent-green/80",
+            )}
+          >
+            {saving ? (
+              <RefreshCw className="w-3 h-3 animate-spin" />
+            ) : (
+              "Zapisz zmiany"
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
