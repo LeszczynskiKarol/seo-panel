@@ -148,12 +148,11 @@ export function ConversionsPage() {
       </div>
 
       {!selectedDomain ? (
-        <div className="bg-panel-card border border-panel-border rounded-lg p-12 text-center">
-          <ShoppingCart className="w-8 h-8 text-panel-muted mx-auto mb-3 opacity-30" />
-          <div className="text-sm text-panel-muted">
-            Wybierz domenę z integracja GA4 aby zobaczyć dane konwersji
-          </div>
-        </div>
+        <GlobalConversionsView
+          days={days}
+          startDate={customDateFrom}
+          endDate={customDateTo}
+        />
       ) : (
         <>
           {/* Tab nav */}
@@ -1349,6 +1348,334 @@ function ErrorBox({ message }: { message: string }) {
   return (
     <div className="bg-accent-amber/5 border border-accent-amber/20 rounded-lg p-6 text-center">
       <div className="text-xs text-panel-muted max-w-md mx-auto">{message}</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GLOBAL CONVERSIONS VIEW
+// ═══════════════════════════════════════════════════════════════
+
+const CONV_DOMAINS = [
+  { id: "cmn9fo4dn0004qrdye8hjou1g", label: "Stojan Shop", ecom: true },
+  { id: "cmn9fo4db0001qrdyh34ldxul", label: "Smart-Edu.ai", ecom: false },
+  { id: "cmn9fo4d50000qrdy96h2sdr6", label: "MaturaPolski", ecom: false },
+  { id: "cmn9fo4df0002qrdywpl8ymwe", label: "Smart-Copy.ai", ecom: false },
+  { id: "cmn9fo4dr0005qrdyj39z8k9e", label: "Ebook Copywriting", ecom: false },
+  { id: "cmn9fo4e50009qrdyog51y31k", label: "Prace Magisterskie", ecom: false },
+];
+
+function GlobalConversionsView({
+  days,
+  startDate,
+  endDate,
+}: {
+  days: number;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const isCustom = !!(startDate && endDate);
+
+  const results = CONV_DOMAINS.map((d) => {
+    const q = useQuery({
+      queryKey: ["conv-overview", d.id, days, startDate, endDate],
+      queryFn: () => api.getConversionOverview(d.id, days, startDate, endDate),
+      staleTime: 60_000,
+    });
+    return { ...d, data: q.data, isLoading: q.isLoading };
+  });
+
+  const loaded = results.filter((r) => !r.isLoading);
+  const withData = loaded.filter(
+    (r) =>
+      r.data?.totals &&
+      !r.data?.error &&
+      (r.data.totals.conversions > 0 || r.data.totals.revenue > 0),
+  );
+
+  const agg = withData.reduce(
+    (a, r) => {
+      const t = r.data.totals;
+      const rate = r.ecom ? 0.12 : 1.0;
+      a.conv += t.conversions || 0;
+      a.rev += t.revenue || 0;
+      a.income += (t.revenue || 0) * rate;
+      a.sessions += t.sessions || 0;
+      return a;
+    },
+    { conv: 0, rev: 0, income: 0, sessions: 0 },
+  );
+
+  const avgOrder = agg.conv > 0 ? agg.rev / agg.conv : 0;
+  const cr =
+    agg.sessions > 0 ? ((agg.conv / agg.sessions) * 100).toFixed(2) : "0";
+  const allLoading = results.every((r) => r.isLoading);
+  const periodLabel = isCustom ? `${startDate} → ${endDate}` : `${days}d`;
+
+  return (
+    <div className="space-y-4">
+      {/* Aggregate KPIs */}
+      <div className="grid grid-cols-5 gap-2">
+        <StatCard
+          label="Konwersje"
+          value={allLoading ? "…" : agg.conv}
+          color="#22c55e"
+        />
+        <StatCard
+          label="GMV"
+          value={allLoading ? "…" : `${fmtNumber(Math.round(agg.rev))} zł`}
+          color="#a855f7"
+        />
+        <StatCard
+          label="Mój przychód"
+          value={allLoading ? "…" : `${fmtNumber(Math.round(agg.income))} zł`}
+          color="#f59e0b"
+        />
+        <StatCard
+          label="Conv. Rate"
+          value={allLoading ? "…" : `${cr}%`}
+          color="#06b6d4"
+        />
+        <StatCard
+          label="Śr. zamówienie"
+          value={allLoading ? "…" : `${avgOrder.toFixed(0)} zł`}
+          color="#3b82f6"
+        />
+      </div>
+
+      {/* Per-domain breakdown */}
+      <div className="space-y-2">
+        <div className="text-[9px] text-panel-muted uppercase tracking-wider">
+          Konwersje per domena — {periodLabel}
+        </div>
+
+        {results.map((r) => {
+          if (r.isLoading) {
+            return (
+              <div
+                key={r.id}
+                className="bg-panel-card border border-panel-border rounded-lg p-3 flex items-center gap-3"
+              >
+                <Globe className="w-3.5 h-3.5 text-panel-muted" />
+                <span className="text-xs font-semibold">{r.label}</span>
+                <div className="w-3 h-3 border-2 border-accent-green border-t-transparent rounded-full animate-spin ml-auto" />
+              </div>
+            );
+          }
+
+          const t = r.data?.totals;
+          const hasError = r.data?.error;
+
+          if (hasError || !t) {
+            return (
+              <div
+                key={r.id}
+                className="bg-panel-card border border-panel-border rounded-lg p-3 flex items-center gap-3 opacity-50"
+              >
+                <Globe className="w-3.5 h-3.5 text-panel-muted" />
+                <span className="text-xs text-panel-muted">{r.label}</span>
+                <span className="text-[10px] text-panel-dim ml-auto">
+                  Brak GA4
+                </span>
+              </div>
+            );
+          }
+
+          if (t.conversions === 0 && t.revenue === 0) {
+            return (
+              <div
+                key={r.id}
+                className="bg-panel-card border border-panel-border rounded-lg p-3 flex items-center gap-3 opacity-60"
+              >
+                <Globe className="w-3.5 h-3.5 text-panel-muted" />
+                <span className="text-xs text-panel-muted">{r.label}</span>
+                <span className="text-[10px] text-panel-dim ml-auto">
+                  0 konwersji
+                </span>
+              </div>
+            );
+          }
+
+          const rate = r.ecom ? 0.12 : 1.0;
+          const income = (t.revenue || 0) * rate;
+          const comp = r.data.comparison;
+          const convChange = comp?.change?.conversions;
+          const revChange = comp?.change?.revenue;
+
+          return (
+            <div
+              key={r.id}
+              className="bg-panel-card border border-panel-border rounded-lg p-4 space-y-3"
+            >
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5 text-accent-blue" />
+                <span className="text-xs font-semibold">{r.label}</span>
+                {r.ecom && (
+                  <span className="text-[8px] bg-accent-amber/10 text-accent-amber px-1.5 py-0.5 rounded">
+                    e-commerce
+                  </span>
+                )}
+
+                {/* Comparison badges */}
+                <div className="ml-auto flex gap-2">
+                  {convChange != null && convChange !== 0 && (
+                    <span
+                      className={cn(
+                        "text-[9px] font-mono flex items-center gap-0.5",
+                        convChange > 0
+                          ? "text-accent-green"
+                          : "text-accent-red",
+                      )}
+                    >
+                      {convChange > 0 ? (
+                        <TrendingUp className="w-2.5 h-2.5" />
+                      ) : (
+                        <TrendingDown className="w-2.5 h-2.5" />
+                      )}
+                      {convChange > 0 ? "+" : ""}
+                      {(convChange * 100).toFixed(0)}% conv
+                    </span>
+                  )}
+                  {revChange != null && revChange !== 0 && (
+                    <span
+                      className={cn(
+                        "text-[9px] font-mono flex items-center gap-0.5",
+                        revChange > 0 ? "text-accent-green" : "text-accent-red",
+                      )}
+                    >
+                      {revChange > 0 ? "+" : ""}
+                      {(revChange * 100).toFixed(0)}% rev
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div
+                className={cn(
+                  "grid gap-2",
+                  r.ecom ? "grid-cols-6" : "grid-cols-5",
+                )}
+              >
+                <MiniStatSmall
+                  label="Konwersje"
+                  value={t.conversions}
+                  color="#22c55e"
+                />
+                <MiniStatSmall
+                  label="Przychód"
+                  value={`${fmtNumber(Math.round(t.revenue))} zł`}
+                  color="#a855f7"
+                />
+                {r.ecom && (
+                  <MiniStatSmall
+                    label="Prowizja 12%"
+                    value={`${fmtNumber(Math.round(income))} zł`}
+                    color="#f59e0b"
+                  />
+                )}
+                <MiniStatSmall
+                  label="Conv. Rate"
+                  value={`${t.conversionRate}%`}
+                  color="#06b6d4"
+                />
+                <MiniStatSmall
+                  label="Śr. zamówienie"
+                  value={`${t.avgOrderValue.toFixed(0)} zł`}
+                  color="#3b82f6"
+                />
+                <MiniStatSmall
+                  label="Sesje"
+                  value={fmtNumber(t.sessions)}
+                  color="#64748b"
+                />
+              </div>
+
+              {/* Channel mini row */}
+              {r.data.byChannel?.length > 0 && (
+                <div className="flex gap-3 text-[9px] flex-wrap">
+                  {r.data.byChannel
+                    .filter((ch: any) => ch.conversions > 0)
+                    .slice(0, 5)
+                    .map((ch: any) => (
+                      <span
+                        key={ch.channel}
+                        className="flex items-center gap-1"
+                      >
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{
+                            backgroundColor: ch.channel.includes("Organic")
+                              ? "#22c55e"
+                              : ch.channel.includes("Paid") ||
+                                  ch.channel.includes("Cross")
+                                ? "#ef4444"
+                                : ch.channel === "Direct"
+                                  ? "#3b82f6"
+                                  : "#f59e0b",
+                          }}
+                        />
+                        <span className="text-panel-muted">{ch.channel}:</span>
+                        <span className="text-accent-green font-mono">
+                          {ch.conversions}
+                        </span>
+                        <span className="text-accent-purple font-mono">
+                          {Math.round(ch.revenue)} zł
+                        </span>
+                      </span>
+                    ))}
+                </div>
+              )}
+
+              {/* Device mini row */}
+              {r.data.byDevice?.length > 0 && (
+                <div className="flex gap-4 text-[9px]">
+                  {r.data.byDevice.map((d: any) => {
+                    const DIcon =
+                      d.device === "desktop"
+                        ? Monitor
+                        : d.device === "mobile"
+                          ? Smartphone
+                          : Tablet;
+                    return (
+                      <span key={d.device} className="flex items-center gap-1">
+                        <DIcon className="w-2.5 h-2.5 text-panel-muted" />
+                        <span className="text-panel-muted capitalize">
+                          {d.device}
+                        </span>
+                        <span className="text-accent-green font-mono">
+                          {d.conversions}
+                        </span>
+                        <span className="text-panel-dim font-mono">
+                          {(d.conversionRate * 100).toFixed(1)}%
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MiniStatSmall({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  color: string;
+}) {
+  return (
+    <div className="text-center">
+      <div className="text-sm font-bold font-mono" style={{ color }}>
+        {value}
+      </div>
+      <div className="text-[8px] text-panel-muted">{label}</div>
     </div>
   );
 }
