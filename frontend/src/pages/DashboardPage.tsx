@@ -11,10 +11,14 @@ import { useNavigate } from "react-router-dom";
 import {
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  Cell,
+  ReferenceLine,
 } from "recharts";
 import { AddDomainModal } from "../components/AddDomainModal";
 import {
@@ -26,14 +30,38 @@ import {
   RefreshCw,
   Plus,
   TrendingUp,
+  TrendingDown,
+  ShoppingCart,
+  DollarSign,
+  Percent,
+  Shield,
+  Link2,
+  Zap,
+  ArrowRight,
+  BarChart3,
+  PiggyBank,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+
+function fmt(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+
+const DOMAIN_ORDER: Record<string, number> = {
+  cmn9fo4dn0004qrdye8hjou1g: 1,
+  cmn9fo4db0001qrdyh34ldxul: 2,
+  cmn9fo4d50000qrdy96h2sdr6: 3,
+  cmn9fo4dr0005qrdyj39z8k9e: 4,
+  cmn9fo4df0002qrdywpl8ymwe: 5,
+  cmn9fo4e50009qrdyog51y31k: 6,
+};
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [showAddDomain, setShowAddDomain] = useState(false);
 
+  // ─── Data queries ───
   const { data: overview, isLoading } = useQuery({
     queryKey: ["overview"],
     queryFn: api.getOverview,
@@ -46,7 +74,39 @@ export function DashboardPage() {
 
   const { data: alerts } = useQuery({
     queryKey: ["alerts", "unresolved"],
-    queryFn: () => api.getAlerts("resolved=false&limit=5"),
+    queryFn: () => api.getAlerts("resolved=false&limit=8"),
+  });
+
+  // This month financial summary
+  const now = new Date();
+  const monthStart =
+    now.getFullYear() +
+    "-" +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    "-01";
+  const today = fmt(now);
+
+  const { data: financial } = useQuery({
+    queryKey: ["global-summary", monthStart, today],
+    queryFn: () => api.getGlobalSummary(monthStart, today),
+  });
+
+  // Moz overview
+  const { data: mozData } = useQuery({
+    queryKey: ["moz-analytics"],
+    queryFn: api.getMozAnalytics,
+    staleTime: 300_000,
+  });
+
+  // 30d traffic
+  const { data: traffic30d } = useQuery({
+    queryKey: ["overview-traffic-30d"],
+    queryFn: async () => {
+      // Use overview's recentTraffic but we want 30 days
+      // Fallback to 7d from overview
+      return null;
+    },
+    enabled: false,
   });
 
   const syncAll = useMutation({
@@ -78,14 +138,27 @@ export function DashboardPage() {
     recentTraffic: [],
   };
 
+  const ft = financial?.totals;
+  const sortedDomains = [...(domains || [])].sort((a: any, b: any) => {
+    const aOrder = DOMAIN_ORDER[a.id] || 100;
+    const bOrder = DOMAIN_ORDER[b.id] || 100;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return (b.totalClicks || 0) - (a.totalClicks || 0);
+  });
+
+  // Moz aggregated
+  const mozDomains = mozData?.domains || [];
+  const avgDA = mozData?.stats?.avgDA || 0;
+  const totalBacklinks = mozData?.stats?.totalMozBacklinks || 0;
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
+    <div className="p-6 space-y-4">
+      {/* ═══ HEADER ═══ */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-panel-muted mt-0.5">
-            Przegląd wszystkich domen
+            {o.domains} domen · {fmtDate(new Date().toISOString())}
           </p>
         </div>
         <div className="flex gap-2">
@@ -95,7 +168,6 @@ export function DashboardPage() {
           >
             <Plus className="w-3 h-3" /> Dodaj domenę
           </button>
-
           <button
             className="btn btn-ghost text-xs"
             onClick={() => syncAll.mutate()}
@@ -115,13 +187,93 @@ export function DashboardPage() {
             disabled={pullAll.isPending}
           >
             <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
-            Pull GSC (7 dni)
+            Pull GSC (7d)
           </button>
         </div>
       </div>
 
-      {/* Stat cards — kompaktowy rząd */}
-      <div className="flex gap-2">
+      {/* ═══ BUSINESS KPIs — this month ═══ */}
+      {ft && (
+        <div className="bg-panel-card border border-panel-border rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <PiggyBank className="w-4 h-4 text-accent-green" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">
+                W tym miesiącu
+              </span>
+              <span className="text-[9px] text-panel-dim font-mono">
+                {monthStart} → {today}
+              </span>
+            </div>
+            <button
+              onClick={() => navigate("/profitability")}
+              className="text-[10px] text-accent-blue hover:underline flex items-center gap-1"
+            >
+              Szczegóły <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="grid grid-cols-6 gap-2">
+            <MiniKpi
+              icon={<DollarSign className="w-3.5 h-3.5" />}
+              label="Przychód netto"
+              value={`${fmtNumber(Math.round(ft.totalIncome || ft.commission))} zł`}
+              color="#22c55e"
+            />
+            <MiniKpi
+              icon={<TrendingDown className="w-3.5 h-3.5" />}
+              label="Koszty"
+              value={`${fmtNumber(Math.round(ft.totalCosts))} zł`}
+              color="#ef4444"
+            />
+            <MiniKpi
+              label={ft.profit >= 0 ? "Zysk netto" : "Strata"}
+              value={`${ft.profit >= 0 ? "+" : ""}${fmtNumber(Math.round(ft.profit))} zł`}
+              color={ft.profit >= 0 ? "#22c55e" : "#ef4444"}
+              bold
+            />
+            <MiniKpi
+              icon={<ShoppingCart className="w-3.5 h-3.5" />}
+              label="Konwersje"
+              value={ft.conversions}
+              color="#06b6d4"
+            />
+            <MiniKpi
+              icon={<Percent className="w-3.5 h-3.5" />}
+              label="Marża"
+              value={`${ft.margin.toFixed(1)}%`}
+              color={ft.margin >= 0 ? "#22c55e" : "#ef4444"}
+            />
+            <MiniKpi
+              label="GMV"
+              value={`${fmtNumber(Math.round(ft.revenue))} zł`}
+              color="#a855f7"
+            />
+          </div>
+
+          {/* Daily profit mini chart */}
+          {financial?.daily?.length > 3 && (
+            <div className="mt-3">
+              <ResponsiveContainer width="100%" height={60}>
+                <BarChart data={financial.daily}>
+                  <Bar dataKey="profit" radius={[1, 1, 0, 0]}>
+                    {financial.daily.map((d: any, i: number) => (
+                      <Cell
+                        key={i}
+                        fill={d.profit >= 0 ? "#22c55e" : "#ef4444"}
+                        fillOpacity={0.5}
+                      />
+                    ))}
+                  </Bar>
+                  <ReferenceLine y={0} stroke="#475569" strokeDasharray="2 2" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ SEO + MOZ KPIs ═══ */}
+      <div className="grid grid-cols-7 gap-2">
         <StatCard
           accent="#3b82f6"
           icon={Globe}
@@ -152,93 +304,174 @@ export function DashboardPage() {
           value={o.alertCount}
           label="Alerty"
         />
+        <StatCard
+          accent="#f59e0b"
+          icon={Shield}
+          value={avgDA || "—"}
+          label="Śr. DA (Moz)"
+        />
+        <StatCard
+          accent="#8b5cf6"
+          icon={Link2}
+          value={fmtNumber(totalBacklinks)}
+          label="Backlinki (Moz)"
+        />
       </div>
 
-      {/* Traffic chart */}
-      {o.recentTraffic.length > 0 && (
-        <div className="bg-panel-card border border-panel-border rounded-lg p-5">
-          <h2 className="text-sm font-semibold mb-4">Ruch — ostatnie 7 dni</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={o.recentTraffic}>
-              <defs>
-                <linearGradient id="clicksGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: "#64748b" }}
-                tickFormatter={(d) =>
-                  new Date(d).toLocaleDateString("pl-PL", {
-                    day: "2-digit",
-                    month: "2-digit",
-                  })
-                }
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "#64748b" }}
-                tickFormatter={fmtNumber}
-                axisLine={false}
-                tickLine={false}
-                width={50}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#1a2235",
-                  border: "1px solid #1e2a3a",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                }}
-                labelFormatter={(d) => new Date(d).toLocaleDateString("pl-PL")}
-                formatter={(v: number) => [fmtNumber(v)]}
-              />
-              <Area
-                type="monotone"
-                dataKey="clicks"
-                stroke="#3b82f6"
-                fill="url(#clicksGrad)"
-                strokeWidth={2}
-                name="Kliknięcia"
-              />
-              <Area
-                type="monotone"
-                dataKey="impressions"
-                stroke="#a855f7"
-                fill="none"
-                strokeWidth={1.5}
-                strokeDasharray="4 2"
-                name="Wyświetlenia"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      {/* ═══ TRAFFIC CHART + DOMAIN REVENUE BREAKDOWN ═══ */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Traffic chart */}
+        {o.recentTraffic.length > 0 && (
+          <div className="col-span-2 bg-panel-card border border-panel-border rounded-lg p-4">
+            <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
+              Ruch — ostatnie 7 dni (GSC)
+            </div>
+            <ResponsiveContainer width="100%" height={160}>
+              <AreaChart data={o.recentTraffic}>
+                <defs>
+                  <linearGradient id="clicksGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 8, fill: "#64748b" }}
+                  tickFormatter={(d) =>
+                    new Date(d).toLocaleDateString("pl-PL", {
+                      day: "2-digit",
+                      month: "2-digit",
+                    })
+                  }
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 8, fill: "#64748b" }}
+                  tickFormatter={fmtNumber}
+                  axisLine={false}
+                  tickLine={false}
+                  width={40}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "#1a2235",
+                    border: "1px solid #1e2a3a",
+                    borderRadius: "4px",
+                    fontSize: "9px",
+                  }}
+                  formatter={(v: number) => [fmtNumber(v)]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="clicks"
+                  stroke="#3b82f6"
+                  fill="url(#clicksGrad)"
+                  strokeWidth={2}
+                  name="Kliknięcia"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="impressions"
+                  stroke="#a855f7"
+                  fill="none"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 2"
+                  name="Wyświetlenia"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
-      {/* Domains table */}
+        {/* Domain revenue breakdown (this month) */}
+        {financial?.domainBreakdown?.length > 0 && (
+          <div className="bg-panel-card border border-panel-border rounded-lg p-4">
+            <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
+              Przychód per domena (ten miesiąc)
+            </div>
+            <div className="space-y-2">
+              {financial.domainBreakdown.slice(0, 6).map((d: any) => {
+                const maxRev = financial.domainBreakdown[0]?.commission || 1;
+                const pct = Math.min(
+                  ((d.commission + (d.manualRevenue || 0)) / maxRev) * 100,
+                  100,
+                );
+                return (
+                  <div key={d.domainId} className="space-y-0.5">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-panel-text truncate max-w-[120px]">
+                        {d.label}
+                      </span>
+                      <span className="text-accent-green font-mono font-bold">
+                        {fmtNumber(
+                          Math.round(d.commission + (d.manualRevenue || 0)),
+                        )}{" "}
+                        zł
+                      </span>
+                    </div>
+                    <div className="h-1 bg-panel-border/30 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-accent-green/60"
+                        style={{ width: `${Math.max(pct, 3)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ═══ DOMAINS TABLE ═══ */}
       <div className="bg-panel-card border border-panel-border rounded overflow-x-auto">
+        <div className="px-4 py-2.5 border-b border-panel-border flex items-center justify-between">
+          <span className="text-[10px] text-panel-muted uppercase tracking-wider">
+            Domeny ({sortedDomains.length})
+          </span>
+          <div className="flex gap-3 text-[10px]">
+            <button
+              onClick={() => navigate("/profitability")}
+              className="text-accent-green hover:underline"
+            >
+              Rentowność →
+            </button>
+            <button
+              onClick={() => navigate("/conversions")}
+              className="text-accent-blue hover:underline"
+            >
+              Konwersje →
+            </button>
+            <button
+              onClick={() => navigate("/moz")}
+              className="text-accent-amber hover:underline"
+            >
+              Moz →
+            </button>
+          </div>
+        </div>
         <table className="data-table">
           <thead>
             <tr>
               <th>Domena</th>
               <th>Kategoria</th>
               <th>Indeks</th>
-              <th>Stron</th>
               <th>Kliknięcia</th>
               <th>Wyświetl.</th>
               <th>Pozycja</th>
+              <th>DA</th>
+              <th>Backlinki</th>
               <th>GSC</th>
-              <th>Sitemap</th>
             </tr>
           </thead>
           <tbody>
-            {(domains || []).map((d: any) => {
+            {sortedDomains.map((d: any) => {
               const pct =
                 d.totalPages > 0
                   ? Math.round((d.indexedPages / d.totalPages) * 100)
                   : 0;
+              const mozDomain = mozDomains.find((m: any) => m.id === d.id);
               return (
                 <tr
                   key={d.id}
@@ -278,20 +511,33 @@ export function DashboardPage() {
                     )}
                   >
                     {pct}%
+                    <span className="text-[9px] text-panel-dim ml-1">
+                      {d.indexedPages}/{d.totalPages}
+                    </span>
                   </td>
-                  <td>
-                    {d.indexedPages}/{d.totalPages}
-                  </td>
-                  <td className="text-accent-cyan">
+                  <td className="text-accent-cyan font-mono">
                     {fmtNumber(d.totalClicks)}
                   </td>
-                  <td>{fmtNumber(d.totalImpressions)}</td>
-                  <td>{d.avgPosition ? d.avgPosition.toFixed(1) : "—"}</td>
-                  <td className="text-panel-muted text-[10px]">
-                    {fmtDate(d.lastGscPull)}
+                  <td className="font-mono">{fmtNumber(d.totalImpressions)}</td>
+                  <td className="font-mono">
+                    {d.avgPosition ? d.avgPosition.toFixed(1) : "—"}
+                  </td>
+                  <td>
+                    {mozDomain?.mozDA ? (
+                      <span className="text-accent-amber font-mono font-semibold">
+                        {mozDomain.mozDA}
+                      </span>
+                    ) : (
+                      <span className="text-panel-dim">—</span>
+                    )}
+                  </td>
+                  <td className="text-panel-muted font-mono">
+                    {mozDomain?.mozBacklinks
+                      ? fmtNumber(mozDomain.mozBacklinks)
+                      : "—"}
                   </td>
                   <td className="text-panel-muted text-[10px]">
-                    {fmtDate(d.lastSitemapSync)}
+                    {fmtDate(d.lastGscPull)}
                   </td>
                 </tr>
               );
@@ -300,50 +546,124 @@ export function DashboardPage() {
         </table>
       </div>
 
-      {/* Recent alerts */}
-      {alerts && alerts.length > 0 && (
-        <div className="bg-panel-card border border-panel-border rounded-lg overflow-x-auto">
-          <div className="px-5 py-3 border-b border-panel-border flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Ostatnie alerty</h2>
-            <button
-              className="text-xs text-accent-blue hover:underline"
-              onClick={() => navigate("/alerts")}
-            >
-              Wszystkie →
-            </button>
-          </div>
-          <div className="divide-y divide-panel-border/50">
-            {alerts.map((a: any) => (
-              <div
-                key={a.id}
-                className="px-5 py-3 flex items-center gap-3 text-xs"
-              >
-                <AlertTriangle
-                  className={cn(
-                    "w-3.5 h-3.5 shrink-0",
-                    a.severity === "HIGH" || a.severity === "CRITICAL"
-                      ? "text-accent-red"
-                      : "text-accent-amber",
-                  )}
-                />
-                <span className="text-panel-dim font-mono">
-                  {a.domain?.label || a.domain?.domain}
-                </span>
-                <span className="text-panel-text truncate">{a.title}</span>
-                <span className="ml-auto text-panel-muted font-mono shrink-0">
-                  {fmtDate(a.createdAt)}
+      {/* ═══ BOTTOM ROW: ALERTS + COST BREAKDOWN ═══ */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Alerts */}
+        {alerts && alerts.length > 0 && (
+          <div className="bg-panel-card border border-panel-border rounded-lg overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-panel-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-accent-red" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  Alerty ({o.alertCount})
                 </span>
               </div>
-            ))}
+              <button
+                className="text-[10px] text-accent-blue hover:underline"
+                onClick={() => navigate("/alerts")}
+              >
+                Wszystkie →
+              </button>
+            </div>
+            <div className="divide-y divide-panel-border/50 max-h-[240px] overflow-y-auto">
+              {alerts.map((a: any) => (
+                <div
+                  key={a.id}
+                  className="px-4 py-2.5 flex items-center gap-2 text-[10px] hover:bg-panel-bg/30 transition-colors"
+                >
+                  <span
+                    className={cn(
+                      "w-1.5 h-1.5 rounded-full shrink-0",
+                      a.severity === "HIGH" || a.severity === "CRITICAL"
+                        ? "bg-accent-red"
+                        : a.severity === "MEDIUM"
+                          ? "bg-accent-amber"
+                          : "bg-accent-blue",
+                    )}
+                  />
+                  <span className="text-panel-dim font-mono shrink-0 w-[80px] truncate">
+                    {a.domain?.label || a.domain?.domain}
+                  </span>
+                  <span className="text-panel-text truncate flex-1">
+                    {a.title}
+                  </span>
+                  <span className="text-panel-muted font-mono shrink-0">
+                    {fmtDate(a.createdAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Cost structure */}
+        {financial?.costBreakdown?.length > 0 && (
+          <div className="bg-panel-card border border-panel-border rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[9px] text-panel-muted uppercase tracking-wider">
+                Struktura kosztów (ten miesiąc)
+              </span>
+              <span className="text-[10px] text-accent-red font-mono font-bold">
+                {fmtNumber(Math.round(ft?.totalCosts || 0))} zł
+              </span>
+            </div>
+            <div className="space-y-2">
+              {financial.costBreakdown.map((c: any) => {
+                const CATS: Record<string, { icon: string; color: string }> = {
+                  GOOGLE_ADS: { icon: "📢", color: "#ef4444" },
+                  INFRASTRUCTURE: { icon: "🖥️", color: "#3b82f6" },
+                  TAXES: { icon: "🏛️", color: "#f59e0b" },
+                  ZUS: { icon: "🏥", color: "#a855f7" },
+                  TOOLS: { icon: "🔧", color: "#06b6d4" },
+                  MARKETING: { icon: "📣", color: "#ec4899" },
+                  OTHER: { icon: "📋", color: "#64748b" },
+                };
+                const cat = CATS[c.category] || {
+                  icon: "📋",
+                  color: "#64748b",
+                };
+                const pctCost =
+                  ft && ft.totalCosts > 0
+                    ? Math.round((c.amount / ft.totalCosts) * 100)
+                    : 0;
+                return (
+                  <div key={c.category} className="space-y-0.5">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="flex items-center gap-1">
+                        <span>{cat.icon}</span>
+                        <span className="text-panel-muted">{c.category}</span>
+                      </span>
+                      <span className="font-mono" style={{ color: cat.color }}>
+                        {fmtNumber(Math.round(c.amount))} zł
+                        <span className="text-panel-dim ml-1">{pctCost}%</span>
+                      </span>
+                    </div>
+                    <div className="h-1 bg-panel-border/30 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(pctCost, 2)}%`,
+                          backgroundColor: cat.color,
+                          opacity: 0.6,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
       {showAddDomain && (
         <AddDomainModal onClose={() => setShowAddDomain(false)} />
       )}
     </div>
   );
 }
+
+// ─── Components ───
 
 function StatCard({
   accent,
@@ -368,6 +688,42 @@ function StatCard({
         </span>
       </div>
       <div className="text-[9px] text-panel-muted mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+function MiniKpi({
+  icon,
+  label,
+  value,
+  color,
+  bold,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  value: string | number;
+  color: string;
+  bold?: boolean;
+}) {
+  return (
+    <div className="text-center">
+      <div className="flex items-center justify-center gap-1 mb-0.5">
+        {icon && (
+          <span style={{ color }} className="opacity-50">
+            {icon}
+          </span>
+        )}
+        <span
+          className={cn(
+            "font-mono",
+            bold ? "text-lg font-bold" : "text-sm font-semibold",
+          )}
+          style={{ color }}
+        >
+          {value}
+        </span>
+      </div>
+      <div className="text-[8px] text-panel-muted">{label}</div>
     </div>
   );
 }
