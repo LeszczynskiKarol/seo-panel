@@ -217,7 +217,7 @@ export function DashboardPage() {
               icon={<DollarSign className="w-3.5 h-3.5" />}
               label="Przychód netto"
               value={`${fmtNumber(Math.round(ft.totalIncome || ft.commission))} zł`}
-              color="#22c55e"
+              color="#3022c5"
             />
             <MiniKpi
               icon={<TrendingDown className="w-3.5 h-3.5" />}
