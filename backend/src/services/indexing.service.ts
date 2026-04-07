@@ -100,6 +100,9 @@ export class IndexingService {
           }
         } catch {}
 
+        const verdict = this.mapVerdict(result.verdict);
+        const now = new Date();
+
         // Check for status change
         const statusChanged =
           page.indexingVerdict !== "UNCHECKED" &&
