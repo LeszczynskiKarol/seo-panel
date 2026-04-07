@@ -2125,6 +2125,7 @@ function PagesTab({
             <tr>
               <th className="w-4"></th>
               <SortHeader col="path" label="URL" />
+              <SortHeader col="title" label="Tytuł" />
               <SortHeader col="indexingVerdict" label="Status" />
               <SortHeader col="clicks" label="Kliknięcia" />
               <SortHeader col="impressions" label="Wyświetl." />
@@ -2225,6 +2226,12 @@ function ExpandablePageRow({
             />
           )}
         </td>
+        <td
+          className="max-w-[250px] truncate text-[10px] text-panel-muted"
+          title={p.title || ""}
+        >
+          {p.title || "—"}
+        </td>
         <td>
           <span className={cn("badge", verdictBadge(p.indexingVerdict))}>
             {p.indexingVerdict}
@@ -2253,7 +2260,7 @@ function ExpandablePageRow({
 
       {expanded && (
         <tr>
-          <td colSpan={9} className="!whitespace-normal p-0">
+          <td colSpan={10} className="!whitespace-normal p-0">
             <div className="border-t border-panel-border bg-panel-bg/20 px-4 py-3 overflow-hidden">
               {!queryData?.queries?.length ? (
                 <div className="text-xs text-panel-muted text-center py-2">

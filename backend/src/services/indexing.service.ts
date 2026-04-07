@@ -86,8 +86,19 @@ export class IndexingService {
           continue;
         }
 
-        const verdict = this.mapVerdict(result.verdict);
-        const now = new Date();
+        // Fetch page title
+        let pageTitle: string | null = null;
+        try {
+          const titleRes = await fetch(page.url, {
+            redirect: "follow",
+            signal: AbortSignal.timeout(5000),
+          });
+          if (titleRes.ok) {
+            const html = await titleRes.text();
+            const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+            if (match) pageTitle = match[1].trim().slice(0, 500);
+          }
+        } catch {}
 
         // Check for status change
         const statusChanged =
@@ -98,6 +109,7 @@ export class IndexingService {
           where: { id: page.id },
           data: {
             indexingVerdict: verdict,
+            ...(pageTitle ? { title: pageTitle } : {}),
             coverageState: result.coverageState,
             robotsTxtState: result.robotsTxtState,
             indexingState: result.indexingState,
