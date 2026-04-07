@@ -2209,14 +2209,6 @@ function ExpandablePageRow({
           {expanded ? "▼" : "▶"}
         </td>{" "}
         <td className="max-w-[300px] truncate">
-          <a
-            href={p.url}
-            target="_blank"
-            className="text-accent-blue hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {p.path}
-          </a>
           {p.indexingVerdict !== "FAIL" && (
             <RemoveFromIndexButton
               domainId={domainId}
@@ -2225,6 +2217,14 @@ function ExpandablePageRow({
               verdict={p.indexingVerdict}
             />
           )}
+          <a
+            href={p.url}
+            target="_blank"
+            className="text-accent-blue hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {p.path}
+          </a>
         </td>
         <td
           className="max-w-[250px] truncate text-[10px] text-panel-muted"
