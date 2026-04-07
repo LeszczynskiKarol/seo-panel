@@ -65,6 +65,10 @@ export class IndexingService {
     let checked = 0;
     let errors = 0;
 
+    console.log(
+      `[Indexing] Starting check for ${domain.domain}: ${pages.length} pages to check`,
+    );
+
     for (const page of pages) {
       try {
         let result = await this.inspectUrl(page.url, siteUrl);
@@ -83,6 +87,9 @@ export class IndexingService {
 
         if (result.error) {
           errors++;
+          console.log(
+            `[Indexing] ❌ ${page.path}: API error ${(result as any).status}`,
+          );
           continue;
         }
 
@@ -131,6 +138,27 @@ export class IndexingService {
             }
           }
         } catch {}
+
+        // If title is generic (same as homepage) → derive from path
+        if (!pageTitle || page.path === "/") {
+          // keep as is
+        } else {
+          // Check if it's a generic SPA title (fetch homepage title to compare)
+          const pathSegments = page.path.replace(/^\/|\/$/g, "").split("/");
+          const lastSegment = pathSegments[pathSegments.length - 1] || "";
+          const derived = lastSegment
+            .replace(/-/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+
+          // If fetched title doesn't contain any word from path → it's generic, use derived
+          const pathWords = lastSegment.split("-").filter((w) => w.length > 3);
+          const titleLower = (pageTitle || "").toLowerCase();
+          const hasPathWord = pathWords.some((w) => titleLower.includes(w));
+
+          if (!hasPathWord && derived) {
+            pageTitle = derived;
+          }
+        }
 
         const verdict = this.mapVerdict(result.verdict);
         const now = new Date();
@@ -182,12 +210,15 @@ export class IndexingService {
         }
 
         checked++;
+        console.log(
+          `[Indexing] ✅ ${page.path}: ${verdict} (title: ${pageTitle?.slice(0, 40) || "none"}) [${checked}/${pages.length}]`,
+        );
 
         // Rate limit: ~1 req/sec for URL Inspection API
         await new Promise((r) => setTimeout(r, 1200));
       } catch (err: any) {
         errors++;
-        console.error(`Inspection error for ${page.url}: ${err.message}`);
+        console.error(`[Indexing] 💥 ${page.path}: ${err.message}`);
       }
     }
 
@@ -207,6 +238,9 @@ export class IndexingService {
       data: { indexedPages: indexed, totalPages: total },
     });
 
+    console.log(
+      `[Indexing] Done ${domain.domain}: ${checked} checked, ${errors} errors, ${indexed}/${total} indexed`,
+    );
     return { checked, errors };
   }
 
