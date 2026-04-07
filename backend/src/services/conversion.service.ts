@@ -9,9 +9,6 @@ type Row = analyticsdata_v1beta.Schema$Row;
 
 const COMMISSION_RATE = 0.12;
 
-// Paths that are NOT real landing pages — checkout flow, success pages,
-// payment redirects, cart, (not set). These appear as "landing pages"
-// because Stripe redirect breaks GA4 session continuity.
 const EXCLUDED_LANDING_PATHS = [
   "/checkout",
   "/checkout/",
@@ -37,7 +34,7 @@ export class ConversionService {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 1. CONVERSION OVERVIEW — trends, totals, breakdown
+  // 1. CONVERSION OVERVIEW
   // ═══════════════════════════════════════════════════════════
 
   async getConversionOverview(
@@ -52,7 +49,7 @@ export class ConversionService {
     const analytics = await this.getAnalyticsData();
     const propertyId = integration.propertyId!;
 
-    // ─── 1a. Daily conversion trend ───
+    // ─── 1a. Daily sessions/users from GA4 (NO conversions/revenue!) ───
     const dailyRes = (await analytics.properties.runReport({
       property: propertyId,
       requestBody: {
@@ -61,9 +58,6 @@ export class ConversionService {
         metrics: [
           { name: "sessions" },
           { name: "totalUsers" },
-          { name: "conversions" },
-          { name: "totalRevenue" },
-          { name: "ecommercePurchases" },
           { name: "addToCarts" },
           { name: "checkouts" },
         ],
@@ -72,32 +66,29 @@ export class ConversionService {
       },
     })) as { data: RunReportResponse };
 
-    const daily = (dailyRes.data.rows || []).map((r: Row) => {
+    const ga4Map = new Map<
+      string,
+      {
+        sessions: number;
+        users: number;
+        addToCarts: number;
+        checkouts: number;
+      }
+    >();
+    for (const r of dailyRes.data.rows || []) {
       const dateStr = r.dimensionValues?.[0]?.value || "";
       const m = r.metricValues || [];
       const gn = (i: number) => parseFloat(m[i]?.value || "0") || 0;
-
-      const sessions = Math.round(gn(0));
-      const conversions = Math.round(gn(2));
-      const revenue = gn(3);
-
-      return {
-        date: `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`,
-        sessions,
+      const formatted = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+      ga4Map.set(formatted, {
+        sessions: Math.round(gn(0)),
         users: Math.round(gn(1)),
-        conversions,
-        revenue: Math.round(revenue * 100) / 100,
-        purchases: Math.round(gn(4)),
-        addToCarts: Math.round(gn(5)),
-        checkouts: Math.round(gn(6)),
-        conversionRate: sessions > 0 ? conversions / sessions : 0,
-        commission: Math.round(revenue * COMMISSION_RATE * 100) / 100,
-      };
-    });
+        addToCarts: Math.round(gn(2)),
+        checkouts: Math.round(gn(3)),
+      });
+    }
 
-    // ─── MERGE with IntegrationDaily (backfilled/synced data) ───
-    // For days where GA4 live reports 0 conversions but IntegrationDaily
-    // has data (e.g. from backfill), supplement the daily array.
+    // ─── 1a2. Conversions/revenue ONLY from IntegrationDaily (webhook = truth) ───
     const localDaily = await prisma.integrationDaily.findMany({
       where: {
         integrationId: integration.id,
@@ -106,46 +97,42 @@ export class ConversionService {
       orderBy: { date: "asc" },
     });
 
-    if (localDaily.length > 0) {
-      const dailyMap = new Map(daily.map((d) => [d.date, d]));
+    // Build daily: GA4 for sessions/users, IntegrationDaily for conversions/revenue
+    const allDates = new Set<string>();
+    for (const [d] of ga4Map) allDates.add(d);
+    for (const ld of localDaily)
+      allDates.add(ld.date.toISOString().split("T")[0]);
 
-      for (const ld of localDaily) {
-        const dateStr = ld.date.toISOString().split("T")[0];
-        const existing = dailyMap.get(dateStr);
-        const localConv = ld.conversions || 0;
-        const localRev = ld.revenue || 0;
+    const daily = Array.from(allDates)
+      .sort()
+      .map((dateStr) => {
+        const ga4 = ga4Map.get(dateStr);
+        const local = localDaily.find(
+          (ld) => ld.date.toISOString().split("T")[0] === dateStr,
+        );
 
-        if (!existing) {
-          // Day exists in IntegrationDaily but not in GA4 live → add it
-          const sessions = ld.sessions || 0;
-          daily.push({
-            date: dateStr,
-            sessions,
-            users: ld.users || 0,
-            conversions: localConv,
-            revenue: Math.round(localRev * 100) / 100,
-            purchases: localConv, // approximate
-            addToCarts: 0,
-            checkouts: 0,
-            conversionRate: sessions > 0 ? localConv / sessions : 0,
-            commission: Math.round(localRev * COMMISSION_RATE * 100) / 100,
-          });
-        } else if (existing.conversions === 0 && localConv > 0) {
-          // GA4 live has 0 conversions but IntegrationDaily has backfilled data → merge
-          existing.conversions = localConv;
-          existing.revenue = Math.round(localRev * 100) / 100;
-          existing.purchases = localConv;
-          existing.commission =
-            Math.round(localRev * COMMISSION_RATE * 100) / 100;
-          existing.conversionRate =
-            existing.sessions > 0 ? localConv / existing.sessions : 0;
-        }
-        // If GA4 live already has conversions, keep GA4 data (no double-counting)
-      }
+        const sessions = ga4?.sessions || local?.sessions || 0;
+        const users = ga4?.users || local?.users || 0;
+        const conversions = local?.conversions || 0;
+        const revenue = local?.revenue || 0;
 
-      // Re-sort after merge
-      daily.sort((a, b) => a.date.localeCompare(b.date));
-    }
+        return {
+          date: dateStr,
+          sessions,
+          users,
+          conversions,
+          revenue: Math.round(revenue * 100) / 100,
+          purchases: conversions,
+          addToCarts: ga4?.addToCarts || 0,
+          checkouts: ga4?.checkouts || 0,
+          conversionRate: sessions > 0 ? conversions / sessions : 0,
+          commission: Math.round(revenue * COMMISSION_RATE * 100) / 100,
+        };
+      });
+
+    // Webhook totals (used for device/channel distribution)
+    const totalWebhookConv = daily.reduce((s, d) => s + d.conversions, 0);
+    const totalWebhookRev = daily.reduce((s, d) => s + d.revenue, 0);
 
     // ─── 1b. By event name ───
     const eventRes = (await analytics.properties.runReport({
@@ -190,150 +177,86 @@ export class ConversionService {
       users: parseInt(r.metricValues?.[2]?.value || "0"),
     }));
 
-    // ─── 1c. By device ───
+    // ─── 1c. By device (sessions from GA4, conversions distributed from webhook) ───
     const deviceRes = (await analytics.properties.runReport({
       property: propertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: "deviceCategory" }],
-        metrics: [
-          { name: "sessions" },
-          { name: "conversions" },
-          { name: "totalRevenue" },
-          { name: "ecommercePurchases" },
-        ],
+        metrics: [{ name: "sessions" }],
         orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
       },
     })) as { data: RunReportResponse };
 
     const byDevice = (deviceRes.data.rows || []).map((r: Row) => {
       const sessions = parseInt(r.metricValues?.[0]?.value || "0");
-      const conversions = parseInt(r.metricValues?.[1]?.value || "0");
       return {
         device: r.dimensionValues?.[0]?.value || "unknown",
         sessions,
-        conversions,
-        revenue: parseFloat(r.metricValues?.[2]?.value || "0"),
-        purchases: parseInt(r.metricValues?.[3]?.value || "0"),
-        conversionRate: sessions > 0 ? conversions / sessions : 0,
+        conversions: 0,
+        revenue: 0,
+        purchases: 0,
+        conversionRate: 0,
       };
     });
 
-    // ─── MERGE backfilled conversions into byDevice ───
-    // When GA4 live shows 0 conversions but IntegrationDaily has data,
-    // attribute to the device with most sessions (usually desktop)
-    const totalDeviceConv = byDevice.reduce((s, d) => s + d.conversions, 0);
-    if (totalDeviceConv === 0) {
-      const localAggForDevice = await prisma.integrationDaily.aggregate({
-        where: {
-          integrationId: integration.id,
-          date: { gte: new Date(startDate), lte: new Date(endDate) },
-        },
-        _sum: { conversions: true, revenue: true },
-      });
-      const backfillConv = localAggForDevice._sum.conversions || 0;
-      const backfillRev = localAggForDevice._sum.revenue || 0;
-      if (backfillConv > 0 && byDevice.length > 0) {
-        // Add to device with most sessions
-        const topDevice = byDevice.sort((a, b) => b.sessions - a.sessions)[0];
-        topDevice.conversions += backfillConv;
-        topDevice.revenue += backfillRev;
-        topDevice.purchases += backfillConv;
-        topDevice.conversionRate =
-          topDevice.sessions > 0
-            ? topDevice.conversions / topDevice.sessions
-            : 0;
+    // Distribute webhook conversions proportionally to device sessions
+    if (totalWebhookConv > 0 && byDevice.length > 0) {
+      const totalDeviceSessions = byDevice.reduce((s, d) => s + d.sessions, 0);
+      for (const d of byDevice) {
+        const share =
+          totalDeviceSessions > 0 ? d.sessions / totalDeviceSessions : 0;
+        d.conversions = Math.round(totalWebhookConv * share);
+        d.revenue = Math.round(totalWebhookRev * share * 100) / 100;
+        d.purchases = d.conversions;
+        d.conversionRate = d.sessions > 0 ? d.conversions / d.sessions : 0;
       }
     }
 
-    // ─── 1d. By channel group ───
+    // ─── 1d. By channel (sessions from GA4, conversions distributed from webhook) ───
     const channelRes = (await analytics.properties.runReport({
       property: propertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: "sessionDefaultChannelGroup" }],
-        metrics: [
-          { name: "sessions" },
-          { name: "conversions" },
-          { name: "totalRevenue" },
-          { name: "ecommercePurchases" },
-          { name: "totalUsers" },
-        ],
-        orderBys: [{ metric: { metricName: "conversions" }, desc: true }],
+        metrics: [{ name: "sessions" }, { name: "totalUsers" }],
+        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
         limit: "15",
       },
     })) as { data: RunReportResponse };
 
     const byChannel = (channelRes.data.rows || []).map((r: Row) => {
       const sessions = parseInt(r.metricValues?.[0]?.value || "0");
-      const conversions = parseInt(r.metricValues?.[1]?.value || "0");
-      const revenue = parseFloat(r.metricValues?.[2]?.value || "0");
       return {
         channel: r.dimensionValues?.[0]?.value || "unknown",
         sessions,
-        conversions,
-        revenue,
-        purchases: parseInt(r.metricValues?.[3]?.value || "0"),
-        users: parseInt(r.metricValues?.[4]?.value || "0"),
-        conversionRate: sessions > 0 ? conversions / sessions : 0,
-        commission: Math.round(revenue * COMMISSION_RATE * 100) / 100,
+        conversions: 0,
+        revenue: 0,
+        purchases: 0,
+        users: parseInt(r.metricValues?.[1]?.value || "0"),
+        conversionRate: 0,
+        commission: 0,
       };
     });
 
-    // ─── MERGE cachedData.bySource into byChannel (backfill support) ───
-    // If GA4 live shows 0 conversions across all channels but cachedData has
-    // backfilled conversion data in bySource, merge it in.
-    const totalLiveConv = byChannel.reduce((s, ch) => s + ch.conversions, 0);
-    if (totalLiveConv === 0) {
-      const cached = integration.cachedData as any;
-      const cachedBySource = cached?.bySource as any[] | undefined;
-      if (cachedBySource?.length) {
-        for (const src of cachedBySource) {
-          if (!src.conversions || src.conversions <= 0) continue;
-          // Map sourceMedium to channel name
-          const sm = (src.sourceMedium || "").toLowerCase();
-          let channelName = "Other";
-          if (sm.includes("organic") && !sm.includes("shopping"))
-            channelName = "Organic Search";
-          else if (sm.includes("organic") && sm.includes("shopping"))
-            channelName = "Organic Shopping";
-          else if (sm.includes("cpc") || sm.includes("paid"))
-            channelName = "Paid Search";
-          else if (sm.includes("direct") || sm.includes("(none)"))
-            channelName = "Direct";
-          else if (sm.includes("referral")) channelName = "Referral";
-
-          const existing = byChannel.find((ch) => ch.channel === channelName);
-          if (existing) {
-            existing.conversions += src.conversions;
-            existing.revenue += src.revenue || 0;
-            existing.commission =
-              Math.round(existing.revenue * COMMISSION_RATE * 100) / 100;
-            existing.conversionRate =
-              existing.sessions > 0
-                ? existing.conversions / existing.sessions
-                : 0;
-          } else {
-            byChannel.push({
-              channel: channelName,
-              sessions: src.sessions || 0,
-              conversions: src.conversions,
-              revenue: src.revenue || 0,
-              purchases: src.conversions,
-              users: src.users || 0,
-              conversionRate:
-                (src.sessions || 0) > 0 ? src.conversions / src.sessions : 0,
-              commission:
-                Math.round((src.revenue || 0) * COMMISSION_RATE * 100) / 100,
-            });
-          }
-        }
-        // Re-sort by conversions desc
-        byChannel.sort((a, b) => b.conversions - a.conversions);
+    // Distribute webhook conversions proportionally to channel sessions
+    if (totalWebhookConv > 0 && byChannel.length > 0) {
+      const totalChannelSessions = byChannel.reduce(
+        (s, ch) => s + ch.sessions,
+        0,
+      );
+      for (const ch of byChannel) {
+        const share =
+          totalChannelSessions > 0 ? ch.sessions / totalChannelSessions : 0;
+        ch.conversions = Math.round(totalWebhookConv * share);
+        ch.revenue = Math.round(totalWebhookRev * share * 100) / 100;
+        ch.purchases = ch.conversions;
+        ch.conversionRate = ch.sessions > 0 ? ch.conversions / ch.sessions : 0;
+        ch.commission = Math.round(ch.revenue * COMMISSION_RATE * 100) / 100;
       }
     }
 
-    // ─── 1e. Period comparison ───
+    // ─── 1e. Period comparison (webhook = truth) ───
     const dayCount =
       (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000;
     const prevStart = new Date(
@@ -347,6 +270,7 @@ export class ConversionService {
 
     let comparison: any = null;
     try {
+      // Sessions from GA4
       const compRes = (await analytics.properties.runReport({
         property: propertyId,
         requestBody: {
@@ -354,13 +278,7 @@ export class ConversionService {
             { startDate, endDate, name: "current" },
             { startDate: prevStart, endDate: prevEnd, name: "previous" },
           ],
-          metrics: [
-            { name: "sessions" },
-            { name: "conversions" },
-            { name: "totalRevenue" },
-            { name: "ecommercePurchases" },
-            { name: "totalUsers" },
-          ],
+          metrics: [{ name: "sessions" }],
         },
       })) as { data: RunReportResponse };
 
@@ -368,14 +286,10 @@ export class ConversionService {
       const gn = (arr: any[], i: number) =>
         parseFloat(arr[i]?.value || "0") || 0;
 
-      let currConv = rows.length >= 1 ? gn(rows[0].metricValues || [], 1) : 0;
-      let prevConv = rows.length >= 2 ? gn(rows[1].metricValues || [], 1) : 0;
-      let currRev = rows.length >= 1 ? gn(rows[0].metricValues || [], 2) : 0;
-      let prevRev = rows.length >= 2 ? gn(rows[1].metricValues || [], 2) : 0;
-      let currSess = rows.length >= 1 ? gn(rows[0].metricValues || [], 0) : 0;
-      let prevSess = rows.length >= 2 ? gn(rows[1].metricValues || [], 0) : 0;
+      const currSess = rows.length >= 1 ? gn(rows[0].metricValues || [], 0) : 0;
+      const prevSess = rows.length >= 2 ? gn(rows[1].metricValues || [], 0) : 0;
 
-      // Merge IntegrationDaily for comparison periods
+      // Conversions from IntegrationDaily (webhook = truth)
       const [localCurr, localPrev] = await Promise.all([
         prisma.integrationDaily.aggregate({
           where: {
@@ -393,32 +307,22 @@ export class ConversionService {
         }),
       ]);
 
-      const localCurrConv = localCurr._sum.conversions || 0;
-      const localCurrRev = localCurr._sum.revenue || 0;
-      const localPrevConv = localPrev._sum.conversions || 0;
-      const localPrevRev = localPrev._sum.revenue || 0;
-
-      // Use higher of GA4 live vs IntegrationDaily (handles backfill)
-      if (localCurrConv > currConv) {
-        currConv = localCurrConv;
-        currRev = Math.max(currRev, localCurrRev);
-      }
-      if (localPrevConv > prevConv) {
-        prevConv = localPrevConv;
-        prevRev = Math.max(prevRev, localPrevRev);
-      }
+      const currConv = localCurr._sum.conversions || 0;
+      const currRev = localCurr._sum.revenue || 0;
+      const prevConv = localPrev._sum.conversions || 0;
+      const prevRev = localPrev._sum.revenue || 0;
 
       if (currSess > 0 || currConv > 0 || prevSess > 0 || prevConv > 0) {
         comparison = {
           current: {
             sessions: Math.round(currSess),
-            conversions: Math.round(currConv),
+            conversions: currConv,
             revenue: Math.round(currRev * 100) / 100,
             conversionRate: currSess > 0 ? currConv / currSess : 0,
           },
           previous: {
             sessions: Math.round(prevSess),
-            conversions: Math.round(prevConv),
+            conversions: prevConv,
             revenue: Math.round(prevRev * 100) / 100,
             conversionRate: prevSess > 0 ? prevConv / prevSess : 0,
           },
@@ -433,9 +337,9 @@ export class ConversionService {
 
     // ─── Totals ───
     const totalSessions = daily.reduce((s, d) => s + d.sessions, 0);
-    const totalConversions = daily.reduce((s, d) => s + d.conversions, 0);
-    const totalRevenue = daily.reduce((s, d) => s + d.revenue, 0);
-    const totalPurchases = daily.reduce((s, d) => s + d.purchases, 0);
+    const totalConversions = totalWebhookConv;
+    const totalRevenue = totalWebhookRev;
+    const totalPurchases = totalWebhookConv;
     const totalAddToCarts = daily.reduce((s, d) => s + d.addToCarts, 0);
     const totalCheckouts = daily.reduce((s, d) => s + d.checkouts, 0);
 
@@ -466,7 +370,7 @@ export class ConversionService {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 2. KEYWORDS → CONVERSIONS (correlation via landing page)
+  // 2. KEYWORDS → CONVERSIONS
   // ═══════════════════════════════════════════════════════════
 
   async getKeywordConversions(
@@ -492,7 +396,7 @@ export class ConversionService {
     const analytics = await this.getAnalyticsData();
     const propertyId = integration.propertyId!;
 
-    // ─── A) GA4: Landing pages with conversions ───
+    // ─── A) GA4: Landing pages with sessions (conversions from GA4 for per-page correlation) ───
     const landingRes = (await analytics.properties.runReport({
       property: propertyId,
       requestBody: {
@@ -528,7 +432,7 @@ export class ConversionService {
       })
       .filter((lp) => !isExcludedLandingPage(lp.path));
 
-    // ─── B) GA4: Landing pages by channel — separate organic vs paid ───
+    // ─── B) GA4: Landing pages by channel ───
     const channelLandingRes = (await analytics.properties.runReport({
       property: propertyId,
       requestBody: {
@@ -547,7 +451,6 @@ export class ConversionService {
       },
     })) as { data: RunReportResponse };
 
-    // Map: path → { organic: {...}, paid: {...}, ... }
     const pageChannelMap = new Map<string, Record<string, any>>();
     for (const r of channelLandingRes.data.rows || []) {
       const path = r.dimensionValues?.[0]?.value || "/";
@@ -563,29 +466,24 @@ export class ConversionService {
       pageChannelMap.set(path, entry);
     }
 
-    // ─── C) GSC: Top queries per landing page (for pages with conversions) ───
+    // ─── C) GSC: Top queries per converting page ───
     const { getSearchConsole } = await import("../lib/google-auth.js");
     const sc = await getSearchConsole();
 
-    // Only enrich pages that actually have conversions
     const convertingPages = landingPages.filter((lp) => lp.conversions > 0);
-
     const correlatedPages: any[] = [];
 
     for (const lp of convertingPages.slice(0, 50)) {
-      // Normalize path
       const cleanPath = lp.path.split("?")[0];
       const fullUrl = `${domain.siteUrl}${cleanPath}`;
 
       let topQueries: any[] = [];
       try {
-        // Try multiple URL variants
         const urlVariants = [
           fullUrl,
           fullUrl.replace(/\/$/, ""),
           fullUrl + "/",
         ];
-
         for (const tryUrl of urlVariants) {
           const qRes = await sc.searchanalytics.query({
             siteUrl: domain.gscProperty,
@@ -599,7 +497,6 @@ export class ConversionService {
               rowLimit: 15,
             },
           });
-
           topQueries = (qRes.data.rows || []).map((r: any) => ({
             query: r.keys![0],
             clicks: r.clicks || 0,
@@ -607,7 +504,6 @@ export class ConversionService {
             ctr: r.ctr || 0,
             position: Math.round((r.position || 0) * 10) / 10,
           }));
-
           if (topQueries.length > 0) break;
         }
       } catch {}
@@ -617,7 +513,6 @@ export class ConversionService {
       correlatedPages.push({
         path: cleanPath,
         url: fullUrl,
-        // GA4 totals
         sessions: lp.sessions,
         conversions: lp.conversions,
         revenue: Math.round(lp.revenue * 100) / 100,
@@ -626,7 +521,6 @@ export class ConversionService {
         bounceRate: Math.round(lp.bounceRate * 100) / 100,
         avgDuration: Math.round(lp.avgDuration),
         commission: Math.round(lp.revenue * COMMISSION_RATE * 100) / 100,
-        // Channel breakdown
         organicSessions: channelBreakdown["organic search"]?.sessions || 0,
         organicConversions:
           channelBreakdown["organic search"]?.conversions || 0,
@@ -636,16 +530,14 @@ export class ConversionService {
         paidRevenue: channelBreakdown["paid search"]?.revenue || 0,
         directSessions: channelBreakdown["direct"]?.sessions || 0,
         directConversions: channelBreakdown["direct"]?.conversions || 0,
-        // GSC queries
         topQueries,
         queryCount: topQueries.length,
       });
 
-      // Rate limit GSC
       await new Promise((r) => setTimeout(r, 150));
     }
 
-    // ─── D) Google Ads search terms with conversions ───
+    // ─── D) Google Ads search terms ───
     let adsKeywords: any[] = [];
     try {
       const adsTerms = await prisma.adsSearchTerm.groupBy({
@@ -685,8 +577,7 @@ export class ConversionService {
         .sort((a, b) => b.conversions - a.conversions);
     } catch {}
 
-    // ─── E) Build aggregated keyword list ───
-    // Flatten all GSC queries from converting pages + Ads keywords
+    // ─── E) Aggregated keyword list ───
     const keywordMap = new Map<
       string,
       {
@@ -694,14 +585,12 @@ export class ConversionService {
         sources: string[];
         gscClicks: number;
         gscImpressions: number;
-        gscAvgPosition: number;
         gscPositionSum: number;
         gscPositionCount: number;
         adsClicks: number;
         adsCost: number;
         adsConversions: number;
         adsRevenue: number;
-        // Estimated from landing page correlation
         estimatedConversions: number;
         estimatedRevenue: number;
         associatedPages: string[];
@@ -716,7 +605,6 @@ export class ConversionService {
           sources: [] as string[],
           gscClicks: 0,
           gscImpressions: 0,
-          gscAvgPosition: 0,
           gscPositionSum: 0,
           gscPositionCount: 0,
           adsClicks: 0,
@@ -734,7 +622,6 @@ export class ConversionService {
         existing.gscPositionSum += q.position;
         existing.gscPositionCount++;
 
-        // Estimate conversion attribution: proportional to clicks share
         const totalPageClicks = page.topQueries.reduce(
           (s: number, qq: any) => s + qq.clicks,
           0,
@@ -748,12 +635,10 @@ export class ConversionService {
         if (!existing.associatedPages.includes(page.path)) {
           existing.associatedPages.push(page.path);
         }
-
         keywordMap.set(key, existing);
       }
     }
 
-    // Merge Ads keywords
     for (const ak of adsKeywords) {
       const key = ak.keyword.toLowerCase();
       const existing = keywordMap.get(key) || {
@@ -761,7 +646,6 @@ export class ConversionService {
         sources: [] as string[],
         gscClicks: 0,
         gscImpressions: 0,
-        gscAvgPosition: 0,
         gscPositionSum: 0,
         gscPositionCount: 0,
         adsClicks: 0,
@@ -778,37 +662,30 @@ export class ConversionService {
       existing.adsCost += ak.cost;
       existing.adsConversions += ak.conversions;
       existing.adsRevenue += ak.revenue;
-
       keywordMap.set(key, existing);
     }
 
-    // Finalize
     const aggregatedKeywords = Array.from(keywordMap.values())
       .map((kw) => ({
         keyword: kw.keyword,
         sources: kw.sources,
-        // GSC
         gscClicks: kw.gscClicks,
         gscImpressions: kw.gscImpressions,
         gscPosition:
           kw.gscPositionCount > 0
             ? Math.round((kw.gscPositionSum / kw.gscPositionCount) * 10) / 10
             : null,
-        // Ads
         adsClicks: kw.adsClicks,
         adsCost: Math.round(kw.adsCost * 100) / 100,
         adsConversions: kw.adsConversions,
         adsRevenue: Math.round(kw.adsRevenue * 100) / 100,
-        // Estimated (from landing page correlation)
         estimatedConversions: Math.round(kw.estimatedConversions * 10) / 10,
         estimatedRevenue: Math.round(kw.estimatedRevenue * 100) / 100,
-        // Combined
         totalClicks: kw.gscClicks + kw.adsClicks,
         totalConversions:
           kw.adsConversions + Math.round(kw.estimatedConversions * 10) / 10,
         totalRevenue:
           Math.round((kw.adsRevenue + kw.estimatedRevenue) * 100) / 100,
-        // Pages
         pages: kw.associatedPages,
         pageCount: kw.associatedPages.length,
       }))
@@ -829,7 +706,7 @@ export class ConversionService {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 3. FUNNEL — e-commerce funnel steps
+  // 3. FUNNEL
   // ═══════════════════════════════════════════════════════════
 
   async getConversionFunnel(
@@ -844,7 +721,6 @@ export class ConversionService {
     const analytics = await this.getAnalyticsData();
     const propertyId = integration.propertyId!;
 
-    // ─── Funnel events daily ───
     const funnelRes = (await analytics.properties.runReport({
       property: propertyId,
       requestBody: {
@@ -881,7 +757,6 @@ export class ConversionService {
       });
     }
 
-    // Define standard funnel steps (order matters)
     const funnelSteps = [
       { key: "view_item_list", label: "Wyświetlenie listy" },
       { key: "view_item", label: "Wyświetlenie produktu" },
@@ -902,18 +777,15 @@ export class ConversionService {
         const prevStep =
           index > 0 ? eventMap.get(funnelSteps[index - 1].key) : null;
         const firstStep = eventMap.get(funnelSteps[0].key);
-
         return {
           event: step.key,
           label: step.label,
           count,
           users,
-          // Drop-off from previous step
           dropOff:
             prevStep && prevStep.users > 0
               ? Math.round((1 - users / prevStep.users) * 10000) / 100
               : 0,
-          // Overall rate from top of funnel
           overallRate:
             firstStep && firstStep.users > 0
               ? Math.round((users / firstStep.users) * 10000) / 100
@@ -924,7 +796,6 @@ export class ConversionService {
       })
       .filter((step) => step.count > 0);
 
-    // ─── Funnel by device ───
     const funnelDeviceRes = (await analytics.properties.runReport({
       property: propertyId,
       requestBody: {
@@ -967,7 +838,6 @@ export class ConversionService {
         const addToCart = events["add_to_cart"]?.users || 0;
         const checkout = events["begin_checkout"]?.users || 0;
         const purchase = events["purchase"]?.users || 0;
-
         return {
           device,
           viewItem,
@@ -988,7 +858,6 @@ export class ConversionService {
       },
     );
 
-    // ─── Daily purchase trend (for mini chart) ───
     const purchaseDailyRes = (await analytics.properties.runReport({
       property: propertyId,
       requestBody: {
@@ -1014,15 +883,11 @@ export class ConversionService {
       };
     });
 
-    return {
-      funnel,
-      funnelByDevice,
-      purchaseDaily,
-    };
+    return { funnel, funnelByDevice, purchaseDaily };
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 4. TOP CONVERTING PAGES — deep dive
+  // 4. TOP CONVERTING PAGES
   // ═══════════════════════════════════════════════════════════
 
   async getTopConvertingPages(
@@ -1085,7 +950,6 @@ export class ConversionService {
       })
       .filter((p) => !isExcludedLandingPage(p.path));
 
-    // Correlate with GSC page data
     const gscPages = await prisma.page.findMany({
       where: { domainId },
       select: {
@@ -1131,52 +995,32 @@ export class ConversionService {
     for (const int of integrations) {
       try {
         const analytics = await this.getAnalyticsData();
+
+        // Sessions from GA4
         const res = (await analytics.properties.runReport({
           property: int.propertyId!,
           requestBody: {
             dateRanges: [{ startDate, endDate }],
-            metrics: [
-              { name: "sessions" },
-              { name: "conversions" },
-              { name: "totalRevenue" },
-              { name: "ecommercePurchases" },
-            ],
+            metrics: [{ name: "sessions" }],
           },
         })) as { data: RunReportResponse };
 
         const row = res.data.rows?.[0];
-        let sessions = row ? parseInt(row.metricValues?.[0]?.value || "0") : 0;
-        let conversions = row
-          ? parseInt(row.metricValues?.[1]?.value || "0")
+        const sessions = row
+          ? parseInt(row.metricValues?.[0]?.value || "0")
           : 0;
-        let revenue = row ? parseFloat(row.metricValues?.[2]?.value || "0") : 0;
-        let purchases = row ? parseInt(row.metricValues?.[3]?.value || "0") : 0;
 
-        // Merge IntegrationDaily (backfilled data) for days where GA4 live has 0
+        // Conversions from IntegrationDaily (webhook = truth)
         const localAgg = await prisma.integrationDaily.aggregate({
           where: {
             integrationId: int.id,
             date: { gte: new Date(startDate), lte: new Date(endDate) },
           },
-          _sum: { conversions: true, revenue: true, sessions: true },
+          _sum: { conversions: true, revenue: true },
         });
 
-        const localConv = localAgg._sum.conversions || 0;
-        const localRev = localAgg._sum.revenue || 0;
-
-        // If GA4 live has 0 conversions but local has data → use local
-        if (conversions === 0 && localConv > 0) {
-          conversions = localConv;
-          revenue = localRev;
-          purchases = localConv;
-        }
-        // If GA4 has some but local has MORE (backfill + GA4 partial) → use max
-        // This handles the transition period
-        else if (localConv > conversions) {
-          conversions = localConv;
-          revenue = Math.max(revenue, localRev);
-          purchases = Math.max(purchases, localConv);
-        }
+        const conversions = localAgg._sum.conversions || 0;
+        const revenue = localAgg._sum.revenue || 0;
 
         if (sessions > 0 || conversions > 0) {
           results.push({
@@ -1185,7 +1029,7 @@ export class ConversionService {
             sessions,
             conversions,
             revenue: Math.round(revenue * 100) / 100,
-            purchases,
+            purchases: conversions,
             conversionRate:
               sessions > 0
                 ? Math.round((conversions / sessions) * 10000) / 100
