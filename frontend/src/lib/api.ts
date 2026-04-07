@@ -370,8 +370,21 @@ export const api = {
   detectAlerts: () =>
     request<any>("/analytics/detect-alerts", { method: "POST" }),
 
-  getProfitability: (domainId: string, days = 30) =>
-    request<any>(`/profitability/${domainId}?days=${days}`),
+  getProfitability: (
+    domainId: string,
+    days?: number,
+    startDate?: string,
+    endDate?: string,
+  ) => {
+    const p = new URLSearchParams();
+    if (startDate && endDate) {
+      p.set("startDate", startDate);
+      p.set("endDate", endDate);
+    } else if (days) {
+      p.set("days", String(days));
+    }
+    return request<any>(`/profitability/${domainId}?${p.toString()}`);
+  },
 
   // ─── CONVERSIONS ─────────────────────────────────────────────
 

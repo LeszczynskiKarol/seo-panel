@@ -6,9 +6,16 @@ import { prisma } from "../lib/prisma.js";
 export async function profitabilityRoutes(fastify: FastifyInstance) {
   fastify.get("/:domainId", async (request) => {
     const { domainId } = request.params as { domainId: string };
-    const { days } = request.query as { days?: string };
-    const d = parseInt(days || "30");
-    const since = new Date(Date.now() - d * 86400000);
+    const { days, startDate, endDate } = request.query as {
+      days?: string;
+      startDate?: string;
+      endDate?: string;
+    };
+    const since = startDate
+      ? new Date(startDate)
+      : new Date(Date.now() - parseInt(days || "30") * 86400000);
+    const until = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
+    const dateFilter = { gte: since, ...(until ? { lte: until } : {}) };
 
     // Determine commission rate by domain category
     const domainInfo = await prisma.domain.findUnique({
@@ -28,7 +35,7 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
 
     if (integration) {
       ga4Daily = await prisma.integrationDaily.findMany({
-        where: { integrationId: integration.id, date: { gte: since } },
+        where: { integrationId: integration.id, date: dateFilter },
         orderBy: { date: "asc" },
       });
       bySource = (integration.cachedData as any)?.bySource || [];
@@ -36,14 +43,14 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
 
     // ─── 2. Ads daily (costs) ───
     const adsCampaignDaily = await prisma.adsCampaignDaily.findMany({
-      where: { domainId, date: { gte: since } },
+      where: { domainId, date: dateFilter },
       orderBy: { date: "asc" },
     });
 
     // ─── 3. Ads products (for product-level profitability) ───
     const adsProducts = await prisma.adsProductDaily.groupBy({
       by: ["productId", "productTitle", "productCategory"],
-      where: { domainId, date: { gte: since } },
+      where: { domainId, date: dateFilter },
       _sum: {
         cost: true,
         clicks: true,
@@ -55,7 +62,7 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
 
     // ─── 4. Manual revenue for this domain ───
     const manualRevenues = await prisma.manualRevenue.findMany({
-      where: { domainId, date: { gte: since } },
+      where: { domainId, date: dateFilter },
       orderBy: { date: "asc" },
     });
 
@@ -256,7 +263,11 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
 
     return {
       period: {
-        days: d,
+        days:
+          Math.round(
+            (new Date(endDate || Date.now()).getTime() - since.getTime()) /
+              86400000,
+          ) + 1,
         from: daily[0]?.date,
         to: daily[daily.length - 1]?.date,
       },

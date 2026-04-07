@@ -137,14 +137,14 @@ function AllDomainsProfitability({
           {startDate} → {endDate} ({days}d)
         </span>
       </div>
-
       <div className="space-y-3">
         {domains.map((q) => (
           <DomainProfitCard
             key={q.domainId}
             domainId={q.domainId}
             label={q.label}
-            days={days}
+            startDate={startDate}
+            endDate={endDate}
           />
         ))}
       </div>
@@ -155,15 +155,23 @@ function AllDomainsProfitability({
 function DomainProfitCard({
   domainId,
   label,
-  days,
+  startDate,
+  endDate,
 }: {
   domainId: string;
   label: string;
-  days: number;
+  startDate: string;
+  endDate: string;
 }) {
+  const days =
+    Math.round(
+      (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000,
+    ) + 1;
+
   const { data, isLoading } = useQuery({
-    queryKey: ["profitability", domainId, days],
-    queryFn: () => api.getProfitability(domainId, days),
+    queryKey: ["profitability", domainId, startDate, endDate],
+    queryFn: () =>
+      api.getProfitability(domainId, undefined, startDate, endDate),
   });
 
   if (isLoading) {
