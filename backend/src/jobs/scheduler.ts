@@ -10,9 +10,6 @@ import { IndexingService } from "../services/indexing.service.js";
 import { LinkCrawlerService } from "../services/link-crawler.service.js";
 import { TimelineService } from "../services/timeline.service.js";
 
-const STOJAN_API_URL = process.env.STOJAN_API_URL || "http://16.171.6.205:4000";
-const STOJAN_API_KEY = process.env.STOJAN_API_KEY || "";
-const STOJAN_INTEGRATION_ID = process.env.STOJAN_INTEGRATION_ID || "";
 const ga4Service = new GA4Service();
 const merchantService = new MerchantService();
 const gsc = new GscService();
