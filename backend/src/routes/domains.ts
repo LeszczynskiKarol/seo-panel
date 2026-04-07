@@ -987,31 +987,33 @@ export async function domainRoutes(fastify: FastifyInstance) {
     });
     const { IndexingService } = await import("../services/indexing.service.js");
     const indexing = new IndexingService();
-    const siteUrl =
-      page.domain.gscProperty ||
-      `sc-domain:${page.domain.domain.replace(/^www\./, "")}`;
 
-    // 1. Try URL_DELETED (works only for Indexing API eligible pages)
     const deleteResult = await indexing.submitUrl(page.url, "URL_DELETED");
-
-    // 2. Request recrawl so Google picks up noindex faster
     const recrawlResult = await indexing.submitUrl(page.url, "URL_UPDATED");
 
-    // 3. Mark in panel
     await prisma.page.update({
       where: { id: pageId },
       data: {
-        indexingVerdict: "FAIL",
-        coverageState: "Removal requested",
+        indexingVerdict: "REMOVAL_REQUESTED",
+        removalRequestedAt: new Date(),
+        coverageState: "Removal requested via Indexing API",
         lastChecked: new Date(),
       },
     });
 
-    return {
-      ok: true,
-      deleteResult,
-      recrawlResult,
-      note: "URL_DELETED wysłany. Dodaj noindex w kodzie strony żeby trwale usunąć z indeksu.",
-    };
+    return { ok: true, deleteResult, recrawlResult };
+  });
+
+  fastify.post("/:domainId/pages/:pageId/confirm-removed", async (request) => {
+    const { pageId } = request.params as { domainId: string; pageId: string };
+    await prisma.page.update({
+      where: { id: pageId },
+      data: {
+        indexingVerdict: "REMOVED",
+        removedAt: new Date(),
+        lastChecked: new Date(),
+      },
+    });
+    return { ok: true };
   });
 }

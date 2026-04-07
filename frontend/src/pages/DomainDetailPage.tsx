@@ -2221,6 +2221,7 @@ function ExpandablePageRow({
               domainId={domainId}
               pageId={p.id}
               path={p.path}
+              verdict={p.indexingVerdict}
             />
           )}
         </td>
@@ -3416,22 +3417,45 @@ function RemoveFromIndexButton({
   domainId,
   pageId,
   path,
+  verdict,
 }: {
   domainId: string;
   pageId: string;
   path: string;
+  verdict: string;
 }) {
   const qc = useQueryClient();
   const [confirming, setConfirming] = useState(false);
 
   const remove = useMutation({
     mutationFn: () => api.removeFromIndex(domainId, pageId),
-    onSuccess: (data) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pages", domainId] });
       setConfirming(false);
-      alert(`Wysłano żądanie usunięcia z indeksu.\n\n${data.note}`);
     },
   });
+
+  const confirmRemoved = useMutation({
+    mutationFn: () => api.confirmRemoved(domainId, pageId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pages", domainId] }),
+  });
+
+  if (verdict === "REMOVED") return null;
+
+  if (verdict === "REMOVAL_REQUESTED") {
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          confirmRemoved.mutate();
+        }}
+        className="ml-2 text-[9px] text-accent-amber hover:text-accent-green transition-colors"
+        title="Potwierdź usunięcie z indeksu"
+      >
+        ✓ potwierdź usunięcie
+      </button>
+    );
+  }
 
   if (confirming) {
     return (

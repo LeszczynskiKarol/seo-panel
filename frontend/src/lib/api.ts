@@ -74,6 +74,10 @@ export const api = {
     request<any>(`/domains/${domainId}/pages/${pageId}/remove-index`, {
       method: "POST",
     }),
+  confirmRemoved: (domainId: string, pageId: string) =>
+    request<any>(`/domains/${domainId}/pages/${pageId}/confirm-removed`, {
+      method: "POST",
+    }),
   checkIndexing: (id: string) =>
     request<any>(`/domains/${id}/check-indexing`, { method: "POST" }),
   crawlLinks: (id: string) =>

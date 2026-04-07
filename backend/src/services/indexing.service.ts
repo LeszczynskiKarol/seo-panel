@@ -57,7 +57,7 @@ export class IndexingService {
     const pages = await prisma.page.findMany({
       where: {
         domainId,
-        indexingVerdict: { not: "PASS" },
+        indexingVerdict: { notIn: ["PASS", "REMOVED"] },
         inSitemap: true,
       },
     });
@@ -183,6 +183,10 @@ export class IndexingService {
         return "FAIL";
       case "NEUTRAL":
         return "NEUTRAL";
+      case "REMOVAL_REQUESTED":
+        return "REMOVAL_REQUESTED";
+      case "REMOVED":
+        return "REMOVED";
       default:
         return "UNKNOWN";
     }

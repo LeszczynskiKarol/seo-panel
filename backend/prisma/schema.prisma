@@ -118,6 +118,11 @@ model Page {
   externalLinksOut Int      @default(0)  // outbound to external sites
   brokenLinksOut   Int      @default(0)
   
+  // Removal tracking
+  removalRequestedAt DateTime?
+  removedAt          DateTime?
+  removalNote        String?
+
   // Page metadata
   title           String?
   metaDescription String?
@@ -205,6 +210,8 @@ enum IndexingVerdict {
   NEUTRAL
   UNKNOWN
   UNCHECKED
+  REMOVAL_REQUESTED
+  REMOVED
 }
 
 // ============================================
