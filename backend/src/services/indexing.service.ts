@@ -67,7 +67,19 @@ export class IndexingService {
 
     for (const page of pages) {
       try {
-        const result = await this.inspectUrl(page.url, siteUrl);
+        let result = await this.inspectUrl(page.url, siteUrl);
+
+        // If NEUTRAL, try alternate URL (with/without trailing slash)
+        if (!result.error && result.verdict === "NEUTRAL") {
+          const altUrl = page.url.endsWith("/")
+            ? page.url.slice(0, -1)
+            : page.url + "/";
+          const altResult = await this.inspectUrl(altUrl, siteUrl);
+          if (!altResult.error && altResult.verdict === "PASS") {
+            result = altResult;
+          }
+          await new Promise((r) => setTimeout(r, 1200));
+        }
 
         if (result.error) {
           errors++;

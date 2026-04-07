@@ -40,7 +40,7 @@ export class GscService {
     for (const row of rows) {
       const url = row.keys![0];
       const date = row.keys![1];
-      const path = new URL(url).pathname;
+      const path = new URL(url).pathname.replace(/\/+$/, "") || "/";
 
       // Upsert page
       const page = await prisma.page.upsert({
