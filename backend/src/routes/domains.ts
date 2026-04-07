@@ -136,6 +136,7 @@ export async function domainRoutes(fastify: FastifyInstance) {
           lastChecked: true,
           isTracked: true,
           inSitemap: true,
+          title: true,
         },
       }),
       prisma.page.count({ where }),

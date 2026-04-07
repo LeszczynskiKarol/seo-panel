@@ -86,17 +86,49 @@ export class IndexingService {
           continue;
         }
 
-        // Fetch page title
+        // Fetch page title — try URL Inspection first (has rendered title), fallback to fetch
         let pageTitle: string | null = null;
+
+        // Method 1: from inspection result (referringUrls sometimes has title)
+        const inspTitle = (result as any).inspectionResult?.indexStatusResult
+          ?.sitemap;
+
+        // Method 2: fetch HTML
         try {
-          const titleRes = await fetch(page.url, {
+          const fetchUrl = page.url.endsWith("/") ? page.url : page.url + "/";
+          const titleRes = await fetch(fetchUrl, {
             redirect: "follow",
             signal: AbortSignal.timeout(5000),
+            headers: { "User-Agent": "Mozilla/5.0 (compatible; SEOPanel/1.0)" },
           });
           if (titleRes.ok) {
             const html = await titleRes.text();
-            const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-            if (match) pageTitle = match[1].trim().slice(0, 500);
+            // Try og:title first (works for SPAs with SSR meta tags)
+            const ogMatch =
+              html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i) ||
+              html.match(/<meta\s+content="([^"]+)"\s+property="og:title"/i);
+            if (ogMatch) {
+              pageTitle = ogMatch[1].trim().slice(0, 500);
+            } else {
+              // Fallback to <title> — take last one (react-helmet/data-rh)
+              const matches = [
+                ...html.matchAll(/<title[^>]*>([^<]+)<\/title>/gi),
+              ];
+              if (matches.length > 0) {
+                pageTitle = matches[matches.length - 1][1].trim().slice(0, 500);
+              }
+            }
+            // Decode HTML entities
+            if (pageTitle) {
+              pageTitle = pageTitle
+                .replace(/&quot;/g, '"')
+                .replace(/&amp;/g, "&")
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&#(\d+);/g, (_, n) =>
+                  String.fromCharCode(parseInt(n)),
+                );
+            }
           }
         } catch {}
 
