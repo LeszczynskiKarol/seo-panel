@@ -273,6 +273,41 @@ export function startScheduler() {
     }
   });
 
+  // Daily 08:15 — Google Ads sync (campaigns + products)
+  // Every 4h — Google Ads sync (all domains with Ads integration)
+  cron.schedule("15 6,10,14,18,22 * * *", async () => {
+    console.log("⏰ [CRON] Google Ads sync starting...");
+    try {
+      const { AdsService } = await import("../services/ads.service.js");
+      const ads = new AdsService();
+      if (!ads.isConfigured()) {
+        console.log("[CRON] Ads not configured, skip");
+        return;
+      }
+      const integrations = await prisma.domainIntegration.findMany({
+        where: { provider: "GOOGLE_ADS", status: "ACTIVE" },
+        select: { domainId: true, domain: { select: { label: true } } },
+      });
+      for (const int of integrations) {
+        try {
+          const campaigns = await ads.syncCampaignDaily(int.domainId, 3);
+          const products = await ads.syncProductDaily(int.domainId, 3);
+          console.log(`✅ [CRON] Ads sync ${int.domain.label}:`, {
+            campaigns: campaigns.rows || 0,
+            products: products.rows || 0,
+          });
+        } catch (e: any) {
+          console.error(
+            `❌ [CRON] Ads sync ${int.domain.label} failed:`,
+            e.message,
+          );
+        }
+      }
+    } catch (e: any) {
+      console.error("❌ [CRON] Ads sync failed:", e.message);
+    }
+  });
+
   // Daily 08:30 — Merchant Center sync
   cron.schedule("30 8 * * *", async () => {
     console.log("⏰ [CRON] Merchant Center daily sync starting...");

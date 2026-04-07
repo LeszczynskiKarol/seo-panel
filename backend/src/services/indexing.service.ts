@@ -140,7 +140,8 @@ export class IndexingService {
     });
 
     const indexed =
-      stats.find((s) => s.indexingVerdict === "PASS")?._count.id || 0;
+      (stats.find((s) => s.indexingVerdict === "PASS")?._count.id || 0) +
+      (stats.find((s) => s.indexingVerdict === "NEUTRAL")?._count.id || 0);
     const total = stats.reduce((sum, s) => sum + s._count.id, 0);
 
     await prisma.domain.update({
