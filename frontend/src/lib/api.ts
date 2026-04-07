@@ -70,6 +70,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data || {}),
     }),
+  removeFromIndex: (domainId: string, pageId: string) =>
+    request<any>(`/domains/${domainId}/pages/${pageId}/remove-index`, {
+      method: "POST",
+    }),
   checkIndexing: (id: string) =>
     request<any>(`/domains/${id}/check-indexing`, { method: "POST" }),
   crawlLinks: (id: string) =>

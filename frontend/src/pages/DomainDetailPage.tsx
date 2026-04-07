@@ -2216,6 +2216,13 @@ function ExpandablePageRow({
           >
             {p.path}
           </a>
+          {p.indexingVerdict !== "FAIL" && (
+            <RemoveFromIndexButton
+              domainId={domainId}
+              pageId={p.id}
+              path={p.path}
+            />
+          )}
         </td>
         <td>
           <span className={cn("badge", verdictBadge(p.indexingVerdict))}>
@@ -3402,5 +3409,64 @@ function MozAnchorDomainGroup({
         </div>
       )}
     </div>
+  );
+}
+
+function RemoveFromIndexButton({
+  domainId,
+  pageId,
+  path,
+}: {
+  domainId: string;
+  pageId: string;
+  path: string;
+}) {
+  const qc = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+
+  const remove = useMutation({
+    mutationFn: () => api.removeFromIndex(domainId, pageId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["pages", domainId] });
+      setConfirming(false);
+      alert(`Wysłano żądanie usunięcia z indeksu.\n\n${data.note}`);
+    },
+  });
+
+  if (confirming) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 ml-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="text-[9px] text-accent-red">Usunąć?</span>
+        <button
+          onClick={() => remove.mutate()}
+          disabled={remove.isPending}
+          className="text-[9px] text-accent-red font-bold hover:underline"
+        >
+          {remove.isPending ? "..." : "TAK"}
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          className="text-[9px] text-panel-muted hover:underline"
+        >
+          nie
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        setConfirming(true);
+      }}
+      className="ml-2 text-[9px] text-panel-dim hover:text-accent-red transition-colors"
+      title="Usuń z indeksu Google"
+    >
+      🗑
+    </button>
   );
 }

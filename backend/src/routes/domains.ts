@@ -977,4 +977,41 @@ export async function domainRoutes(fastify: FastifyInstance) {
       return { query, daily: [], error: e.message };
     }
   });
+
+  // Remove URL from Google index
+  fastify.post("/:domainId/pages/:pageId/remove-index", async (request) => {
+    const { pageId } = request.params as { domainId: string; pageId: string };
+    const page = await prisma.page.findUniqueOrThrow({
+      where: { id: pageId },
+      include: { domain: true },
+    });
+    const { IndexingService } = await import("../services/indexing.service.js");
+    const indexing = new IndexingService();
+    const siteUrl =
+      page.domain.gscProperty ||
+      `sc-domain:${page.domain.domain.replace(/^www\./, "")}`;
+
+    // 1. Try URL_DELETED (works only for Indexing API eligible pages)
+    const deleteResult = await indexing.submitUrl(page.url, "URL_DELETED");
+
+    // 2. Request recrawl so Google picks up noindex faster
+    const recrawlResult = await indexing.submitUrl(page.url, "URL_UPDATED");
+
+    // 3. Mark in panel
+    await prisma.page.update({
+      where: { id: pageId },
+      data: {
+        indexingVerdict: "FAIL",
+        coverageState: "Removal requested",
+        lastChecked: new Date(),
+      },
+    });
+
+    return {
+      ok: true,
+      deleteResult,
+      recrawlResult,
+      note: "URL_DELETED wysłany. Dodaj noindex w kodzie strony żeby trwale usunąć z indeksu.",
+    };
+  });
 }
