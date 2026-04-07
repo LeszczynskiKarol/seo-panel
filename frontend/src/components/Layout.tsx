@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Outlet, NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -12,6 +13,7 @@ import {
   Activity,
   PiggyBank,
   Clock,
+  ChevronDown,
 } from "lucide-react";
 
 import { cn } from "../lib/utils";
@@ -98,6 +100,8 @@ export function Layout() {
 }
 
 function DomainsNav() {
+  const [expanded, setExpanded] = useState(false);
+  const [filter, setFilter] = useState("");
   const { data: domains } = useQuery({
     queryKey: ["domains"],
     queryFn: api.getDomains,
@@ -105,45 +109,87 @@ function DomainsNav() {
 
   if (!domains) return null;
 
+  const filtered = domains.filter((d: any) =>
+    (d.label || d.domain).toLowerCase().includes(filter.toLowerCase()),
+  );
+
+  const COLLAPSED_COUNT = 5;
+  const shown = expanded ? filtered : filtered.slice(0, COLLAPSED_COUNT);
+  const hasMore = filtered.length > COLLAPSED_COUNT;
+
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
-      {domains.map((d: any) => {
-        const pct =
-          d.totalPages > 0
-            ? Math.round((d.indexedPages / d.totalPages) * 100)
-            : 0;
-        return (
-          <NavLink
-            key={d.id}
-            to={`/domains/${d.id}`}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-1.5 px-2 py-1 rounded text-[10px] transition-all group",
-                isActive
-                  ? "bg-panel-hover text-panel-text"
-                  : "text-panel-dim hover:text-panel-text hover:bg-panel-hover/30",
-              )
-            }
-          >
-            <Globe className="w-2.5 h-2.5 shrink-0 opacity-40" />
-            <span className="truncate font-mono">
-              {d.label || d.domain.replace("www.", "")}
-            </span>
-            <span
-              className={cn(
-                "ml-auto text-[9px] font-mono",
-                pct === 100
-                  ? "text-accent-green"
-                  : pct > 50
-                    ? "text-accent-amber"
-                    : "text-accent-red",
-              )}
+    <div className="flex-1 min-h-0 flex flex-col">
+      {domains.length > COLLAPSED_COUNT && (
+        <div className="px-2 pb-1">
+          <input
+            type="text"
+            placeholder="Szukaj domeny…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="input w-full text-[10px] py-1 px-1.5"
+          />
+        </div>
+      )}
+
+      <div
+        className={cn(
+          "overflow-y-auto transition-all duration-200",
+          expanded ? "max-h-[60vh]" : "max-h-[none]",
+        )}
+      >
+        {shown.map((d: any) => {
+          const pct =
+            d.totalPages > 0
+              ? Math.round((d.indexedPages / d.totalPages) * 100)
+              : 0;
+          return (
+            <NavLink
+              key={d.id}
+              to={`/domains/${d.id}`}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-1.5 px-2 py-1 rounded text-[10px] transition-all group",
+                  isActive
+                    ? "bg-panel-hover text-panel-text"
+                    : "text-panel-dim hover:text-panel-text hover:bg-panel-hover/30",
+                )
+              }
             >
-              {pct}%
-            </span>
-          </NavLink>
-        );
-      })}
+              <Globe className="w-2.5 h-2.5 shrink-0 opacity-40" />
+              <span className="truncate font-mono">
+                {d.label || d.domain.replace("www.", "")}
+              </span>
+              <span
+                className={cn(
+                  "ml-auto text-[9px] font-mono",
+                  pct === 100
+                    ? "text-accent-green"
+                    : pct > 50
+                      ? "text-accent-amber"
+                      : "text-accent-red",
+                )}
+              >
+                {pct}%
+              </span>
+            </NavLink>
+          );
+        })}
+      </div>
+
+      {hasMore && !filter && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center justify-center gap-1 px-2 py-1.5 text-[9px] text-accent-blue hover:text-accent-blue/80 transition-colors cursor-pointer"
+        >
+          {expanded ? `Zwiń` : `Pokaż wszystkie (${filtered.length})`}
+          <ChevronDown
+            className={cn(
+              "w-3 h-3 transition-transform",
+              expanded && "rotate-180",
+            )}
+          />
+        </button>
+      )}
     </div>
   );
 }
