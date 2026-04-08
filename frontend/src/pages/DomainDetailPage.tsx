@@ -392,9 +392,32 @@ export function DomainDetailPage() {
                 {categoryLabel(d.category)}
               </span>
               {d.mozDA != null && (
-                <span className="text-[10px] font-mono text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">
-                  DA {d.mozDA.toFixed(0)}
-                </span>
+                <>
+                  <span className="text-[10px] font-mono text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">
+                    DA {d.mozDA.toFixed(0)}
+                  </span>
+                  <span className="text-[10px] font-mono text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
+                    PA {d.mozPA?.toFixed(0) || "—"}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                      (d.mozSpamScore || 0) <= 30
+                        ? "text-accent-green bg-accent-green/10"
+                        : (d.mozSpamScore || 0) <= 60
+                          ? "text-accent-amber bg-accent-amber/10"
+                          : "text-accent-red bg-accent-red/10",
+                    )}
+                  >
+                    Spam {d.mozSpamScore?.toFixed(0) || "—"}
+                  </span>
+                  <span className="text-[10px] font-mono text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
+                    {fmtNumber(d.mozLinks || 0)} links
+                  </span>
+                  <span className="text-[10px] font-mono text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded">
+                    {fmtNumber(d.mozDomains || 0)} domains
+                  </span>
+                </>
               )}
             </div>
             <h1 className="text-xl font-bold font-mono">
@@ -545,54 +568,6 @@ export function DomainDetailPage() {
         startDate={overviewStart}
         endDate={overviewEnd}
       />
-      {d.mozDA != null && (
-        <div>
-          <div className="grid grid-cols-5 gap-3">
-            <MiniStat
-              label="Domain Authority"
-              value={d.mozDA?.toFixed(0) || "—"}
-              color={
-                d.mozDA >= 40
-                  ? "#22c55e"
-                  : d.mozDA >= 20
-                    ? "#f59e0b"
-                    : "#ef4444"
-              }
-            />
-            <MiniStat
-              label="Page Authority"
-              value={d.mozPA?.toFixed(0) || "—"}
-              color="#3b82f6"
-            />
-            <MiniStat
-              label="Spam Score"
-              value={d.mozSpamScore?.toFixed(0) || "—"}
-              color={
-                (d.mozSpamScore || 0) <= 30
-                  ? "#22c55e"
-                  : (d.mozSpamScore || 0) <= 60
-                    ? "#f59e0b"
-                    : "#ef4444"
-              }
-            />
-            <MiniStat
-              label="External Links"
-              value={fmtNumber(d.mozLinks || 0)}
-              color="#06b6d4"
-            />
-            <MiniStat
-              label="Linking Domains"
-              value={fmtNumber(d.mozDomains || 0)}
-              color="#a855f7"
-            />
-          </div>
-          {d.mozLastSync && (
-            <div className="text-[9px] text-panel-dim mt-1 text-right">
-              Moz sync: {fmtDate(d.mozLastSync)}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Indexing breakdown */}
       {d.indexingStats?.length > 0 && (
