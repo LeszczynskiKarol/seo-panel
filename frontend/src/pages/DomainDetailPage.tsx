@@ -383,111 +383,74 @@ export function DomainDetailPage() {
           <ArrowLeft className="w-3 h-3" /> Dashboard
         </button>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span
-                className={cn("badge text-[9px]", categoryColor(d.category))}
-              >
-                {categoryLabel(d.category)}
-              </span>
-              {d.mozDA != null && (
-                <>
-                  <span className="text-[10px] font-mono text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">
-                    DA {d.mozDA.toFixed(0)}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={cn("badge text-[9px]", categoryColor(d.category))}>
+              {categoryLabel(d.category)}
+            </span>
+            {d.mozDA != null && (
+              <>
+                <span className="text-[10px] font-mono text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">
+                  DA {d.mozDA.toFixed(0)}
+                </span>
+                <span className="text-[10px] font-mono text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
+                  PA {d.mozPA?.toFixed(0) || "—"}
+                </span>
+                <span
+                  className={cn(
+                    "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                    (d.mozSpamScore || 0) <= 30
+                      ? "text-accent-green bg-accent-green/10"
+                      : (d.mozSpamScore || 0) <= 60
+                        ? "text-accent-amber bg-accent-amber/10"
+                        : "text-accent-red bg-accent-red/10",
+                  )}
+                >
+                  Spam {d.mozSpamScore?.toFixed(0) || "—"}
+                </span>
+                <span className="text-[10px] font-mono text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
+                  {fmtNumber(d.mozLinks || 0)} links
+                </span>
+                <span className="text-[10px] font-mono text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded">
+                  {fmtNumber(d.mozDomains || 0)} domains
+                </span>
+                {d.mozLastSync && (
+                  <span className="text-[9px] text-panel-dim">
+                    Moz: {fmtDate(d.mozLastSync)}
                   </span>
-                  <span className="text-[10px] font-mono text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
-                    PA {d.mozPA?.toFixed(0) || "—"}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                      (d.mozSpamScore || 0) <= 30
-                        ? "text-accent-green bg-accent-green/10"
-                        : (d.mozSpamScore || 0) <= 60
-                          ? "text-accent-amber bg-accent-amber/10"
-                          : "text-accent-red bg-accent-red/10",
-                    )}
-                  >
-                    Spam {d.mozSpamScore?.toFixed(0) || "—"}
-                  </span>
-                  <span className="text-[10px] font-mono text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
-                    {fmtNumber(d.mozLinks || 0)} links
-                  </span>
-                  <span className="text-[10px] font-mono text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded">
-                    {fmtNumber(d.mozDomains || 0)} domains
-                  </span>
-                </>
-              )}
-            </div>
-            <h1 className="text-xl font-bold font-mono">
-              {d.label || d.domain}
-            </h1>
-            <a
-              href={d.siteUrl}
-              target="_blank"
-              className="text-xs text-accent-blue hover:underline flex items-center gap-1 mt-0.5"
-            >
-              {d.domain} <ExternalLink className="w-3 h-3" />
-            </a>
+                )}
+              </>
+            )}
           </div>
-
-          <div className="flex gap-2">
-            <button
-              className="btn btn-ghost text-xs"
-              onClick={() => syncSitemap.mutate()}
-              disabled={syncSitemap.isPending}
-            >
-              {syncSitemap.isPending ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                "Sync sitemap"
-              )}
-            </button>
-            <button
-              className="btn btn-ghost text-xs"
-              onClick={() => pullGsc.mutate()}
-              disabled={pullGsc.isPending}
-            >
-              {pullGsc.isPending ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                "Pull GSC"
-              )}
-            </button>
-            <button
-              className="btn btn-ghost text-xs"
-              onClick={() => checkIndexing.mutate()}
-              disabled={checkIndexing.isPending}
-            >
-              {checkIndexing.isPending ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                "Check indexing"
-              )}
-            </button>
-            <button
-              className="btn btn-ghost text-xs"
-              onClick={() => crawlLinks.mutate()}
-              disabled={crawlLinks.isPending}
-            >
-              {crawlLinks.isPending ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                "Crawl links"
-              )}
-            </button>
-            <button
-              className="btn btn-ghost text-xs"
-              onClick={() => syncMozMetrics.mutate()}
-              disabled={syncMozMetrics.isPending}
-            >
-              {syncMozMetrics.isPending ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                "Sync Moz"
-              )}
-            </button>
+          <h1 className="text-xl font-bold font-mono">{d.label || d.domain}</h1>
+          <a
+            href={d.siteUrl}
+            target="_blank"
+            className="text-xs text-accent-blue hover:underline flex items-center gap-1 mt-0.5"
+          >
+            {d.domain} <ExternalLink className="w-3 h-3" />
+          </a>
+          <div className="flex gap-2 mt-3">
+            {[
+              { label: "Sync sitemap", mutation: syncSitemap },
+              { label: "Pull GSC", mutation: pullGsc },
+              { label: "Check indexing", mutation: checkIndexing },
+              { label: "Crawl links", mutation: crawlLinks },
+              { label: "Sync Moz", mutation: syncMozMetrics },
+            ].map((btn) => (
+              <button
+                key={btn.label}
+                className="btn btn-ghost text-xs"
+                onClick={() => btn.mutation.mutate()}
+                disabled={btn.mutation.isPending}
+              >
+                {btn.mutation.isPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  btn.label
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </div>
