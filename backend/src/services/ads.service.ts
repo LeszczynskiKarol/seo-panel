@@ -76,7 +76,7 @@ export class AdsService {
           metrics.conversions_value,
           segments.date
         FROM campaign
-        WHERE segments.date DURING LAST_${days}_DAYS
+        WHERE segments.date BETWEEN '${this.daysAgo(days)}' AND '${this.today()}'
           AND campaign.status = 'ENABLED'
         ORDER BY segments.date DESC
       `);
@@ -166,7 +166,7 @@ export class AdsService {
           metrics.conversions_value,
           segments.date
         FROM shopping_performance_view
-        WHERE segments.date DURING LAST_${days}_DAYS
+        WHERE segments.date BETWEEN '${this.daysAgo(days)}' AND '${this.today()}'
         ORDER BY metrics.conversions_value DESC
       `);
 
@@ -578,5 +578,12 @@ export class AdsService {
       console.error("[Ads] listAccessibleCustomers error:", e.message);
       return { error: e.message };
     }
+  }
+  private today(): string {
+    return new Date().toISOString().split("T")[0];
+  }
+
+  private daysAgo(days: number): string {
+    return new Date(Date.now() - days * 86400000).toISOString().split("T")[0];
   }
 }
