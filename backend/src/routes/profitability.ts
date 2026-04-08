@@ -38,7 +38,23 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
         where: { integrationId: integration.id, date: dateFilter },
         orderBy: { date: "asc" },
       });
-      bySource = (integration.cachedData as any)?.bySource || [];
+
+      // Fetch live source breakdown for the actual date range
+      try {
+        const { GA4Service } = await import("../services/ga4.service.js");
+        const ga4 = new GA4Service();
+        const sd = since.toISOString().split("T")[0];
+        const ed = until
+          ? until.toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0];
+        bySource = await ga4.getSourceBreakdown(
+          integration.propertyId!,
+          sd,
+          ed,
+        );
+      } catch {
+        bySource = (integration.cachedData as any)?.bySource || [];
+      }
     }
 
     // ─── 2. Ads daily (costs) ───
