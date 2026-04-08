@@ -83,18 +83,25 @@ export function AdsSection({ domainId }: { domainId: string }) {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
-            {[7, 14, 30, 90].map((d) => (
+            {[
+              { label: "Dziś", d: 0 },
+              { label: "Wczoraj", d: 1 },
+              { label: "7d", d: 7 },
+              { label: "14d", d: 14 },
+              { label: "30d", d: 30 },
+              { label: "90d", d: 90 },
+            ].map((p) => (
               <button
-                key={d}
-                onClick={() => setDays(d)}
+                key={p.label}
+                onClick={() => setDays(p.d)}
                 className={cn(
                   "px-2 py-0.5 rounded text-[10px] font-mono",
-                  days === d
+                  days === p.d
                     ? "bg-accent-blue/20 text-accent-blue font-semibold"
                     : "text-panel-muted",
                 )}
               >
-                {d}d
+                {p.label}
               </button>
             ))}
           </div>

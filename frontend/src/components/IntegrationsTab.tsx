@@ -477,7 +477,16 @@ function GA4Dashboard({
     (startDate < cachedStart || endDate > cachedEnd);
 
   // ─── Date helpers ───
-  const presets = [7, 14, 30, 90, 180, 365];
+  const presets = [
+    { label: "Dziś", days: 0 },
+    { label: "Wczoraj", days: 1 },
+    { label: "7d", days: 7 },
+    { label: "14d", days: 14 },
+    { label: "30d", days: 30 },
+    { label: "90d", days: 90 },
+    { label: "180d", days: 180 },
+    { label: "365d", days: 365 },
+  ];
   const today = new Date().toISOString().split("T")[0];
 
   const applyPreset = (d: number) => {
@@ -514,18 +523,34 @@ function GA4Dashboard({
           <span className="text-[9px] text-panel-muted uppercase tracking-wider">
             Okres:
           </span>
-          {presets.map((d) => (
+          {presets.map((p) => (
             <button
-              key={d}
-              onClick={() => applyPreset(d)}
+              key={p.label}
+              onClick={() => {
+                if (p.days === 0) {
+                  const t = new Date().toISOString().split("T")[0];
+                  setStartDate(t);
+                  setEndDate(t);
+                  setDays(0);
+                } else if (p.days === 1) {
+                  const y = new Date(Date.now() - 86400000)
+                    .toISOString()
+                    .split("T")[0];
+                  setStartDate(y);
+                  setEndDate(y);
+                  setDays(1);
+                } else {
+                  applyPreset(p.days);
+                }
+              }}
               className={cn(
                 "px-2 py-0.5 rounded text-[10px] font-mono transition-all",
-                days === d
+                days === p.days
                   ? "bg-accent-blue/20 text-accent-blue font-semibold"
                   : "text-panel-muted hover:text-panel-text",
               )}
             >
-              {d}d
+              {p.label}
             </button>
           ))}
           <div className="h-4 w-px bg-panel-border mx-1" />
@@ -552,19 +577,7 @@ function GA4Dashboard({
               {rangeDays}d
             </span>
           )}
-          {needsResync && (
-            <button
-              onClick={() => resyncMutation.mutate()}
-              disabled={resyncMutation.isPending}
-              className="btn btn-primary text-[10px] py-0.5 px-2"
-            >
-              {resyncMutation.isPending ? (
-                <RefreshCw className="w-3 h-3 animate-spin" />
-              ) : (
-                "Pobierz dane za ten okres"
-              )}
-            </button>
-          )}
+
           {/* Subtle loading indicator — chart stays visible */}
           {isFetching && !isLoading && (
             <RefreshCw className="w-3 h-3 animate-spin text-accent-blue/50" />

@@ -226,7 +226,14 @@ export class AdsService {
   // ─── GET CACHED DATA FOR FRONTEND ─────────────────────────
 
   async getCampaignOverview(domainId: string, days = 30) {
-    const since = new Date(Date.now() - days * 86400000);
+    const since =
+      days === 0
+        ? new Date(new Date().toISOString().split("T")[0])
+        : days === 1
+          ? new Date(
+              new Date(Date.now() - 86400000).toISOString().split("T")[0],
+            )
+          : new Date(Date.now() - days * 86400000);
 
     const daily = await prisma.adsCampaignDaily.findMany({
       where: { domainId, date: { gte: since } },
@@ -314,7 +321,14 @@ export class AdsService {
   }
 
   async getProductPerformance(domainId: string, days = 30) {
-    const since = new Date(Date.now() - days * 86400000);
+    const since =
+      days === 0
+        ? new Date(new Date().toISOString().split("T")[0])
+        : days === 1
+          ? new Date(
+              new Date(Date.now() - 86400000).toISOString().split("T")[0],
+            )
+          : new Date(Date.now() - days * 86400000);
     const products = await prisma.adsProductDaily.groupBy({
       by: ["productId", "productTitle", "productCategory"],
       where: { domainId, date: { gte: since } },
