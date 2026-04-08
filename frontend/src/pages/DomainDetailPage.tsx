@@ -515,13 +515,32 @@ export function DomainDetailPage() {
         />
       </div>
       {/* Traffic chart — DualMetricChart with position */}
-      {d.dailyStats?.length > 0 && (
+      {d.dailyStats?.length > 1 ? (
         <div className="bg-panel-card border border-panel-border rounded-lg p-4">
           <DualMetricChart data={d.dailyStats} height={180} showPosition />
+        </div>
+      ) : d.dailyStats?.length === 1 ? (
+        <div className="bg-panel-card border border-panel-border rounded-lg p-4 text-center text-[10px] text-panel-muted">
+          Tylko 1 dzień danych — wykres wymaga min. 2 dni. Kliknięcia:{" "}
+          <strong className="text-accent-cyan">{d.dailyStats[0].clicks}</strong>
+          , Wyświetlenia:{" "}
+          <strong className="text-accent-purple">
+            {d.dailyStats[0].impressions}
+          </strong>
+        </div>
+      ) : (
+        <div className="bg-panel-card border border-panel-border rounded-lg p-4 text-center text-[10px] text-panel-muted">
+          Brak danych GSC za wybrany okres. GSC ma ~2 dni opóźnienia.
         </div>
       )}
       {/* Traffic sources from GA4 */}
       <TrafficSourcesCard
+        domainId={id!}
+        startDate={overviewStart}
+        endDate={overviewEnd}
+      />
+      {/* Revenue/profit box — only for domains with conversion data */}
+      <DomainRevenueBox
         domainId={id!}
         startDate={overviewStart}
         endDate={overviewEnd}
@@ -3665,5 +3684,87 @@ function RemoveFromIndexButton({
     >
       🗑
     </button>
+  );
+}
+function DomainRevenueBox({
+  domainId,
+  startDate,
+  endDate,
+}: {
+  domainId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const { data } = useQuery({
+    queryKey: ["profitability-mini", domainId, startDate, endDate],
+    queryFn: () =>
+      api.getProfitability(domainId, undefined, startDate, endDate),
+  });
+
+  if (!data) return null;
+  const t = data.totals;
+  if (t.revenue === 0 && t.adsCost === 0 && t.conversions === 0) return null;
+
+  const days =
+    Math.round(
+      (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000,
+    ) + 1;
+
+  return (
+    <div className="bg-panel-card border border-panel-border rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[10px] text-panel-muted uppercase tracking-wider">
+          Finanse ({days}d)
+        </span>
+        <span className="text-[10px] text-panel-dim font-mono">
+          {startDate} → {endDate}
+        </span>
+      </div>
+      <div
+        className={cn(
+          "grid gap-2",
+          data.hasAds ? "grid-cols-6" : "grid-cols-4",
+        )}
+      >
+        <MiniStat
+          label="Sprzedaż"
+          value={`${fmtNumber(Math.round(t.revenue))} zł`}
+          color="#a855f7"
+        />
+        {data.isCommissionBased ? (
+          <MiniStat
+            label="Prowizja 12%"
+            value={`${fmtNumber(Math.round(t.commission))} zł`}
+            color="#f59e0b"
+          />
+        ) : (
+          <MiniStat
+            label="Przychód"
+            value={`${fmtNumber(Math.round(t.revenue))} zł`}
+            color="#22c55e"
+          />
+        )}
+        {data.hasAds && (
+          <MiniStat
+            label="Koszt Ads"
+            value={`${fmtNumber(Math.round(t.adsCost))} zł`}
+            color="#ef4444"
+          />
+        )}
+        <MiniStat
+          label={t.profit >= 0 ? "Zysk" : "Strata"}
+          value={`${t.profit >= 0 ? "+" : ""}${fmtNumber(Math.round(t.profit))} zł`}
+          color={t.profit >= 0 ? "#22c55e" : "#ef4444"}
+        />
+        <MiniStat label="Konwersje" value={t.conversions} color="#06b6d4" />
+        {data.hasAds && (
+          <MiniStat
+            label="ROAS"
+            value={t.realRoas > 0 ? `${(t.realRoas * 100).toFixed(0)}%` : "—"}
+            color={t.realRoas >= 1 ? "#22c55e" : "#ef4444"}
+          />
+        )}
+      </div>
+    </div>
   );
 }
