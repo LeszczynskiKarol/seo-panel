@@ -189,35 +189,7 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
         ? totalAdsCost / daily.length / COMMISSION_RATE
         : 0;
 
-    // ─── 7. Channel breakdown (from GA4 bySource) ───
-    const channels = bySource
-      .map((s: any) => {
-        const isOrganic = s.sourceMedium?.includes("organic");
-        const isPaid =
-          s.sourceMedium?.includes("cpc") || s.sourceMedium?.includes("paid");
-        const isDirect =
-          s.sourceMedium?.includes("(direct)") ||
-          s.sourceMedium?.includes("(none)");
-        const isReferral = s.sourceMedium?.includes("referral");
-
-        let channel = "Inne";
-        if (isOrganic) channel = "Organic";
-        else if (isPaid) channel = "Paid (Google Ads)";
-        else if (isDirect) channel = "Direct";
-        else if (isReferral) channel = "Referral";
-
-        return {
-          sourceMedium: s.sourceMedium,
-          channel,
-          sessions: s.sessions || 0,
-          conversions: s.conversions || 0,
-          revenue: s.revenue || 0,
-          commission: (s.revenue || 0) * COMMISSION_RATE,
-        };
-      })
-      .sort((a, b) => b.revenue - a.revenue);
-
-    // Aggregate by channel
+    // ─── 7. Channel breakdown (sessions from GA4, revenue distributed from webhook) ───
     const channelMap = new Map<
       string,
       {
@@ -230,9 +202,24 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
         profit: number;
       }
     >();
-    for (const c of channels) {
-      const e = channelMap.get(c.channel) || {
-        channel: c.channel,
+
+    for (const s of bySource) {
+      const isOrganic = s.sourceMedium?.includes("organic");
+      const isPaid =
+        s.sourceMedium?.includes("cpc") || s.sourceMedium?.includes("paid");
+      const isDirect =
+        s.sourceMedium?.includes("(direct)") ||
+        s.sourceMedium?.includes("(none)");
+      const isReferral = s.sourceMedium?.includes("referral");
+
+      let channel = "Inne";
+      if (isOrganic) channel = "Organic";
+      else if (isPaid) channel = "Paid (Google Ads)";
+      else if (isDirect) channel = "Direct";
+      else if (isReferral) channel = "Referral";
+
+      const e = channelMap.get(channel) || {
+        channel,
         sessions: 0,
         conversions: 0,
         revenue: 0,
@@ -240,17 +227,29 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
         cost: 0,
         profit: 0,
       };
-      e.sessions += c.sessions;
-      e.conversions += c.conversions;
-      e.revenue += c.revenue;
-      e.commission += c.commission;
-      channelMap.set(c.channel, e);
+      e.sessions += s.sessions || 0;
+      channelMap.set(channel, e);
     }
+
+    // Distribute webhook revenue proportionally to sessions
+    const totalChannelSessions = Array.from(channelMap.values()).reduce(
+      (s, ch) => s + ch.sessions,
+      0,
+    );
+    if (totalChannelSessions > 0 && totalRevenue > 0) {
+      for (const [, ch] of channelMap) {
+        const share = ch.sessions / totalChannelSessions;
+        ch.revenue = Math.round(totalRevenue * share * 100) / 100;
+        ch.conversions = Math.round(totalConversions * share);
+        ch.commission = ch.revenue * COMMISSION_RATE;
+      }
+    }
+
     // Assign ads cost only to Paid channel
     const paidChannel = channelMap.get("Paid (Google Ads)");
     if (paidChannel) paidChannel.cost = totalAdsCost;
     for (const [, ch] of channelMap) {
-      ch.profit = ch.commission - ch.cost;
+      ch.profit = Math.round((ch.commission - ch.cost) * 100) / 100;
     }
     const channelSummary = Array.from(channelMap.values()).sort(
       (a, b) => b.revenue - a.revenue,
@@ -313,7 +312,7 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
       },
       daily,
       channels: channelSummary,
-      channelDetail: channels,
+      channelDetail: bySource,
       products: productProfit.slice(0, 200),
       hasGA4: !!integration,
       hasAds: adsCampaignDaily.length > 0,
