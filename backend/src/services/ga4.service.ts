@@ -272,10 +272,9 @@ export class GA4Service {
       },
     });
 
-    // Skip ECOMMERCE domains — their data comes from shop API, not GA4
-    const filtered = integrations.filter(
-      (int) => int.domain.category !== "ECOMMERCE",
-    );
+    // Sync ALL domains — GA4 provides sessions/users for all
+    // (conversions/revenue won't be overwritten if webhook data exists)
+    const filtered = integrations;
 
     const results: { domain: string; days: number; error?: string }[] = [];
 
