@@ -96,14 +96,6 @@ export class GA4Service {
         const getNum = (i: number): number =>
           parseFloat(metrics[i]?.value || "0") || 0;
 
-        // Check if webhook already wrote conversions for this day
-        const existing = await prisma.integrationDaily.findUnique({
-          where: { integrationId_date: { integrationId, date } },
-          select: { conversions: true, revenue: true },
-        });
-
-        const webhookHasData = existing && (existing.conversions || 0) > 0;
-
         await prisma.integrationDaily.upsert({
           where: { integrationId_date: { integrationId, date } },
           update: {
@@ -113,13 +105,7 @@ export class GA4Service {
             pageviews: Math.round(getNum(3)),
             avgSessionDuration: getNum(4),
             bounceRate: getNum(5),
-            // NEVER overwrite webhook conversions/revenue
-            ...(webhookHasData
-              ? {}
-              : {
-                  conversions: Math.round(getNum(6)),
-                  revenue: getNum(7),
-                }),
+            // NEVER write conversions/revenue from GA4 — webhooks only
           },
           create: {
             integrationId,
@@ -130,11 +116,10 @@ export class GA4Service {
             pageviews: Math.round(getNum(3)),
             avgSessionDuration: getNum(4),
             bounceRate: getNum(5),
-            conversions: Math.round(getNum(6)),
-            revenue: getNum(7),
+            conversions: 0,
+            revenue: 0,
           },
         });
-
         daysProcessed++;
       }
 

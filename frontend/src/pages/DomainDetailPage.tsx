@@ -45,6 +45,151 @@ type Tab =
   | "broken"
   | "tracked";
 
+function TrafficSourcesCard({
+  domainId,
+  startDate,
+  endDate,
+}: {
+  domainId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const { data: integration } = useQuery({
+    queryKey: ["ga4-integration", domainId],
+    queryFn: async () => {
+      const ints = await api.getIntegrations(domainId);
+      return ints.find(
+        (i: any) => i.provider === "GOOGLE_ANALYTICS" && i.status === "ACTIVE",
+      );
+    },
+  });
+
+  const { data: sourceData } = useQuery({
+    queryKey: ["ga4-sources-overview", domainId, startDate, endDate],
+    queryFn: () =>
+      api.getIntegrationData(domainId, integration.id, { startDate, endDate }),
+    enabled: !!integration?.id,
+  });
+
+  const sources = sourceData?.bySource || [];
+  if (!sources.length) return null;
+
+  const totalSessions = sources.reduce(
+    (s: number, src: any) => s + (src.sessions || 0),
+    0,
+  );
+
+  // Group by channel
+  const channelMap = new Map<string, { sessions: number; color: string }>();
+  for (const s of sources) {
+    const sm = (s.sourceMedium || "").toLowerCase();
+    let ch = "Inne";
+    let color = "#64748b";
+    if (sm.includes("organic")) {
+      ch = "Organic";
+      color = "#22c55e";
+    } else if (sm.includes("cpc") || sm.includes("paid")) {
+      ch = "Paid";
+      color = "#ef4444";
+    } else if (sm.includes("(direct)") || sm.includes("(none)")) {
+      ch = "Direct";
+      color = "#3b82f6";
+    } else if (sm.includes("referral")) {
+      ch = "Referral";
+      color = "#f59e0b";
+    }
+
+    const e = channelMap.get(ch) || { sessions: 0, color };
+    e.sessions += s.sessions || 0;
+    channelMap.set(ch, e);
+  }
+
+  const channels = Array.from(channelMap.entries())
+    .map(([name, d]) => ({
+      name,
+      ...d,
+      pct:
+        totalSessions > 0 ? Math.round((d.sessions / totalSessions) * 100) : 0,
+    }))
+    .sort((a, b) => b.sessions - a.sessions);
+
+  return (
+    <div className="bg-panel-card border border-panel-border rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[10px] text-panel-muted uppercase tracking-wider">
+          Źródła ruchu (GA4)
+        </span>
+        <span className="text-[10px] text-panel-dim font-mono">
+          {fmtNumber(totalSessions)} sesji
+        </span>
+      </div>
+
+      {/* Stacked bar */}
+      <div className="h-3 rounded-full overflow-hidden flex mb-3">
+        {channels.map((ch) => (
+          <div
+            key={ch.name}
+            className="h-full transition-all"
+            style={{
+              width: `${Math.max(ch.pct, 1)}%`,
+              backgroundColor: ch.color,
+            }}
+            title={`${ch.name}: ${ch.pct}%`}
+          />
+        ))}
+      </div>
+
+      {/* Legend + details */}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+        {channels.map((ch) => (
+          <div key={ch.name} className="flex items-center gap-2 text-[11px]">
+            <div
+              className="w-2.5 h-2.5 rounded-full shrink-0"
+              style={{ backgroundColor: ch.color }}
+            />
+            <span className="text-panel-text font-medium">{ch.name}</span>
+            <span className="text-panel-muted font-mono ml-auto">
+              {fmtNumber(ch.sessions)}
+            </span>
+            <span className="text-panel-dim font-mono w-8 text-right">
+              {ch.pct}%
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Top 5 source/medium */}
+      <div className="mt-3 pt-3 border-t border-panel-border/50 space-y-1">
+        {sources.slice(0, 5).map((s: any, i: number) => {
+          const pct =
+            totalSessions > 0
+              ? Math.round((s.sessions / totalSessions) * 100)
+              : 0;
+          return (
+            <div key={i} className="flex items-center gap-2 text-[10px]">
+              <span className="text-panel-dim font-mono truncate w-[200px]">
+                {s.sourceMedium}
+              </span>
+              <div className="flex-1 h-1 bg-panel-border/30 rounded overflow-hidden">
+                <div
+                  className="h-full bg-accent-cyan/40 rounded"
+                  style={{ width: `${Math.max(pct, 1)}%` }}
+                />
+              </div>
+              <span className="text-accent-cyan font-mono shrink-0">
+                {fmtNumber(s.sessions)}
+              </span>
+              <span className="text-panel-dim font-mono w-8 text-right shrink-0">
+                {pct}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function DomainDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -375,7 +520,12 @@ export function DomainDetailPage() {
           <DualMetricChart data={d.dailyStats} height={180} showPosition />
         </div>
       )}
-
+      {/* Traffic sources from GA4 */}
+      <TrafficSourcesCard
+        domainId={id!}
+        startDate={overviewStart}
+        endDate={overviewEnd}
+      />
       {d.mozDA != null && (
         <div>
           <div className="grid grid-cols-5 gap-3">
@@ -2636,15 +2786,31 @@ function DateRangePicker({
   setStartDate: (d: string) => void;
   setEndDate: (d: string) => void;
 }) {
-  const presets = [7, 14, 30, 90];
+  const PRESETS = [
+    { label: "Dziś", days: 0 },
+    { label: "Wczoraj", days: -1 },
+    { label: "7d", days: 7 },
+    { label: "14d", days: 14 },
+    { label: "30d", days: 30 },
+    { label: "90d", days: 90 },
+  ];
   const today = new Date().toISOString().split("T")[0];
 
   const applyPreset = (d: number) => {
     setDays(d);
-    const end = new Date();
-    const start = new Date(Date.now() - d * 86400000);
-    setStartDate(start.toISOString().split("T")[0]);
-    setEndDate(end.toISOString().split("T")[0]);
+    if (d === 0) {
+      setStartDate(today);
+      setEndDate(today);
+    } else if (d === -1) {
+      const y = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+      setStartDate(y);
+      setEndDate(y);
+    } else {
+      const end = new Date();
+      const start = new Date(Date.now() - d * 86400000);
+      setStartDate(start.toISOString().split("T")[0]);
+      setEndDate(end.toISOString().split("T")[0]);
+    }
   };
 
   const handleDateChange = (start: string, end: string) => {
@@ -2667,18 +2833,18 @@ function DateRangePicker({
       <span className="text-[9px] text-panel-muted uppercase tracking-wider">
         Okres:
       </span>
-      {presets.map((d) => (
+      {PRESETS.map((p) => (
         <button
-          key={d}
-          onClick={() => applyPreset(d)}
+          key={p.label}
+          onClick={() => applyPreset(p.days)}
           className={cn(
             "px-2 py-0.5 rounded text-[10px] font-mono transition-all",
-            days === d
+            days === p.days
               ? "bg-accent-blue/20 text-accent-blue font-semibold"
               : "text-panel-muted hover:text-panel-text",
           )}
         >
-          {d}d
+          {p.label}
         </button>
       ))}
       <div className="h-4 w-px bg-panel-border mx-1" />
