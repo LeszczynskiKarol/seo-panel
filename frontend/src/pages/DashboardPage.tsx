@@ -79,16 +79,57 @@ export function DashboardPage() {
 
   // This month financial summary
   const now = new Date();
-  const monthStart =
-    now.getFullYear() +
-    "-" +
-    String(now.getMonth() + 1).padStart(2, "0") +
-    "-01";
   const today = fmt(now);
 
+  const FIN_PRESETS = [
+    { label: "Dziś", getDates: () => [today, today] },
+    {
+      label: "Wczoraj",
+      getDates: () => {
+        const y = fmt(new Date(Date.now() - 86400000));
+        return [y, y];
+      },
+    },
+    {
+      label: "7d",
+      getDates: () => [fmt(new Date(Date.now() - 7 * 86400000)), today],
+    },
+    {
+      label: "W tym miesiącu",
+      getDates: () => [
+        now.getFullYear() +
+          "-" +
+          String(now.getMonth() + 1).padStart(2, "0") +
+          "-01",
+        today,
+      ],
+    },
+    {
+      label: "30d",
+      getDates: () => [fmt(new Date(Date.now() - 30 * 86400000)), today],
+    },
+    {
+      label: "90d",
+      getDates: () => [fmt(new Date(Date.now() - 90 * 86400000)), today],
+    },
+  ];
+  const [finPresetIdx, setFinPresetIdx] = useState(0); // default: Dziś
+  const [finCustomStart, setFinCustomStart] = useState("");
+  const [finCustomEnd, setFinCustomEnd] = useState("");
+
+  const [finStart, finEnd] = useMemo(() => {
+    if (finCustomStart && finCustomEnd) return [finCustomStart, finCustomEnd];
+    return FIN_PRESETS[finPresetIdx].getDates();
+  }, [finPresetIdx, finCustomStart, finCustomEnd]);
+
+  const finDays =
+    Math.round(
+      (new Date(finEnd).getTime() - new Date(finStart).getTime()) / 86400000,
+    ) + 1;
+
   const { data: financial } = useQuery({
-    queryKey: ["global-summary", monthStart, today],
-    queryFn: () => api.getGlobalSummary(monthStart, today),
+    queryKey: ["global-summary", finStart, finEnd],
+    queryFn: () => api.getGlobalSummary(finStart, finEnd),
   });
 
   // Moz overview
@@ -196,18 +237,55 @@ export function DashboardPage() {
       {ft && (
         <div className="bg-panel-card border border-panel-border rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <PiggyBank className="w-4 h-4 text-accent-green" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">
-                W tym miesiącu
-              </span>
+              {FIN_PRESETS.map((p, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setFinPresetIdx(i);
+                    setFinCustomStart("");
+                    setFinCustomEnd("");
+                  }}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-mono transition-all",
+                    finPresetIdx === i && !finCustomStart
+                      ? "bg-accent-blue/20 text-accent-blue font-semibold"
+                      : "text-panel-muted hover:text-panel-text",
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <div className="h-4 w-px bg-panel-border mx-1" />
+              <input
+                type="date"
+                className="input text-[10px] py-0.5 w-[110px] font-mono"
+                value={finCustomStart || finStart}
+                onChange={(e) => {
+                  setFinCustomStart(e.target.value);
+                  setFinCustomEnd(finCustomEnd || finEnd);
+                  setFinPresetIdx(-1);
+                }}
+              />
+              <span className="text-[9px] text-panel-muted">→</span>
+              <input
+                type="date"
+                className="input text-[10px] py-0.5 w-[110px] font-mono"
+                value={finCustomEnd || finEnd}
+                onChange={(e) => {
+                  setFinCustomEnd(e.target.value);
+                  setFinCustomStart(finCustomStart || finStart);
+                  setFinPresetIdx(-1);
+                }}
+              />
               <span className="text-[9px] text-panel-dim font-mono">
-                {monthStart} → {today}
+                {finDays}d
               </span>
             </div>
             <button
               onClick={() => navigate("/profitability")}
-              className="text-[10px] text-accent-blue hover:underline flex items-center gap-1"
+              className="text-[10px] text-accent-blue hover:underline flex items-center gap-1 shrink-0"
             >
               Szczegóły <ArrowRight className="w-3 h-3" />
             </button>
@@ -328,7 +406,7 @@ export function DashboardPage() {
         {financial?.domainBreakdown?.length > 0 && (
           <div className="bg-panel-card border border-panel-border rounded-lg p-4">
             <div className="text-[9px] text-panel-muted uppercase tracking-wider mb-2">
-              Przychód per domena (ten miesiąc)
+              Przychód per domena ({finDays}d)
             </div>
             <div className="space-y-2">
               {financial.domainBreakdown.slice(0, 6).map((d: any) => {
@@ -541,7 +619,7 @@ export function DashboardPage() {
           <div className="bg-panel-card border border-panel-border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[9px] text-panel-muted uppercase tracking-wider">
-                Struktura kosztów (ten miesiąc)
+                Struktura kosztów ({finDays}d)
               </span>
               <span className="text-[10px] text-accent-red font-mono font-bold">
                 {fmtNumber(Math.round(ft?.totalCosts || 0))} zł
