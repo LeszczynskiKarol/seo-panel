@@ -131,7 +131,7 @@ export function GlobalProfitabilityPanel({
 } = {}) {
   const qc = useQueryClient();
 
-  const [presetIdx, setPresetIdx] = useState(4); // default: W tym miesiącu
+  const [presetIdx, setPresetIdx] = useState(0); // default: Dziś
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [compare, setCompare] = useState(false);
@@ -376,13 +376,78 @@ export function GlobalProfitabilityPanel({
                   contentStyle={{
                     background: "#1a2235",
                     border: "1px solid #1e2a3a",
-                    borderRadius: "4px",
-                    fontSize: "9px",
+                    borderRadius: "8px",
+                    fontSize: "11px",
+                    padding: "10px 14px",
                   }}
-                  formatter={(v: number) => [
-                    `${v.toFixed(2)} zł`,
-                    "Zysk/Strata",
-                  ]}
+                  cursor={{ fill: "rgba(255,255,255,0.03)" }}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.[0]) return null;
+                    const d = payload[0].payload;
+                    const profit = d.profit ?? 0;
+                    const income = d.commission ?? d.totalIncome ?? 0;
+                    const costs = d.adsCost ?? d.totalCosts ?? 0;
+                    const rev = d.revenue ?? d.ga4Revenue ?? 0;
+                    const conv = d.conversions ?? d.ga4Conversions ?? 0;
+                    const date = new Date(d.date).toLocaleDateString("pl-PL", {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "2-digit",
+                    });
+                    return (
+                      <div
+                        style={{
+                          background: "#1a2235",
+                          border: "1px solid #1e2a3a",
+                          borderRadius: 8,
+                          padding: "10px 14px",
+                          fontSize: 11,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            marginBottom: 6,
+                            color: "#e0e0e0",
+                          }}
+                        >
+                          {date}
+                        </div>
+                        {rev > 0 && (
+                          <div style={{ color: "#a855f7" }}>
+                            Sprzedaż: {fmtNumber(Math.round(rev))} zł
+                          </div>
+                        )}
+                        {income > 0 && (
+                          <div style={{ color: "#f59e0b" }}>
+                            Przychód: {income.toFixed(2)} zł
+                          </div>
+                        )}
+                        {costs > 0 && (
+                          <div style={{ color: "#ef4444" }}>
+                            Koszty: {costs.toFixed(2)} zł
+                          </div>
+                        )}
+                        {conv > 0 && (
+                          <div style={{ color: "#06b6d4" }}>
+                            Konwersje: {conv}
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            marginTop: 4,
+                            paddingTop: 4,
+                            borderTop: "1px solid #2a2a3e",
+                            fontWeight: 700,
+                            color: profit >= 0 ? "#22c55e" : "#ef4444",
+                          }}
+                        >
+                          {profit >= 0 ? "+" : ""}
+                          {profit.toFixed(2)} zł
+                        </div>
+                      </div>
+                    );
+                  }}
                 />
                 <ReferenceLine y={0} stroke="#475569" strokeDasharray="2 2" />
                 <Bar dataKey="profit" radius={[2, 2, 0, 0]}>

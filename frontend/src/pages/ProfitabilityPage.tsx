@@ -41,11 +41,7 @@ export function ProfitabilityPage() {
 
   // Shared date state — default "W tym miesiącu"
   const now = new Date();
-  const defaultStart =
-    now.getFullYear() +
-    "-" +
-    String(now.getMonth() + 1).padStart(2, "0") +
-    "-01";
+  const defaultStart = fmt(now);
   const defaultEnd = fmt(now);
   const [sharedStart, setSharedStart] = useState(defaultStart);
   const [sharedEnd, setSharedEnd] = useState(defaultEnd);
