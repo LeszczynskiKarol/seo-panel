@@ -162,7 +162,14 @@ export class MozService {
   }
 
   // ─── SYNC EXTERNAL BACKLINKS ──────────────────────────────
-  async syncExternalBacklinks(domainId: string, force = false) {
+  async syncExternalBacklinks(
+    domainId: string,
+    force = false,
+    limits?: { linksLimit?: number; lrdLimit?: number; anchorsLimit?: number },
+  ) {
+    const linksLimit = limits?.linksLimit || 50;
+    const lrdLimit = limits?.lrdLimit || 25;
+    const anchorsLimit = limits?.anchorsLimit || 25;
     const domain = await prisma.domain.findUniqueOrThrow({
       where: { id: domainId },
     });
@@ -195,7 +202,7 @@ export class MozService {
     let totalRows = 0;
     const now = new Date();
 
-    const linksData = await this.getLinks(target, 50);
+    const linksData = await this.getLinks(target, linksLimit);
     const links = linksData.results || [];
     totalRows += links.length;
     console.log(`[Moz] Got ${links.length} links from API for ${target}`);
@@ -306,8 +313,65 @@ export class MozService {
       }
     }
 
-    // 3. Get anchor text distribution
-    const anchorData = await this.getAnchorText(target, 20);
+    // 3. Linking root domains
+    const lrdData = await this.getLinkingRootDomains(target, lrdLimit);
+    const lrdResults = lrdData.results || [];
+    totalRows += lrdResults.length;
+
+    for (const lrd of lrdResults) {
+      const sourceDomain = lrd.root_domain || "";
+      if (!sourceDomain) continue;
+      const sourceUrl = `https://${sourceDomain}/`;
+      const fullTargetUrl = `https://${domain.domain}/`;
+
+      const existing = await prisma.backlinkSnapshot.findFirst({
+        where: { domainId, sourceUrl, targetUrl: fullTargetUrl },
+      });
+
+      if (existing) {
+        await prisma.backlinkSnapshot.update({
+          where: { id: existing.id },
+          data: {
+            lastSeen: now,
+            lastChecked: now,
+            isLive: true,
+            lostAt: null,
+            mozSourceDA: lrd.domain_authority || null,
+            mozSourcePA: lrd.page_authority || null,
+            mozSourceSpam: lrd.spam_score != null ? lrd.spam_score : null,
+            source: "MOZ",
+          },
+        });
+        updatedLinks++;
+      } else {
+        try {
+          await prisma.backlinkSnapshot.create({
+            data: {
+              domainId,
+              targetUrl: fullTargetUrl,
+              sourceUrl,
+              sourceDomain,
+              isDofollow: true,
+              isLive: true,
+              firstSeen: now,
+              lastSeen: now,
+              lastChecked: now,
+              mozSourceDA: lrd.domain_authority || null,
+              mozSourcePA: lrd.page_authority || null,
+              mozSourceSpam: lrd.spam_score || null,
+              source: "MOZ",
+            },
+          });
+          newLinks++;
+        } catch (e: any) {
+          if (e.code === "P2002") continue;
+          throw e;
+        }
+      }
+    }
+
+    // 4. Get anchor text distribution
+    const anchorData = await this.getAnchorText(target, anchorsLimit);
     totalRows += (anchorData.results || []).length;
 
     // Store anchor text distribution on domain
@@ -429,6 +493,22 @@ export class MozService {
             : 0,
       },
     };
+  }
+
+  // ─── BUDGET TRACKING ──────────────────────────────────────
+  private async getMonthlyUsage(): Promise<number> {
+    const firstOfMonth = new Date();
+    firstOfMonth.setDate(1);
+    firstOfMonth.setHours(0, 0, 0, 0);
+
+    const logs = await prisma.apiLog.findMany({
+      where: {
+        feature: { startsWith: "moz_" },
+        createdAt: { gte: firstOfMonth },
+      },
+    });
+
+    return logs.reduce((s, l) => s + ((l.metadata as any)?.rows || 0), 0);
   }
 
   // ─── HELPERS ──────────────────────────────────────────────

@@ -210,7 +210,7 @@ export function startScheduler() {
   // ─── MOZ SYNC — Every Sunday at 04:00 ─────────────────────
   // Syncs DA/PA/Spam Score + external backlinks for all domains
 
-  cron.schedule("0 4 1,15 * *", async () => {
+  cron.schedule("0 4 * * 0", async () => {
     console.log("[Scheduler] Starting weekly Moz sync...");
     const moz = new MozService();
     const job = await prisma.jobRun.create({
