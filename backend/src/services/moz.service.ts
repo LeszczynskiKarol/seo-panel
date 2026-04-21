@@ -412,7 +412,7 @@ export class MozService {
       try {
         const metrics = await this.syncDomainMetrics(d.id);
         await this.sleep(500);
-        const backlinks = await this.syncExternalBacklinks(d.id);
+        const backlinks = await this.syncExternalBacklinks(d.id, true);
         await this.sleep(1000);
 
         results.push({
