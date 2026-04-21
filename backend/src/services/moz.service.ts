@@ -403,18 +403,44 @@ export class MozService {
 
   // ─── SYNC ALL DOMAINS ─────────────────────────────────────
   async syncAllDomains() {
+    const MONTHLY_QUOTA = 3000;
+    const RESERVE = 100;
+
+    const used = await this.getMonthlyUsage();
+    const remaining = MONTHLY_QUOTA - RESERVE - used;
+
+    if (remaining <= 0) {
+      return {
+        skipped: true,
+        reason: `Quota exhausted (${used}/${MONTHLY_QUOTA})`,
+      };
+    }
+
     const domains = await prisma.domain.findMany({
       where: { isActive: true },
     });
+
+    // 1 row per domain for url_metrics, rest split between links/lrd/anchors
+    const perDomain = Math.floor(remaining / domains.length);
+    const linksLimit = Math.max(5, Math.floor((perDomain - 1) * 0.4));
+    const lrdLimit = Math.max(5, Math.floor((perDomain - 1) * 0.3));
+    const anchorsLimit = Math.max(5, Math.floor((perDomain - 1) * 0.3));
+
+    console.log(
+      `[Moz] Budget: ${remaining} left, ${domains.length} domains, per domain: links=${linksLimit} lrd=${lrdLimit} anchors=${anchorsLimit}`,
+    );
 
     const results = [];
     for (const d of domains) {
       try {
         const metrics = await this.syncDomainMetrics(d.id);
         await this.sleep(500);
-        const backlinks = await this.syncExternalBacklinks(d.id, true);
+        const backlinks = await this.syncExternalBacklinks(d.id, true, {
+          linksLimit,
+          lrdLimit,
+          anchorsLimit,
+        });
         await this.sleep(1000);
-
         results.push({
           domainName: d.domain,
           status: "ok",
@@ -429,7 +455,6 @@ export class MozService {
         });
       }
     }
-
     return results;
   }
 
