@@ -219,6 +219,27 @@ export function startScheduler() {
 
     try {
       const results = await moz.syncAllDomains();
+
+      // syncAllDomains returns { skipped, reason } (object, not array) when the
+      // monthly Moz quota is exhausted — guard before calling array methods,
+      // otherwise the job crashes with "results.filter is not a function".
+      if (!Array.isArray(results)) {
+        await prisma.jobRun.update({
+          where: { id: job.id },
+          data: {
+            status: "COMPLETED",
+            finishedAt: new Date(),
+            domainsProcessed: 0,
+            errors: 0,
+            details: results,
+          },
+        });
+        console.log(
+          `[Scheduler] Moz sync skipped: ${(results as any).reason ?? "quota"}`,
+        );
+        return;
+      }
+
       const errors = results.filter((r: any) => r.status === "error").length;
 
       await prisma.jobRun.update({

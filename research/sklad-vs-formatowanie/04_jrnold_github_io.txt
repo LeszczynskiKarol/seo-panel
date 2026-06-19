@@ -1,0 +1,210 @@
+﻿URL: https://jrnold.github.io/intro-methods-notes/typesetting-and-word-processing-programs.html
+
+Data Analysis Notes
+Intro Method Notes
+1 Introduction
+I Exploratory Data Analysis
+II Programming
+III Linear Regression
+2 Regression Anatomy
+2.1 Example
+2.2 Variations
+2.3 Questions
+3 OLS in Matrix Form
+Setup
+3.1 Purpose
+3.2 Matrix Algebra Review
+3.2.1 Vectors
+3.2.2 Matrices
+3.3 Matrix Operations
+3.3.1 Transpose
+3.4 Matrices as vectors
+3.5 Special matrices
+3.6 Multiple linear regression in matrix form
+3.7 Residuals
+3.8 Scalar inverses
+3.9 Matrix Inverses
+3.10 OLS Estimator
+3.11 Implications of OLS
+3.11.1 OLS in Matrix Form
+3.12 Covariance/variance interpretation of OLS
+4 Collinearity and Multicollinearity
+4.1 (Perfect) collinearity
+4.2 What to do about it?
+4.3 Multicollinearity
+4.4 What do do about it?
+5 Bootstrapping
+5.1 Non-parametric bootstrap
+5.2 Standard Errors
+5.3 Confidence Intervals
+5.4 Alternative methods
+5.4.1 Parametric Bootstrap
+5.4.2 Clustered bootstrap
+5.4.3 Time series bootstrap
+5.4.4 How to sample?
+5.4.5 Caveats
+5.4.6 Why use bootstrapping?
+5.5 Bagging
+5.6 Hypothesis Testing
+5.7 How many samples?
+5.8 References
+6 Prediction
+Prerequisites
+6.1 Prediction Questions vs. Causal Questions
+6.2 Why is prediction important?
+6.3 Many problems are prediction problems
+6.3.1 Counterfactuals
+6.3.2 Controls
+6.3.3 What does overfitting mean
+6.4 Prediction vs. Explanation
+6.5 Bias-Variance Tradeoff
+6.5.1 Example
+6.5.2 Overview
+6.6 Prediction policy problems
+6.6.1 References
+7 Cross-Validation
+Prerequisites
+7.1 Example: Predicting Bordeaux Wine
+7.2 Cross Validation
+7.3 Out-of-Sample Error
+7.3.1 Held-out data
+7.3.2 \(k\)-fold Cross-validation
+7.3.3 Leave-one-Out Cross-Validation
+7.4 Approximations
+7.5 References
+8 Regularization
+8.1 Ridge Regression
+8.2 Regularization for Causal Inference
+8.3 References
+9 Regression
+9.1 Observational Studies
+9.2 Regression and Causality
+9.3 Treatment Effects
+9.4 OLS
+9.5 Heterogeneous Effects and Regression
+9.6 Balance and Imbalance
+9.7 Key Things
+9.8 Limited Dependent Variables
+9.9 Assessing Selection on Observables
+9.10 Omitted Variable Tests
+9.11 My Advice
+10 Panel Data: Fixed Effects and Difference-in-Difference
+10.1 Panel (Longitudinal) Data
+10.2 Terminology
+10.3 Fixed Effects
+10.3.1 Estimators
+10.3.2 Issues with Fixed Effects
+10.4 Difference-in-Difference
+10.4.1 Basic differences-in-differences model
+10.4.2 Potential Outcomes Approach to DiD
+10.4.3 Threats to identification
+10.4.4 Robustness Checks
+10.4.5 Extensions
+10.4.6 Standard Error Issues
+10.4.7 Other DiD Approaches
+10.5 Lagged Dependent Variables
+10.6 Random Effects
+10.6.1 How to estimate random effects?
+11 Regression Discontinuity
+11.1 Examples
+11.2 Example: Close Elections
+11.3 Software
+11.4 References
+IV Presentation
+12 Formatting Tables
+12.1 Overview of Packages
+12.2 Summary Statistic Table Example
+12.3 Regression Table Example
+13 Reproducible Research
+14 Typesetting and Word Processing Programs
+14.1 LaTeX
+14.1.1 Learning LaTeX
+14.1.2 Using LaTeX
+14.1.3 LaTeX with R
+14.2 Word
+14.2.1 General Advice
+14.2.2 Using R with Word
+15 Writing Resources
+15.1 Writing and Organizing Papers
+15.2 Finding Research Ideas
+15.3 Replications
+Appendix
+References
+Published with bookdown
+Data Analysis Notes
+\[
+\DeclareMathOperator{\E}{E}
+\DeclareMathOperator{\mean}{mean}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\Cov}{Cov}
+\DeclareMathOperator{\Cor}{Cor}
+\DeclareMathOperator{\Bias}{Bias}
+\DeclareMathOperator{\MSE}{MSE}
+\DeclareMathOperator{\RMSE}{RMSE}
+\DeclareMathOperator{\sd}{sd}
+\DeclareMathOperator{\se}{se}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\Mat}[1]{\boldsymbol{#1}}
+\newcommand{\Vec}[1]{\boldsymbol{#1}}
+\newcommand{\T}{'}
+\newcommand{\distr}[1]{\mathcal{#1}}
+\newcommand{\dnorm}{\distr{N}}
+\newcommand{\dmvnorm}[1]{\distr{N}_{#1}}
+\newcommand{\dt}[1]{\distr{T}_{#1}}
+\newcommand{\cia}{\perp\!\!\!\perp}
+\DeclareMathOperator*{\plim}{plim}
+\]
+Chapter 14 Typesetting and Word Processing Programs
+14.1 LaTeX
+LaTeX is a document markup language (think something like HTML) that is widely used in academia.3
+Its primary advantages over Word (and word processors) are the separation of content and presentation and its formatting of mathematical equations.
+In addition to papers, it is often used for academic slides; many talk slides are prepared with beamer.
+14.1.1 Learning LaTeX
+Here are some links to get started learning LaTeX:
+Overleaf Free & Interactive Online Introduction to LaTeX
+LaTeX Tutorial has interactive lessons
+ShareLaTeX Documentation
+Overleaf Example Templates has many different examples of LaTeX documents.
+LaTeX Wikibook
+Not So Short Introduction to LaTeX is a classic, but not as as new-user friendly as the others.
+14.1.2 Using LaTeX
+Use an online service such as Overleaf or ShareLaTeX. These are great for collaboration, but become inflexible
+when you want to customize your workflow.
+Write it with a specialized editor such as TeXmaker, TeXStudio, or TeXshop. These generally have
+built ways to insert text, and also live preview. I would stay away from editors such as LyX that are WYSIWYG.
+Write it with an general purpose editor such as Atom or Sublime Text.4 Most editors have a plugin
+to make writing LaTeX easier. For Atom there is LaTeXTools, and for Sublime Text, LaTeXTools
+14.1.3 LaTeX with R
+This is pretty easy. Rnw, also called Sweave, documents allow you to mix R chunks with LaTeX.
+This is similar to R markdown, but with LaTeX instead of markdown.5
+Many packages, such as xtable, stargazer, or texreg produce formatted output in LaTeX.
+When you use these programs, do not copy and paste the output. Instead, save it to a file,
+and use \input{} to include the contents in your document.
+14.2 Word
+While I use LaTeX in my own work, Microsoft Word is powerful piece of software,
+and many of the complaints against Word come down to not being aware of its
+features. There are many tools you can use to build your research paper;
+whatever tool you use, learn how to use it proficiently.
+14.2.1 General Advice
+This guide on using Microsoft Word for Dissertations
+covers everything and more that I would have. Also see this
+separate presentation and content using styles
+Automatically number figures and tables
+Use a reference manager like Mendeley, Zotero, colwiz, or Papers. They have plugins for citations in Word.
+When exporting figures for Word, if you must use a raster graphic use PNG files (not JPEG). For publication, use a high DPI (600) with PNG graphics.
+Learn to use Fields. You can insert figures from files that you can
+update using Insert > Field > Links and References > IncludePicture.
+This is useful for programmatically generating figures to insert into
+your document. Likewise, you can insert text from files that you can
+update using Insert > Field > Links and References > IncludeText.
+14.2.2 Using R with Word
+For a dynamic reports you can use R Markdown and export to a word document. When doing this, use a reference document to set the the styles that you will use.
+See Happy collaboration with Rmd to docx for more advice on using R Markdown with Word.
+When using functions from packages such as xtable, stargazer, or texreg output HTML, which can be copy and pasted into word.
+Finally, the ReporteR package is an alternative method to generate Word Documents from R.
+TeX is pronounced as “teck” because the X is a Greek chi. The pronunciation of of LaTeX is thus lah-teck or lay-teck. It is not
+pronounced like the rubber compound. See this StackExchange question on the pronunciation of LaTeX.↩
+And of course Vim or Emacs.↩
+And Sweave files preceded R markdown and knitr by many years.↩

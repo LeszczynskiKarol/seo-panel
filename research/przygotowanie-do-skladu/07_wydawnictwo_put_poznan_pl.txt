@@ -1,0 +1,96 @@
+﻿URL: https://www.wydawnictwo.put.poznan.pl/page/20251105/669
+
+Jak przygotować pliki do publikacji? | Wydawnictwo PP
+Przejdź do treści
+A
+A
+A
+A
+A
+A
+NowościSpis autorówKatalogInformacje dla autorówEditorial System - zgłaszanie publikacji do recenzjiProcedura wydawniczaInstrukcje dla autorówZeszyty naukoweArchitektura, Urbanistyka, Architektura WnętrzEtyka publikacyjnaJak przygotować pliki do publikacji?Najczęściej zadawane pytaniaCzasopismaZeszyty Naukowe Politechniki Poznańskiej. Architektura, Urbanistyka i Architektura WnętrzArchiwum Instytutu Inżynierii LądowejElectrical EngineeringEngineering TransactionsFasciculi MathematiciFoundations of Computing and Decision SciencesJournal of Mechanical and Transport EngineeringZeszyty Naukowe Politechniki Poznańskiej. Organizacja i ZarządzanieVibrations in Physical SystemsSprzedażKsięgarnieE-bookiOpen AccessKontakt
+Formularz wyszukiwania
+Szukaj
+Kategorie
+Architektura
+Automatyka i robotyka
+Budowa i eksploatacja maszyn
+Budownictwo
+Chemia
+Ekonomia
+Elektronika
+Elektrotechnika
+Fizyka
+Geodezja
+Geologia
+Informatyka
+Inne
+Inżynieria materiałowa
+Inżynieria środowiska
+Inżynieria zarządzania
+Lotnictwo i kosmonautyka
+Matematyka
+Mechanika
+Technologia chemiczna
+Telekomunikacja
+Wiedza dla gospodarki
+Wydawnictwo Politechniki Poznańskiej
+ul. Piotrowo 5
+61-138 Poznań
+Budynek Budownictwa (A2)
+Google Maps
+tel. 61-665-3516
+e-mail: office_ed [małpa] put.poznan.pl
+Strona główna
+Informacje dla autorów
+Instrukcje dla autorów
+Jak przygotować pliki do publikacji?
+Jak przygotować pliki do publikacji?
+Ta instrukcja dotyczy technicznego przygotowania plików. Szczegółowe kwestie redakcyjne opisujemy w pliku „Instrukcja dla autorów".
+Słowniczek pojęć
+Projekt graficzny – koncepcja wyglądu książki, obejmująca układ elementów, typografię (m.in. krój pisma, interlinia) i szatę graficzną.
+Redakcja, korekta – proces poprawiania i ujednolicania tekstu pod względem językowym i merytorycznym.
+Skład – proces techniczny przygotowania publikacji do druku, obejmujący rozmieszczenie tekstu, rysunków i innych elementów na stronie zgodnie z zasadami typografii.
+Kompletność materiałów
+Kompletność jest warunkiem rozpoczęcia prac. Przesyłka powinna zawierać:
+tekst w formacie Word
+tabele edytowalne
+rysunki (JPEG/PNG w Wordzie oraz pliki źródłowe)
+elementy graficzne o odpowiednim kontraście
+Jeśli czegoś brakuje, możemy odrzucić książkę przed recenzją.
+Wymagania dotyczące plików
+Tekst
+Tekst należy przekazać w formacie Word (.doc lub .docx).
+Tabele
+Tabele należy wstawiać do pliku Word jako tabele edytowalne. Nie przyjmujemy skanów ani zrzutów ekranu.
+Rysunki i wykresy
+Wymagane jest przygotowanie plików graficznych w formie edytowalnej (np. .ai, .cdr, .svg, .pptx, .xls, .xlsx). W pliku Word należy umieszczać rysunki jako JPEG lub PNG w odpowiednich miejscach. Jednocześnie należy zachować pliki źródłowe.
+Elementy graficzne podlegają korekcie. Poprawiamy opisy skal, rysunków i inne szczegóły.
+Wstawianie rysunków
+Nie należy ustawiać rysunków jeden obok drugiego – każdy rysunek powinien zajmować osobny wiersz. Specjalista od składu ułoży rysunki w odpowiedni sposób podczas przygotowania publikacji.
+Stosować obłamanie „równo z tekstem".
+Nie należy umieszczać podpisów rysunków w polach tekstowych – podpisy należy wprowadzać jako zwykły tekst pod rysunkiem.
+Nie należy wstawiać rysunków w tabele – rysunki i tabele muszą być oddzielnymi elementami.
+Kolory i kontrast
+Przygotowując materiały, należy uwzględnić, czy książka będzie drukowana w kolorze czy w skali szarości. Diagramy muszą być czytelne w skali szarości. Nie należy stosować podobnych kolorów w jednym wykresie. Zaleca się zastosowanie deseni i dbanie o kontrast między tłem a literami.
+Formatowanie
+Zasady ogólne
+Traktujemy plik Word jako materiał roboczy. Skład przygotuje specjalista w programie InDesign. Należy zadbać o czytelność i przejrzystość dokumentu.
+Nie ma jednak potrzeby składu tekstu i wypełniania stron od góry do dołu. Plik nie musi przypominać złożonej, gotowej do druku książki.
+Ustawienia strony
+Plik należy przygotować z domyślnymi ustawieniami strony dla programu Word:
+format A4
+marginesy standardowe
+interlinia 1,5
+Unikanie błędów w formatowaniu tekstu
+Nie należy przesuwać tekstu, rysunków ani innych obiektów za pomocą kolejnych spacji. Takie „formatowanie spacjami” utrudnia skład i wymaga ręcznego usuwania zbędnych znaków.
+Nie należy wstawiać podwójnych spacji, aby „powiększyć odstępy” między wyrazami lub elementami tekstu.
+Nie należy usuwać wiszących spójników (ani za pomocą spacji, ani "miękkiego entera") – utrudnia to skład.
+Wyliczenia
+Wyliczenia muszą mieć przejrzystą i jednolitą strukturę. Wyliczenie pierwszego stopnia określa się odpowiednim symbolem, drugiego stopnia innym symbolem itd., wszędzie tak samo. Jeśli wyliczenia zawierają więcej tekstu, musi być jasne, do jakiego poziomu hierarchii należą – czy są elementem pierwszego, drugiego, czy kolejnego stopnia.
+Dodatkowe informacje
+Propozycja projektu graficznego
+Jeśli mają Państwo pomysł na projekt graficzny, zalecane jest przygotowanie przykładowych stron i przesłanie ich do Wydawnictwa. Zastrzegamy sobie możliwość zmiany projektu graficznego zgodnie z zasadami projektowania książek i edytorstwa.
+LaTeX
+Dopuszczalne jest przygotowanie książki w LaTeX. Należy pamiętać, że specjalista od składu nie pracuje w LaTeX-u – autor przygotowuje pracę zgodnie z wytycznymi formatowania. Po redakcji autor wprowadza poprawki do pliku źródłowego i ostatecznie dopracowuje skład.
+Stronę napędza Drupal

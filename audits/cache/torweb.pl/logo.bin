@@ -1,0 +1,20 @@
+<html>
+<head><title>404 Not Found</title></head>
+<body>
+<h1>404 Not Found</h1>
+<ul>
+<li>Code: NoSuchKey</li>
+<li>Message: The specified key does not exist.</li>
+<li>Key: images/torweb-logo.png</li>
+<li>RequestId: 8SW2K1XPEHDE0WV0</li>
+<li>HostId: XtVOU8Z9kBcaGcvYwPq2JKk3Sqf9/hTSBW9CbnbyW60RixWqyjyPHRUNIHf2wcRZz3ax0vW0Jgw=</li>
+</ul>
+<h3>An Error Occurred While Attempting to Retrieve a Custom Error Document</h3>
+<ul>
+<li>Code: NoSuchKey</li>
+<li>Message: The specified key does not exist.</li>
+<li>Key: 404.html</li>
+</ul>
+<hr/>
+</body>
+</html>

@@ -1,0 +1,114 @@
+﻿URL: https://cmosshoptalk.com/2021/01/12/how-to-format-a-novel-for-submission/
+
+How to Format a Novel for Submission - CMOS Shop Talk
+CMOS Shop Talk
+From the Chicago Manual of Style
+Menu
+Skip to content
+Home
+CMOS Online
+Chicago Style Q&A
+Free Trial
+Individuals
+Institutions
+For Students
+For Companies
+Chicago Style Workouts
+Fiction+
+About
+About Shop Talk
+About The Chicago Manual of Style
+Contact
+Join
+How to Format a Novel for Submission
+Carol Saller / January 12, 2021
+When you write a book to send to an agent or editor, you are preparing a manuscript. And even if your ideas, characters, and plot twists are colorful and creative, your manuscript format should not be. Agents and editors almost always require submitted pages to be in a standard format free of images and color and anything flashy. Many agents and editors post the format they prefer (or demand) on a “Submissions” page at their website.
+It’s normal, however, to prepare material before you know exactly where you’ll submit it. That’s why it’s smart to produce a generic document based on Chicago style (the style used by most US trade book publishers) that can be tweaked later if you receive more specific instructions. Using this conventional style and saving it in a flexible file format will position you to adjust your formatting for each submission without a lot of extra work.
+The Chicago Manual of Style doesn’t specifically cover manuscript formats for novels, so these recommendations draw from CMOS 2.7–12 (17th ed.), which lay out general best-practice manuscript formatting guidelines for design, production, and typesetting that apply to most types of books, including novels.
+Whether agents or editors prefer to receive your manuscript as a mailed printout, in an emailed attachment, or through a submission website,* they will expect to receive it in a format similar to the one described here. These conventions have been around for a long time; in the absence of any contrary instructions, follow them to give your pages a professional look.
+Document Setup for the Standard Manuscript
+Microsoft Word is the document format usually required by agents and editors. Some will accept a PDF; as of this writing, most are not willing to work within a shared Google doc. Traditionally, manuscript pages look very different from typeset book pages. Bereft of color and images and nice typography, manuscripts are stripped-down and homely and a paper-saver’s nightmare in their double-spaced sprawl.
+Compare these images of a manuscript page and a page from a published book.
+A manuscript page in standard format.
+A typical page from a typeset book.
+The right-hand margin of the text in the page proof is fully justified rather than ragged, and the text is single-spaced rather than double. And unlike manuscript pages, typeset books vary in typeface and type size, margins, paragraphing, the position of page numbers and running heads or feet, the shape and size and color of the pages, the inclusion of images, and whatever other features a graphic designer might come up with.
+The distinction between a manuscript and a typeset page is important, especially for self-publishers who may be tempted to skip the “manuscript” stage and aim for the “typeset book” appearance. But there are strong reasons to work in manuscript format, regardless of your end product. A plain document is ideal for the copyediting and graphic design stages of publishing, whether you submit it in Word or share it as a Google doc. And anyone using the templates at an online indie publishing platform will also benefit from starting with the stripped-down format.
+Manuscript pages
+Use white, 8½ × 11–inch (standard US letter-size) paper with one-inch margins on all sides.
+Leave the right margin ragged, not justified.
+Put the author’s surname, a short title of the work, and a page number in the upper-right corner of every page except the title page. (Use the “header” feature to make this automatic.)
+TIP
+If you must print out your manuscript, print on one side only and don’t bind or staple the pages together.
+Manuscript text
+Editors and agents who express a font preference most often specify 12-point Times New Roman, an eye-soothing serifed font that is readily available on devices and supports a wide range of special characters. Although the default fonts in MS Word (Calibri) and Google Docs (Arial) lack serifs, they are also well supported. Occasionally a writer finds a second font useful for distinguishing a chunk of content from the text proper—for instance, when setting off a text message or handwritten note—but at the manuscript stage, paragraph blocking or simple quotation marks nearly always suffice. A graphic designer will decide later how to handle unusual elements.†
+Put a single space between sentences.
+Double-space everything, even if you single-space while drafting. Editors value the extra white space on screen and on paper. Indent the first line of paragraphs, and don’t add extra space between paragraphs.
+Turn off the automatic hyphenation feature in Word. Yes, it can make that right margin ugly, but that’s OK. It will be worth it when odd hyphens don’t turn up in your printed novel. (It’s not likely, but it does occasionally happen—for instance, when optical character readers are used to digitize a hardcopy manuscript.)
+TIP
+Fonts aren’t always stable, even when you save in PDF form; if you use a nonstandard font and email your document to someone else, that person’s computer may have to supply a substitute font for it. This can mess up symbols and accented characters, which may turn into little boxes (□) or other garble. It’s best to use a standard font that any recipient is bound to have. If you must use a nonstandard font, take steps to embed it in the file.
+Manuscript title page
+The title page for a manuscript contains more information than will later appear on the title page of the published book. Here is an inclusive layout that can be tailored to more specific instructions.‡
+Put the author’s name, mailing address, email address, and phone number in the upper-left corner, single-spaced. If your word processor automatically formats the email address as a hyperlink, that’s fine. (NB: If you are an agent submitting to an editor, start with the author’s name, followed by your own name and contact information.)
+Put the date in a cover letter, not on the manuscript.
+Add the word count, either below the contact information or in the upper-right corner.
+Although the title page is page 1, it’s traditional to suppress the page number on the title page; use your word processor’s setting for a “different first page” or use the Section feature to create separate headers so there is no header on the title page.
+Center the book title about a third of the way down the page, in bold if you like.
+Use headline capitalization for the title and subtitle (CMOS 159–60 [17th ed.] gives rules and examples), unless the publisher dictates all caps.
+If you have a subtitle, put a colon at the end of the title and start a new line for the subtitle. (A colon rarely appears on the title page of a published book, but in a manuscript it helps clarify that the subtitle is not part of the title.)
+Leave the rest of the title page blank.
+A sample title page for a submitted manuscript. Remember, this is a basic model that can be varied according to an agent or editor’s preferences.
+Manuscript chapter headings
+Insert either a page break or a blank line or two.
+Center the chapter title (or chapter number) and use headline capitalization.
+Don’t add a blank line below the heading. (Double-spacing adds enough space.) Begin the first line of the first paragraph flush left (no indent).
+Researching Publisher Preferences
+If you are targeting specific agents, editors, or producers for your work, visit their websites and look for their advice on submissions, which should override the guidelines offered here. Most will list the electronic formats they accept (MS Word, PDF, etc.). Some add detailed preferences (margins, type size, headers, etc.). Self-publishers who use an online publishing platform will find instructions for stripping your manuscript down to a basic format or a list of fees for paying a professional to do it for you.
+The editors and agents who review your queries and submissions will know at once whether you bothered to check their guidelines; it’s worth a few minutes to do so.
+TIP
+Contests have strict submission rules that might clash with the standard format. For instance, they might require writers not to put any identifying information on the manuscript so the judges can read without bias. If you submit your novel to a contest, take care to make the needed adjustments.
+* Submissions software can wreak havoc with the formatting described here. You paste your work into the box and it looks horrible; italics and paragraph indents may disappear. If you’re submitting only a few pages, it’s worth your while to read through and make adjustments, but don’t grieve excessively if the results are subpar. The agent or editor using the service is aware of its limitations and won’t hold it against you.
+† If your book depends on a tricky visual concept, explain in a cover letter and/or submit a sample separately as artwork in a standard format. (Check submission guidelines, and never send original art with a submission.)
+‡ When querying, if an agent or editor requests a specific number of pages instead of the entire manuscript, you may omit the title page and put contact information in your cover letter (email) or on the submission form.
+Top image: “Formatting” by Amandine Vandesteene from the Noun Project, licensed under CC BY 3.0.
+Fiction+ posts at Shop Talk reflect the opinions of its authors and not necessarily those of The Chicago Manual of Style or the University of Chicago Press.
+~ ~ ~
+Carol Saller’s books include The Subversive Copy Editor and the young adult novel Eddie’s War. You can find Carol online at Twitter (@SubvCopyEd) and at Writer, Editor, Helper.
+Sign up for Carol’s email updates.
+Please see our commenting policy.Share this:
+Share on Facebook (Opens in new window)
+Facebook
+Share on Threads (Opens in new window)
+Threads
+Share on Bluesky (Opens in new window)
+Bluesky
+Share on X (Opens in new window)
+X
+More
+Email a link to a friend (Opens in new window)
+Email
+January 12, 2021 in Fiction+. Tags: fiction, publishing, word processing, writing
+Related posts
+Advice for Fiction Writers (and Editors), Chicago‑Style
+Is a Comma Needed to Introduce Dialogue?
+Does Your Novel Need a Copyeditor before Submission?
+Post navigation
+← Your Dog[,] Smurf: Understanding Commas with Appositives Commas between Compound Predicates →
+Search
+Get Yours! The Chicago Manual of Style, 18th EditionThe Scientific Companion to The Chicago Manual of StyleNEW! Medical Editing by Barbara GastelRetro Chic(ago) Disco at the CMOS Merch StoreThe Chicago Guide for Freelance Editors, by Erin BrennerClassic logo in 18th Edition YellowI’m procomma, and I vote mugCategories
+Announcements
+Chicago Style Workouts
+CMOS for PerfectIt
+CMOS Section in the Spotlight
+Editor’s Corner
+Fiction+
+For Students
+Highlights from the Q&A
+Interviews
+Manual Miscellany
+CMOS Shop Talk © 2025 by The University of Chicago
+Proudly powered by WordPress | Theme: Expound by Konstantin Kovshenin
+Loading Comments...
+Write a Comment...
+Email
+Name
+Website

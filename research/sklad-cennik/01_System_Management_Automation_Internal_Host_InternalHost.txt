@@ -1,0 +1,112 @@
+﻿URL: https://grafpa.pl/sklad-lamanie-tekstu/
+
+Skład i łamanie tekstu cennik | Studio Grafpa
+Link to FacebookLink to LinkedIntel. 696 045 760 | e-mail: kalkulacje@grafpa.plZostaw numer – oddzwonimyZnajdziesz nas na:
+Strona główna
+Usługi DTP
+Skład książek
+Skład czasopism
+Skład gazet
+Skład gazetek reklamowych
+Skład monografii
+Skład ebooków
+Projektowanie okładek
+Projekty ulotek
+Projekty wizytówek
+Wizytówki 3D
+Grafik DTP – projektowanie graficzne, reklam
+Korekta tekstu
+Custom publishing
+Druk książek i czasopism – bezpłatna wycena
+Ilustracje do książek w AI
+Pozycjonowanie i strony
+Pozycjonowanie stron www
+Tworzenie stron www
+Tworzenie stron WordPress
+Tani serwer na stronę
+Portfolio
+Blog firmowy
+O firmie – Studio DTP
+Kontakt
+Menu
+Menu
+Skład i łamanie tekstuSkład tekstu
+Skład i łamanie tekstu oznacza wlanie tekstu (autor przesyła go w Wordzie lub Open Office) do programu graficznego takiego jak Adobe Indesign i ułożenie go w kolumnach, łamanie go na szpaltach, a następnie składanie go zgodnie z zasadami typografii, aż po przygotowanie do druku w pdf.
+Skład tekstu polega na dobraniu właściwych czcionek – krojów i wielkości fontów oraz ich ujednoliceniu w całej książce, oraz dopasowaniu interlinii. Elementem składu i łamanie jest połączenie tekstu ze zdjęciami, tabelami i grafiką. Tekst składa się z treści, tytułów, nagłówków, śródtytułów, wyliczeń, wyimków, podpisów, a tekst książki na działy, rozdziały i podrozdziały. Pojęcie skład wywodzi się od pracy zecera, który kiedyś składał z materiału zecerskiego – czcionek i zdjęć proste formy drukowe.
+Łamanie tekstu to wgranie surowego tekstu z Worda i nadaniu mu odpowiedniego wyglądu poprzez  sformatowanie go i podział go na kolumny – szpalty.
+Skład i łamanie kosztuje od 70 do 150 zł netto za arkusz wydawniczy, a cena zależy od tego ile jest różnych elementów w treści – zdjęć, grafik, przypisów, wzorów i tabel. Jest do główna działalność naszej firmy – zapytaj o wycenę łamania tekstu.
+Najważniejsze cechy dobrze ułożonego tekstu
+odpowiednie marginesy strony i przygotowanie pagin
+zaprojektowany układ tekstu – tytuły, śródtytuły, wyliczenia, nagłówki, podpisy, przypisy
+oblanie tekstem i opracowanie graficzne: tabel, zdjęć, wykresów, stron rozdziałowych
+zastosowanie odpowiednich dzieleń, dywizów i półpauz,
+wyczyszczone błędy – usunięta przestrzeń kolorów Rgb z tekstu, usunięcie wiszących spójników, usunięcie podwójnych spacji, zamiana dywizów na półpauzy pomiędzy wyrazami (zgodnie z odpowiednimi zasadami)
+Aby wykonać skład i łamanie książki musimy zacząć od ustalenia formatu książki i z drukarnią, następnie przygotować layout książki z marginesami i łamem, kolejnym krokiem będzie skład i łamanie tekstu oraz dopasowanie elementów graficznych. Cykl składowy książki trwa około 1-4 tygodnie, ale wszystko zależy od konkretnego tekstu i współpracy z Autorem. Jeżeli całość treści książki wymaga wielu poprawek i korekt to oczywiście prace na jej zredagowaniem będzie trwały nieco dłużej.
+Przełamanie tekstu – oznacza ponowne wyrównanie dołów i ułożenie tekstu w kolumnach. Tekst jest składany przez łamacza – operatora DTP. DTP  jest do skrót od angielskiego wyrażenia – Desktop Publishing czyli dosłownie „Publikowanie zza biurka”. Natomiast wyjustowanie tekstu oznacza że obie boczne krawędzie tekstu są wyrównane do łamu, a ostatnia linijka wyrównana do lewej strony.
+Skład komputerowy DTP jest to nowoczesny – obecny sposób składu publikacji, która odbywa się z użyciem wyłącznie komputerów. Otrzymujemy tekst w programie komputerowym – edytorze tekstu i łamiemy go w programie graficznym.
+Jak składać tekst w Indesignie?
+Aby zacząć, trzeba mieć oczywiście sam tekst w edytorze tekstowym – najlepiej by był oczyszczony z grafiki, stylów i co ważne z shift + enter, które powodują złe przełamania tekstu w programie graficznym (inna szerokość łamu, inne wielkości czcionki co w Wordzie). Po wczytaniu do Indesigna klikamy z shift+enter aby automatycznie wgrać cały tekst i rozłożyć go w publikacji (strony powstają automatycznie i nie musimy ich tworzyć ręcznie).
+Osobnym tematem jest przygotowanie Indesigna – layoutu publikacji oraz stylów tekstowych.
+Najbliższe chwile pracy zadecydują o tym jak długo będziemy wykonywać skład. Najważniejszą rzeczą jest nadanie odpowiednich stylów do akapitów tekstu, a najczęściej bo wczytaniu pliku tekstowego otrzymujemy różnej wielkości tekst, czcionki i kolory. Praca polega więc na uładzeniu materiału do przygotowanego layoutu. Oczywiście Indesign oferuję nam wygodną opcję – po zaznaczeniu tekstu kliknięcie z altem na stylu powoduje wyczyszczenie wszystkich atrybutów tekstu i ujednolicenie, ale przyniesie nam to więcej pracy – tracimy wszelkie kursywy i wytłuszczenia, które musimy ponownie pojedynczo nanieść.
+Dlatego:
+po zaznaczeniu całości tekstu wybieramy najprawdopodobniej najczęściej użyty styl
+po zaznaczeniu najlepiej ustawić użytą w niej czcionkę, eliminując naleciałości z worda
+to samo robimy z kolorem, wielkością czcionki, podkreśleniem można też wyłączyć domyślnie style znakowe
+Tym sposobem nie tracimy atrybutów tekstów takich jak italic czy bold. Dzięki temu też nie musimy co akapit walczyć z różnymi problemami, a wprowadzone zmiany znacznie przyspieszają łamanie tekstu. Pozostaje nam nadawać style do odpowiednich części i układać tekst na łamach.
+Jak określić cennik łamania i składu tekstu?
+Często stosowaną jednostką rozliczeniową np. przy łamaniu publikacji jest arkusz wydawniczy – jest to 40 000 znaków. Pozwala on oszacować cenę bez zobaczenia materiału, oczywiście dobrze też zapytać o tabele, zdjęcia, wykresy – tutaj możemy wycenić każdy ten z elementów za sztukę.
+Przykładowa cena:
+tekst o długości 10 arkuszy z 10 zdjęciami: 900 zł netto łamanie (90 zł netto / arkusz) plus 15 zł netto za każde wstawione zdjęcie = 150 zł netto. Razem 1050 zł netto.
+02.12.2024/Autor adminekDoceń i poleć nasUdostępnij FacebookUdostępnij XShare on WhatsAppUdostępnij PinterestUdostępnij LinkedInWyślij e-mail
+https://grafpa.pl/wp-content/uploads/2015/08/sklad-tekstu-po-angielsku-dzielenie.jpg
+466
+818
+adminek
+https://grafpa.pl/wp-content/uploads/2020/07/grafpa-logo.png
+adminek2024-12-02 12:11:012025-10-17 16:07:21Skład i łamanie tekstu
+Tematy
+Blog DTP (40)
+Blog o Seo Kraków (9)
+Copywriting blog (2)
+Grafpa (6)
+InDesign tips (4)
+Photoshop tips (1)
+Skład tekstu (18)
+Kontakt
+e-mail: kalkulacje@grafpa.pl
+tel. 12 314 49 98, tel. kom. 696 045 760
+godziny pracy: pn.–pt., 8–16
+Imię i Nazwisko* Adres e-mail* Temat* Treść wiadomości* reCAPTCHAWyślijReset
+Ostatnio zrobiliśmy
+Wszystko 3 /Książki 2 /Okładki 1
+Kompleksowe opracowanie wydawnictwa Projekt graficzny książki Okładka książki ze skrzydełkami Opinia naszych Klientów
+Najnowsze wpisy
+Nowa dyrektywa EAA dostępności dotyczy pdf?
+Format mobi w świetle nowych wytycznych UE
+Nowe wytyczne do tworzenia ebooków w czerwcu 2025 r.
+Ustalenie specyfikacji druku do wyceny
+Ile trwa skład książki?
+Skład i łamanie tekstu
+10 lat Studia Grafpa
+Przyspieszenie strony WordPress
+Koszt wydania książki – ile kosztuje wydanie książki?
+WordPress tworzenie strony krok po kroku
+Studio Grafpa
+os. Oświecenia 55/85, 31-636 Kraków
+e-mail: kalkulacje@grafpa.pl
+tel. 12 314 49 98, tel. kom. 696 045 760
+godziny pracy: pn.–pt., 8–16
+Gadu-gadu: 1655160
+Zostaw numer – oddzwonimy
+Pracujemy od poniedziałku do piątku, w godz. 8:00–16:00.
+Twoje imię * Twój numer telefonu * This site is protected by reCAPTCHA and the Google Privacy Policy and Terms of Service apply.This contact form is deactivated because you refused to accept Google reCaptcha service which is necessary to validate any messages sent by the form.
+Copyright © Studio Grafiki i DTP Grafpa
+Link to: 10 lat Studia Grafpa
+Link to: 10 lat Studia Grafpa
+10 lat Studia Grafpa
+Link to: Ile trwa skład książki?
+Link to: Ile trwa skład książki?
+Ile trwa skład książki?
+Scroll to top
+Scroll to top
+Scroll to top

@@ -1,0 +1,75 @@
+﻿URL: https://martadec.eu/book-design-101-how-to-prepare-your-manuscript-to-make-your-designer-cry-tears-of-joy/
+
+Book Design 101: How to prepare your manuscript for typesetting
+Skip to content
+About
+Books
+Covers
+Book formatting
+Illustration
+Services & Pricing
+Blog
+Get in touch
+About
+Books
+Covers
+Book formatting
+Illustration
+Services & Pricing
+Blog
+Get in touch
+Book Design 101: How to prepare your manuscript to make your designer cry tears of joy
+Interior Layout, Book Design Guides, Blog
+Whenever I receive a Word file and I see that the author knew how to use paragraph styles, it makes my day.
+And if you want to make your designer’s day, here’s a few simple rules on how you can prepare your manuscript before sending it off for formatting – four DO’s and three DON’Ts!
+DON’T:
+Don’t use double spaces
+In the olden days, when people still used typewriters, it was normal to use two spaces after a period, to mark the end of a sentence. It’s a habit that many people retained, but in the age of digital typesetting, it’s entirely unnecessary. Checking for those extra spaces and removing them is one of the first things book designers do when they start working on a manuscript.
+Don’t use forced line breaks
+Forced line breaks – the ones you get when using SHIFT+ENTER in various word processors – will cause problems every time if you try using them with justified text. They will make words in a given line try to take up the    e   n   t    i   r    e    line no matter the cost, which often results in very large gaps between words and letters.
+If you’re writing a novel, always use regular paragraph returns (so, hit ENTER), and never forced line breaks
+Don’t use tabs
+If you want to make a paragraph indent, format your basic paragraph styles to use actual paragraph indents. Here’s how to do it. This way, every paragraph with this style will indent automatically – leave that poor tab button alone!
+DO:
+Use proper dashes – the difference between an en dash, em dash and a hyphen
+There are several types of dashes we use in typography:
+em dashes  —en dashes –hyphens –
+Each language will use them differently, so here are the rules for English (US and UK), Norwegian (tankestrekk og bindestrekk),  and Polish (dywiz, pauza, półpauza).
+Remember also to avoid using double hyphens — instead of a dash.
+Use paragraph styles
+Paragraph styles help immensely when working on a book – both when it comes to actually writing it, and when it comes to formatting. Like mentioned above, you can format your styles to include indents and other styling, so you don’t have to reapply it every time it’s needed. For example:
+Your characters write letters to each other, and you’d like those letters to have different fonts than the rest of the story. If you format the paragraph style with that font, you can apply it with one click to the entire paragraphs.
+Your book has quotes, and you’d like them to be clearly marked in the text. You can format these quotes to include italics, and space between and after the paragraph.
+Paragraph styles also make it much easier for your designer to transfer all your styling from Word to Indesign. If the author I’m working with didn’t use them, I always start working in Word, and switch programs only  after the formatting is properly applied.
+You don’t even have to format the styles yourself – you can use the built-in ones that Word already has. Try using the “Normal” style for your body text, and the “Heading” styles for the different heading levels in your book. Your designer will thank you!
+Use page breaks
+What do you do if you want to leave the page ending a chapter partially empty, and start a new chapter on the next page?
+You use 15 consecutive paragraph returns, right?
+…right?
+Well, no. You use page breaks. Instead of 15 characters, you use one – there’s a shortcut for it, and it’s CTRL + ENTER. It will take you directly to the top of the next page.
+Pay attention to quotation marks
+Every language uses quotation marks differently – and if you’re using several different languages inside one story, it’s easy to mix them up. For example:
+English uses ‘…’ and “…” (which one is primary and which one secondary will be different between varieties)
+Norwegian uses «…» and ‘…’
+Polish uses „…” and »…«
+Finnish uses ”…” and ’…’
+As you can see, both the shape, position, and direction of the quotation marks can be very different. It’s a small, but important detail that’s always worth checking.
+That's it!
+I hope you found this short article useful – let me know if you think it’s lacking something, or if you have an additional question.
+I’m always up for a chat – get in touch via marta@martadec.eu.
+Read More
+Book Design Guides
+Book Design 101: The secrets of paper in self-publishing
+In every first-time author’s life there comes a moment when someone – or a self-publishing platform’s interface – asks a very important question: what kind of paper would you like to use for y
+Interior LayoutBook Design GuidesBlog
+Book Design 101: How to prepare your manuscript to make your designer cry tears of joy
+If you want to make your designer’s day, here’s a few simple rules on how you can prepare your manuscript before sending it off for formatting – four DO’s and three DON’Ts!
+ResourcesBook Design GuidesBlog
+EPUB accessibility 101 – and what does it mean for authors
+How to make sure that your EPUB meets the accessibility criteria? And what does accessiblity even mean?
+Get in touch!
+marta@martadec.eu
+"Villmarksterapi" by Espen Holmgren, book cover de
+MERMAY 2026 PAINTING IS HERE!
+I can barely believ
+"Goblins" by Abbey Hunt - fantasy book cover illus

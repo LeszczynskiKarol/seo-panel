@@ -1,0 +1,68 @@
+﻿URL: https://programmingforresearch.wordpress.com/2012/03/23/word-processor-versus-typesetter-2/
+
+word processor versus typesetter | programmingforresearch
+Menu
+Skip to primary content
+HomeAbout
+Search
+programmingforresearch
+thoughts on programming for research, free software, and hacking in general
+word processor versus typesetter
+Today I saw a couple of scientific papers which were written with a word processor (probably Microsoft Word, but possibly libreoffice) instead of a typesetting approach (such as TeX/LaTeX). I realized how fortunate I am that I seldom have to read papers like that: it is tiring to read. Most papers I read fortunately are typeset with TeX as a back end engine
+There are two major reasons for which a scientist writing a paper (or anyone writing a nontrivial document) should not make typesetting decisions:
+1. Typesetting is an old and deep art which really matters. You can get fatigue from reading a book or article that is typeset poorly. Amateurs don’t know this art. One simple example is the “optimal line length”: lines should have about 60 to 65 characters, and reading is impaired when they are longer or shorter. (Try looking through a typical book and count how many letters are on an average line.) People who set their own margins will violate this and their readers will get fatigue. There are very many more areas in typesetting where amateurish tinkering will make the reading experience subtly more tiring.
+2. It is a waste of time. Fiddling with margins, fonts, boldface is not the author’s job. The author should worry about the meaning of what s/he is writing, not the format. By playing with your word processor you are indulging in something that doesn’t give that much satisfaction and certainly does not increase your productivity.
+This applies to any document that is more than a few paragraphs long, but it gets even worse when mathematical notation is involved.
+In LaTeX you write your text and the program does the structuring and typesetting for you, applying a style that was designed by professionals who spent a lot of time researching how to do it and who have the benefit of centuries of wisdom on book layout. A very good introduction is the classic article The Not So Short Introduction to LaTeX
+There are a couple of things to keep in mind when getting going with LaTeX rather than a word processor approach:
+1. Someone put it well once saying that “in TeX the easy things are hard to do and the hard things are easy to do”. Getting started on your document involves including some preamble text to specify the document structure, and using special markup commands to make lists, which might seem harder than using a word processor. If you write a lot this learning curve disappears in a hurry, and you reap the benefits of having the truly difficult and time-consuming tasks done for you automatically.
+2. Make sure that you remember that “user friendliness” is a subtle matter. The acronym WYSIWYG (“what you see is what you get”) has been well parodied as WYSIAYG (“what you see is all you get”).
+Now although LaTeX guides you toward a well-structured document, many people go and find the special commands that can be used to change the layout. The most frequent thing I see is people wanting tiny margins to make a paper look like it has fewer pages (two-column mode might be better for this purpose).
+There is an old saying among programmers from my generation, who were writing code in the mid-1980s: you can “write FORTRAN in any language”. Since this is a rambling long-winded rant I will explain this old adage by reminding you of the context in those years. FORTRAN, which appeared in 1957, could be said to be the “first programming language”, preceding LISP (1958) and COBOL (1959).
+People who learned to program with languages like C and Pascal in the 1980s tended to poo-poo FORTRAN code as being very ugly, and it really is: the widely used paradigms for programming in FORTRAN were almost painfully hard to follow. But mostly FORTRAN suffered from the fact that it was designed before people used keyboards on computers: FORTRAN was made to be put on stacks of “punch cards” and fed into a mechanical reader, so the code was formatted strangely and hard to read.
+Hackers like to have “religious wars” on which programming language is “better” — just recently three of the programmers I admire most, and who are not young anymore, were having at it again on the topic of C++ and ugliness. Back in the mid-1980s young programmers were learning C and proud of it, and maybe experimenting with some trendy new languages like Smalltalk and Modula-II, and we would say that FORTRAN was gross.
+But eventually, as the dialectic process of understanding such issues had time to work its magic, we realized that a lot of C code is dreadfully difficult to read, and at a certain point I even realized that some FORTRAN code was intelligently written (and modern versions of FORTRAN are almost-but-not-quite readable). Hence the expression “you can write FORTRAN in any language”, which is probably equivalent to “l’abito non fa il monaco”, or any other expression about pigs and lipstick. There is a scholarly article on it by Donn Seeley (make sure you read the PDF, their text rendition is poor).
+(Don’t take this to mean that I think all languages are OK; many programming languages lack in expressiveness, or are really ugly in a variety of ways.)
+So in the spirit of a rant I spent much more time on a side show. Ah well… The point is: you can do poor typesetting in LaTeX too, just as you can in MS-Word. The difference is that in LaTeX you have to work hard to do poor typesetting, while in Word you cannot do good typesetting. Some day the word processors might add some of the important points of typesetting (ligatures, intelligent spacing, good math formulae), at which point it will become possible to do good typesetting, but it will still be very difficult.
+If you want to see more on this, including a lot of rants on how bad word processors are, a web search for the title of this posting gives some funny ones.
+Share this:
+Share on X (Opens in new window)
+X
+Share on Facebook (Opens in new window)
+Facebook
+Email a link to a friend (Opens in new window)
+Email
+Print (Opens in new window)
+Print
+Share on LinkedIn (Opens in new window)
+LinkedIn
+Like Loading...
+Related
+2012-03-23 Leave a Reply
+Post navigation
+« Previous
+Next »
+Leave a comment Cancel reply
+Δ
+View Full Site
+Create a free website or blog at WordPress.com.
+Comment
+Reblog
+Subscribe
+Subscribed
+programmingforresearch
+Sign me up
+Already have a WordPress.com account? Log in now.
+Privacy
+programmingforresearch
+Subscribe
+Subscribed
+Sign up
+Log in
+Copy shortlink
+Report this content
+View post in Reader
+Manage subscriptions
+Collapse this bar
+%d
+Design a site like this with WordPress.comGet started

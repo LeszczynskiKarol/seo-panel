@@ -1,0 +1,202 @@
+﻿URL: https://malarkeybooks.com/publishing/intro-to-typesetting
+
+Intro to Typesetting — Malarkey
+Cart
+0
+Sign In
+My Account
+Home
+Malarkey Book Club
+Bookstore
+Ebooks
+Derelict Lit
+Fiction
+Free Samples
+Humor
+Malarkey Public Radio
+Mealarkey
+Nonfiction
+Poetry
+Publishing Guide
+News & Propaganda
+Death of Print
+Our Story
+Catalogue
+For Writers
+For Bookstores
+For Reviewers
+Style Sheet
+About
+Support
+The Malarkives
+Our Titles
+Back
+Derelict Lit
+Derelict Fiction
+Derelict Nonfiction
+Derelict Poetry
+Back
+Humor
+Back
+Book Reviews
+Critical Analysis
+Essays
+Interviews
+Back
+Poetry
+Poetry Night: Poets Read Their Work Out Loud
+Back
+About
+Back
+Awful People
+Backmask
+The Barre Incidents
+Boxcutters
+Consumption & Other Vices
+Dear Writer
+Derelict
+Deliver Thy Pigs
+Detective Novel
+Don Bronco's (Working Title) Shell
+Drift
+Faith
+Fearless
+First Aid for Choking Victims
+Forest of Borders
+Francis Top's Grand Design
+Francis Top's Lost Cipher
+The Ghost of Mile 43
+Gloria Patri
+The Great Atlantic Highway
+Guess What's Different
+Hair Shirt
+Hope and Wild Panic
+I Blame Myself But Also You
+It Came From the Swamp
+Kill Radio
+King Ludd's Rag
+The Life of the Party Is Harder to Find Until You're the Last One Around
+Man in a Cage
+Music Is Over!
+The Muu-Antiques
+My Ardent Love for the Pencil
+One More Number
+Pontoon
+Sleep Decades
+Sophomore Slump
+Still Alive
+Submarines
+The Sun Still Shines on a Dog's Ass
+Teacher Voice
+Terrestrial
+thrum
+Thumbsucker
+Thunder from a Clear Blue Sky
+Toadstones
+Un-ruined
+Visitor
+The Walls Are Closing In On Us
+What I Thought of Ain't Funny
+Where the Pavement Turns to Sand
+White People on Vacation
+Your Favorite Poet
+Sign In
+My Account
+Cart
+0
+HomeMalarkey Book ClubBookstoreEbooks
+Derelict Lit
+Derelict Lit
+Derelict Fiction
+Derelict Nonfiction
+Derelict Poetry
+FictionFree Samples
+Humor
+Humor
+Malarkey Public RadioMealarkey
+Nonfiction
+Book Reviews
+Critical Analysis
+Essays
+Interviews
+Poetry
+Poetry
+Poetry Night: Poets Read Their Work Out Loud
+Publishing Guide
+Malarkey Books
+News & PropagandaDeath of PrintOur StoryCatalogueFor WritersFor BookstoresFor ReviewersStyle Sheet
+About
+About
+SupportThe Malarkives
+Our Titles
+Awful People
+Backmask
+The Barre Incidents
+Boxcutters
+Consumption & Other Vices
+Dear Writer
+Derelict
+Deliver Thy Pigs
+Detective Novel
+Don Bronco's (Working Title) Shell
+Drift
+Faith
+Fearless
+First Aid for Choking Victims
+Forest of Borders
+Francis Top's Grand Design
+Francis Top's Lost Cipher
+The Ghost of Mile 43
+Gloria Patri
+The Great Atlantic Highway
+Guess What's Different
+Hair Shirt
+Hope and Wild Panic
+I Blame Myself But Also You
+It Came From the Swamp
+Kill Radio
+King Ludd's Rag
+The Life of the Party Is Harder to Find Until You're the Last One Around
+Man in a Cage
+Music Is Over!
+The Muu-Antiques
+My Ardent Love for the Pencil
+One More Number
+Pontoon
+Sleep Decades
+Sophomore Slump
+Still Alive
+Submarines
+The Sun Still Shines on a Dog's Ass
+Teacher Voice
+Terrestrial
+thrum
+Thumbsucker
+Thunder from a Clear Blue Sky
+Toadstones
+Un-ruined
+Visitor
+The Walls Are Closing In On Us
+What I Thought of Ain't Funny
+Where the Pavement Turns to Sand
+White People on Vacation
+Your Favorite Poet
+Intro to Typesetting
+By Alan GoodPrint Editor, Malarkey Books
+Gonna try to cover the basics of interior book design in this post, with the disclaimers that if I forget something maybe I’ll get lucky and remember it and cover it later, and of all the folks in the indie publishing community who do typesetting I am certainly not the best or the most elegant. Still, if you’re new to book design this information should help you on the way to creating a professional-looking interior for your book.SoftwareI’ve used Word to typeset several books. It’s not great, but you can do it. If your book doesn’t have pictures there’s no reason you can’t use Word to typeset your book. You can set the page size to whatever you want, set the margins where you want, select different fonts, set up drop caps if you like to be fancy. It’s fine. Personally I’ve had a lot of trouble with fonts when using Word. When I would convert to PDF I’d always find the fonts didn’t transfer. There is a way to embed fonts, which you’ll just have to google. Unless you’re like me, working on a more and more outdated MacBook, in which case you can’t embed fonts. If you don’t have Word don’t buy it. There are other options. I haven’t used Scribus but several people have recommended it to me. InDesign, of course, is great, but it’s expensive. Here is a link to another article on typesetting published on the blog of Reedsy, which is a typesetting software I have not used but which apparently is free. Lately I’ve been using LibreOffice, which is free and pretty simple to use. I no longer have issues with embedding fonts and it converts to PDF much better than Word ever did for me. I used to have so much trouble getting a usable PDF out of a Word file, had a ton of trouble with it maintaining page sizes. One caveat: You can easily save a Libre file as a Word file, and you’ll need to if you want to create an ebook. More on that later. StylesWhatever software you use, learn how to use styles. Create a new style for every type of text you’ll have in your file. Titles. Headings. Main body text. You’ll save a lot of trouble this way. For example, when you’re working on a manuscript you might be using Times New Roman, but you’re not going to publish your book in Times New Roman. If you use styles you can simply edit the style for your body text to change the font and everything in your document that’s been typed in that style will update. You don’t have to highlight a bunch of text and it won’t mess up any other fonts you’re using for headings, titles, etc. When you start a new chapter, don’t change the font size to 18 or whatever, just make sure you’ve set up a style for chapters, give it whatever name works for your brain, click on that style and write “Chapter 4” and you’re good. Make sure you go back to your main body style and start typing or pasting.FontsUse styles to set all your fonts!!! Follow the standard rule of using a serif font for body text and save sans-serif fonts for titles, chapter titles, and other display text. (If you’re not familiar with serif/non-serif just ask jeeves.) There are nice serif fonts you can use for display text as well, and other flashy fonts. You can open a separate doc and try out different font pairings, see how they work together. As far as font size, for body text I tend to set it at 11, but it depends on the font. Some are bigger, some are smaller. You can make your display fonts a little bigger, whatever you think looks nice. There are people who are really good at selecting fonts. I don’t have a great eye for design. I’m generally trying to find a font combo that looks okay, is functional, and won’t drastically increase the unit cost of the book. (I’ve temporarily added fifty pages to a book before just by changing the font.) LeadingDon’t double space. Single space and adjust the leading, which refers to the space between lines. (Leading rhymes with bedding.) The rule of thumb is to make leading 120% the size of your font. Use styles for this. In Libre, double click on a word or sentence that’s in the correct style, scroll to Paragraph and select Edit Style. Then go to Indents and Spacing. There’s an icon for Line Spacing where you can select Leading. Then set it to the value you want. I have mine set to leading of 0.02”. Word doesn’t use the word leading but here’s what you do: Edit your style, go to paragraph: under line spacing, select Exactly and set it to 13 or 14, depending on your font size. You can also adjust kerning as needed. That’s the space (horizontally) between characters, as opposed to the space (vertically) between lines. I don't mess with kerning that much but you’ll need to know what it means for the test.IndentsOne of the most common mistakes I see in indie books is over-indented paragraphs. You get used to working in Microsoft Word writing a manuscript with a standard page size of 8.5 x 11 with 0.5 inch paragraph indents it’s easy to overlook reducing those indents when you go to publish your book. 0.5 could work for a coffee table book with only one column of text, but most of the time your book is going to be smaller than standard letter size. 6 x 9. 5 x 8. 5.06 x 7.81. Lots of options, but 0.5 is too much space. Edit the body text style and drop your paragraph indents to around 0.2 to 0.25.However . . . when you start a chapter, or a new section, un-indent your text. Send that first line flush left. PaginationVerso refers to the left-hand page of a book; recto refers to the right-hand side of a book. Your even pages will be on the verso page, odd pages the recto. Additionally, the first page of text starts on the recto side. Not that I’m the worldwide expert but I can’t think of any instances where the text is intentionally started on a verso page. A few other rules to follow: If using running heads, put author name on the verso and book title on the recto. Title page, table of contents, other display pages go on recto. Put the copyright page on a verso, the page after your main title page. Some books will have a small title page that’s the first page you open up, then the next page, or maybe after a blank page, or page where you have Other Titles By the Author (or something like that), they’ll have the main title page. Recto. I happen to have Thomas Pynchon’s Vineland handy. It starts with two pages of blurbs (starting on a recto, ending on a verso when you turn the page. Then an about the author page. The page behind that is blank. Then main title page, with copyright page behind. The main title page is simps: Title of Book, author, and Penguin Books with the Penguin colophon down at the bottom. (A colophon is like the symbol of the press. We don’t have one yet.) In a PDF or Word doc pages 1 and 2 would be blurbs. Page 3 would have the about the author. Page 4 would be blank. Page 5 would be the main title page. Page 6 would have all the copyright stuff. In the books I work on the first page ends up being usually page 7 or page 9. If you want to get fancy with organizing page numbers you can set page numbering to start in that spot so that page 1 is page 1. I’m not that smart. I just turn it on and go and the chapter 1 starts on page 7.This is up to you: some people start every chapter (or new story) of a book on a recto page. So if the previous chapter ends on an odd-numbered page you’d have to leave the even-numbered page after it blank to get the next section to start on the recto. One trick you can do on your title page use both the verso and recto pages. It will look weird on your computer but when the book is held open the title runs across both pages. There are ways you can get fancy with this verso/recto layout if you want to. Running HeadsAll I mean here is in some books you’ll see they have the author name at the top of one page and the book title at the top of the opposite page (see above). In a story collection or anthology these are pretty useful. What you have to do in a book where you have multiple authors or in a story collection where you’re including the title of a particular story as a running head is unlink the headers in your word processing program. Otherwise when you go in and change that title at the start of the next story the title will be changed throughout the whole document, when you just want the change to be in one particular section. Just google how to unlink headers in whatever word processing program you use and you can figure it out. Running heads are optional. I didn’t even mess with them in my two most recent books. There are also places in your book you won’t running heads. This is from the 17th edition of The Chicago Manual of Style: “Besides display pages in the front matter . . . running heads are omitted on part titles, chapter openings, and any page containing only illustrations or tables” (1.16). The CMOS is pricy but worth having. MarginsNot gonna tell you where to set you margins, just to remember two things: white space won’t hurt you, and be careful about your gutters. Zac Smith will have more to say on gutters here in the near future so I’ll leave that for him. Couple potentially helpful links: Butterick’s Practical Typography. Great article from Pearsonified on The Golden Ratio.Text on the PageReally look at how the text looks on the page. It’s tempting to cram a ton of text in so your book will be cheaper to print, but that might make it less pleasant to read. The main thing I want to say here is pick a method and stick with it. In general, don’t start a chapter at the top of the page. You might skip down a ways and insert Chapter 1, then go down about one-third of the page and actually start your text. Find something you like and then do it that way throughout the whole book. Sometimes in a book you’ll see the typesetter inserted drop caps. Not that hard and looks kind of cool. I’d love to get some of those really ornate old-timey drop caps and use them in a book. Sometimes the typesetter will use small caps for the first five words in the first sentence of a paragraph in a new chapter. This stuff isn’t essential, but it can be kind of nice. You just have to decide if it’s right for the book you’re working on and do it or not. Just be consistent throughout the book.AlignmentPretty much every article you’ll read about typesetting will say you need to use justified text for prose. It’s probably not something you think about, but if you pick up a few books you’ll see they’re all justified. It looks nice, but you have to watch out because sometimes you’ll end up with weird gaps where your word processing program stretches the text out to make it fit. You’ve got to look through the whole file and make sure there aren't any too-stretched-out parts. When you find them you just have to fiddle with them. Sometimes you can reword a sentence, sometimes you can break up a paragraph into two paragraphs. I’ve been trying not to clutter this up with links but here’s a link on another way to fix the over-spacing problem in Word from Techwalla. I might end up making a separate post about this later. Widows and OrphansTurn on widow and orphan control. You don’t want to end up with a page that has just one word or one line of text on it.The DinkusA dinkus is a mark used to signify a section break in your text. Sometimes you’ll see # or ***. Maybe a horizontal line. Or a circle. Could be anything. If you’re going to go to the trouble of using it find a cool one you can use. More importantly, check where it lands in every use. Sometimes if it lands close to the bottom of the page and the next section has only two lines appearing on the page you can just insert a page break and start the new section on the next page. I don’t like to end a page with a dinkus, so if it ends up that way I push it to the top of the next page. This is something you need to do late in the process when you’re not going to alter the section breaks by adding or removing text. ProofreadingThis, of course, is separate from typesetting, and really needs to be done before typesetting. I didn’t want to write a whole separate post about it, but you cannot dispense with proofreading. Over-indented paragraphs I can live with. Typos that would have been caught by a decent proofreader, not so much. Your writers deserve for their books to look professional. I happen to be a decent proofreader. I’m currently the proofreader for Ruminate Magazine, and I edit and proofread all the books and zines we make at Malarkey, as well as everything I publish through Death of Print, which to date includes my books and The Ghost of Mile 43 by Craig Rodgers, and I’ve proofed a few other indie press books. You can get away with not hiring a proofreader if you’re good at proofreading. (In my experience the most effective way to proofread yourself is to read your book aloud, pen in hand.) If you don’t have a good proofreader on your staff it’s worth it to hire a freelancer. You can hire me, and I have flexible rates for indie authors/presses, but the purpose of this guide is not to get me more freelance gigs, so I’m not going to make a big deal about it. The point is you need to get someone to proofread your books. Your writers deserve it, the people who buy your books deserve it, and honestly the rest of the indie publishing community deserves it. Sorry if this is over-earnest or preachy but every error-plagued title that makes its way into the world lessens our credibility in ways the big publishers don’t have to worry about, even if you just might find more typos in a Penguin book than you will in a Malarkey book.
+Style SheetAlso separate from typesetting, and like proofreading it needs to be set up before you really get to typesetting. You just need to determine your press’s house style. Even if you’re just one person self-publishing (in which case still make up a press name, which is how Malarkey Books got started). Are you going to write p.m. or PM? Or some weird other way? Will you spell out one through one hundred or use numerals after ten? Is it spelled okay, OK, O.K., or O.k.? You can simply say you’ll follow Chicago Style but even then Chicago doesn’t give you a hard answer on OK or okay. Personally I prefer OK but Malarkey style, thanks to everyone who disagreed with me on twitter, is to write okay. A lot of this stuff, it doesn’t matter how you do it as long as you’re consistent. So get together with your other editors, if you have other editors, and figure it out. Tip: share your style sheet with your writers so you can get them to do some of your proofreading for you before they ever send a draft. The PDFWhen you feel like you’re done with typesetting, you’re still not. Whatever method you’re using for printing, you’ll need to send a PDF. I do pay for Adobe Acrobat, which I need in order to edit PDFs. I don’t love giving money to Adobe, but I use it a lot. You’re able to log in to two devices with your account so you could split it with someone. The PDF is where I set up the title page. I also run through the whole document and make sure to delete page numbers where I don’t want them. This might be because I’m not very adept at word processing, but when I turn on page numbers I’ll have them on every page, the title page, copyright page, about the author page, etc. Maybe there’s a way to make that not happen, but I don’t care. I just fix it in post. I’ll also usually delete the page number from the actual first page of the book. This seems to be a common but definitely not universal practice. I probably started doing this because I read it in an article about typesetting like five years ago, but I still do it. I like it. You definitely want to delete the running header, if you have one, from the first page of text and on the first page of any new chapter or section. It’s easier to delete this stuff in Adobe where it won’t affect any other parts of the document. Big big note: I’ve read indie books where the editors neglected, or couldn’t figure out how, to delete page numbers and running heads on blank pages. Please please please delete that stuff. If you can’t afford Acrobat you can send me your PDF and I’ll delete it for you. If you live somewhere with a good library system your library ought to have Adobe and you can do all this there.Take the time to look carefully throughout the PDF. This is what your book is going to look like, so make sure it looks how you want it. You can make minor touchups to the text, if necessary, in Adobe, but for substantial edits you’ll have to return to Word or whatever you use and create a new PDF file when your revisions are complete. We’re looking into the logistics of printing with a traditional printer, but for now at Malarkey we use IngramSpark print on demand (more on which later). The PDF file we send to Ingram has to be in grayscale. Here’s how to do that. In Adobe Acrobat, you’ve got your file open, you click Tools. You scroll down to Print Production. On the right side of the screen you click Preflight. You click Digital Printing B/W. Then you click Analyze and Fix. At that point it prompts you to Save As. I usually just use the same file name and add Black-and-White and that file that ends in Black-and-White is what I send to IngramSpark. It used to take me about nine to seventy-eight attempts to turn in a file that didn’t have any errors, but at this point it’s usually good to go on the first try.Review the ProofYou can review an eproof but you’ve got to get a print proof too. Absolutely essential.—Insert Cool Dinkus Here—I’ll write more about Ingram and printing at some point. The thing to keep in mind at this point is to spend a lot of time with your file and make sure it’s perfect before you send it to the printer. Speaking from experience it’s a giant pain to catch something after you’ve sent the file and have to wait around, and pay extra, to upload updated files.
+To close, I am not the expert on everything. I had to learn all this on my own, and I’m still learning, but I do hope some of this information helps. The way I do something is not inherently the right way; a lot of times it’s just the way I lucked into figuring out. So if you have a way that’s more efficient than something I described, for God’s sake drop it in the comments.
+Alan GoodJune 24, 2021Typesetting, Book Design, Malarkey BooksComment
+Twitter
+0 Likes
+Previous
+Typesetting II
+Alan GoodJune 30, 2021Zac Smith, Back Patio Press, Book Design, Typesetting, Malarkey Books
+Free shipping on orders over $45 with code POSTOFFICE at checkout.
+Subscribe to King Ludd’s Rag, our paying litmag
+Malarkey merch (t-shirts and more)
+find us on bookshop
+Sign up for The Malarker: interviews, updates, discounts, giveaways, and so forth and stuff.
+malarkeybooks@protonmail.com
+Hours
+Every story, essay, poem, and post on the website belongs to its respective author. No work on this website may be used to train large language models or other “AI” programs.

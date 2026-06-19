@@ -1,0 +1,123 @@
+﻿URL: https://www.centerforengagedlearning.org/academic-book-publishing-formatting-your-manuscript/
+
+Academic Book Publishing: Formatting Your Manuscript - Center for Engaged Learning
+Skip to main content
+Skip to search
+Skip to footer
+Search Center for Engaged Learning
+Submit Search
+Center for Engaged Learning
+About CEL
+Surveys
+Podcasts
+Videos
+Annotated Bibliographies
+Blog
+Center for Engaged Learning
+Menu
+Research SeminarsCEL facilitates multi-institutional research on engaged learning topics. Participants from institutions around the world collaborate over three years, producing scholarship that shapes research and practice globally.Research Seminars Home2026-2028 Rethinking Engaged Learning in the Age of GenAI2025-2027 Learning on Location2024-2026 Affirming and Inclusive Engaged Learning for Neurodivergent Students  2023-2025 Mentoring Meaningful Learning ExperiencesPrevious Research SeminarsResearch Seminar LogisticsFrequently Asked QuestionsPublicationsCEL is home to two book series. In addition, CEL research seminars and other initiatives have produced 100+ publications (to date).Publications HomeSeries on Engaged Learning and TeachingOpen Access Book SeriesElon StatementsCEL PodcastsSurveys on Engaged and Experiential LearningAll CEL PublicationsEngaged LearningCEL’s concise guides offer research-informed practices for engaged learning.Engaged Learning HomeAssessment and FeedbackCapstone ExperiencesHigh Impact Practices and Historically Underrepresented Minority StudentsImmersive LearningInternshipsLearning CommunitiesMentoring MattersService-LearningStudents as PartnersSupporting Neurodiverse and Physically Disabled Students in Engaged LearningUndergraduate ResearchWork-Integrated LearningFacilitating Integration and Reflection of the Elon Experiences ToolkitStudying Engaged LearningCEL’s concise guides offer practical strategies for studying engaged learning.Studying Engaged Learning HomeWhat is SoTL?SoTL vs. Scholarly TeachingFinding SoTL ResearchAsking Inquiry QuestionsSoTL Inquiry MethodsStudents as Partners in Studying Engaged LearningArts & Humanities and the Scholarship of Teaching and LearningPublishing Research on Teaching and LearningSoTL & Promotions and TenureConferences & Think TanksCEL brings together international leaders in higher education to develop, synthesize, and share rigorous research on central questions about student learning.Conferences & Think Tanks Home2026 Conference on Engaged LearningPrevious ConferencesCEL Think TanksProgramsThe CEL Scholar role and CEL Student Scholars program enable Elon faculty and students to deepen their understanding of and professional development in scholarly activity on engaged learning.Programs HomeCEL ScholarsCEL Senior ScholarsCEL Student ScholarsPublishing InternStudent Seminars
+HomeBlogPublishing SoTL
+Academic Book Publishing: Formatting Your Manuscriptby Jennie GoforthJanuary 10, 2023
+Share:
+Section NavigationSkip section navigationIn this sectionBlog Home
+AI and Engaged Learning
+Assessment of Learning
+Capstone Experiences
+CEL News
+CEL Retrospectives
+CEL Reviews
+Collaborative Projects and Assignments
+Community-Based Learning
+Data Literacy
+Diversity, Inclusion, and Equity
+ePortfolio
+Feedback
+First-Year Experiences
+Global Learning
+Health Sciences
+High Impact Practices
+Immersive Learning
+Internships
+Learning Communities
+Mentoring Relationships
+Online Education
+Place-Based Learning
+Professional and Continuing Education
+Publishing SoTL
+Reflection and Metacognition
+Relationships
+Residential Learning Communities
+Service-Learning
+Signature Work
+Student Leadership
+Student-Faculty Partnership
+Studying EL
+Supporting Neurodivergent and Physically Disabled Students
+Undergraduate Research
+Work-Integrated Learning
+Writing Transfer in and beyond the University
+Style Guide for Posts to the Center for Engaged Learning Blog
+Additional ContentPopular Posts
+Qualitative Methods for the Quantitatively InclinedJuly 18, 2023
+What is SoTL?November 9, 2020
+VideosJanuary 21, 2021
+Video CategoriesOctober 1, 2020
+Building Trust in Mentoring RelationshipsOctober 8, 2024
+I can hear many of you authors out there collectively groaning, or perhaps you are putting off actually formatting your manuscript as you look for advice to make it all seem easier. It’s true, formatting your manuscript for submission can be tedious and time-consuming. However, it’s also extremely important for publishers. They spend enormous resources (time and money) preparing books for publication. When a manuscript doesn’t adhere to their formatting guidelines, it can slow down the production timeline and take up staff time that would be better spent on editing manuscripts or doing marketing and promotion.
+Your publisher has solid reasons for all the many formatting guidelines they provide. They’ve had authors do everything wrong, and it has made them want to tear their hair out. So, be awesome! If you follow this advice, it really won’t be so bad.
+*I’ve provided links to how-to instructions in Microsoft Word throughout, as that’s what many authors will be using. But you can do most of the same things in Google Docs and other word processing programs!
+Start early
+It will be the least work if you read through the publisher’s formatting guidance as early as possible in the process. Going back through a completed manuscript and fixing all the formatting is tedious. If you start off composing within the guidelines, then you’ll have much less to do at the end! Future self will thank you.
+Tabs, Spaces, and Paragraph Returns
+It’s important that there’s not any extra style formatting in the manuscript, like extra spaces, paragraph returns, and tabs. Your publisher will be putting your text into a layout software (usually InDesign), and all this extra formatting will get in the way once they apply the styles within InDesign. Turn on “show paragraph marks” in your word processing software, so you can see that your formatting marks are correct.
+Your goal should be to make the manuscript as easy to read as possible, with as little formatting as possible.
+Tabs
+The first line of each paragraph should be indented, but it should not start with a tab character. Use the autoformatting option to indent, or use a paragraph style to do it (how to indent the first line in Word).
+Reference lists should be styled with a hanging indent, but again please don’t use tabs to accomplish this (how to create a hanging indent in Word). You can also easily create a paragraph style for your references (more on paragraph styles below).
+Spaces
+Unless you are living in 1950, do not use two spaces after a period. Most people know this, but we have seen it! If you have “show paragraph marks” turned on, you can see where you have any unnecessary spaces in your document. (And if you just can’t break the habit of typing two spaces, see the Find/Replace tip below.)
+Paragraph returns
+There should be exactly one paragraph return between each paragraph. If you’ve indented the first line of each paragraph, that is enough visual separation between paragraphs.
+Use Find/Replace
+If you’ve got a document with a bunch of incorrect formatting (for example, extra paragraph returns, extra spaces, or tabs), it’s easy to fix them with Find/Replace (how to use Find/Replace in Word). The example below shows how to find all double paragraph returns and replace them with one paragraph return.
+Headings
+Make sure your headings are formatted according to the publisher’s guidelines, and that they are consistent and properly nested. The easiest way to be consistent is to use Word’s paragraph styles. If the default styles don’t match your publisher’s specifications, it’s very easy to modify them (how to customize or create new styles in Word). Do not type in all caps for your headings (or anywhere else), as often this will mean the typesetter must re-key this text, creating more work and possibly introducing errors!
+Figures and Tables
+Pay close attention to how your publisher would like you to incorporate your figures and tables. For CEL’s Open Access Book Series, we prefer for all images and tables to be included in the manuscript for the initial submission (it makes it easier for us to review them if we’re not opening a ton of different files). But for final submission, all figures and tables should be submitted in separate documents. See the author guide for specific instructions and examples!
+Hyperlinks
+How you deal with URLs within your text will vary greatly depending on your book’s format. If your book will be print-only, you’ll likely want to keep links to a minimum and make sure that you are including the full URL in the text (rather than embedding the link). If your book will be primarily read online (like our Open Access Book Series), you can include many embedded links. However, our guidelines still state that URLs should not be embedded in text in the manuscript, but included within brackets. This allows us to more easily embed the links in the layout software.
+From the CEL Open Access Book Series author guide
+Collaboration with Co-Authors
+It can be tricky for editors of collections or authors working with several co-authors to deal with all the different formatting done by different people. To streamline this process, we offer these tips:
+Share the publisher’s formatting guidelines with everyone who will be composing text, and emphasize the importance of following these guidelines.
+Decide together at the beginning of the project what word processing program to use. We’ve found that when documents are uploaded and downloaded from Google Docs to Microsoft Word often, they can get some really weird formatting issues. It’s best if everyone is using the same program.
+Appoint one person to do the final collation and formatting. Then buy this person a nice gift to thank them.
+If you have questions as you format your manuscript, first consult the author guide your publisher sent you (they did, I promise, look for it). If you still have questions, please contact them! If you’re writing for one of our series, I’m always happy to answer questions (jgoforth@elon.edu).
+This post is one in our series on academic publishing; check out all of them!
+Jennie Goforth is the Center for Engaged Learning’s Managing Editor. She works with authors to shepherd their work from proposal through production in the Center’s Open Access Book Series. She also manages production of book websites and supplemental materials for the Stylus Publishing/Center for Engaged Learning Series on Engaged Learning and Teaching.
+How to Cite this Post
+Goforth, Jennie. 2023. “Academic Book Publishing: Formatting Your Manuscript.” Center for Engaged Learning (blog), Elon University. January 10, 2023. https://www.centerforengagedlearning.org/academic-book-publishing-formatting-your-manuscript.
+Posted in:
+Open Access Books
+Publishing SoTL
+Tagged:
+Jennie Goforth
+Previous Post
+Next Post
+Related Articles
+January 9, 2024CEL’s Book Series: Similarities and Differencesby Jennie GoforthSince 2019, CEL has been home to not one, but two, book series. We’re sometimes asked what the difference is between the two. Well, they are each unique (and each excellent in their own way), so this post will explain…
+December 19, 2023Writing Stylishly in SoTL: The Gospel According to Helen Swordby Jennie GoforthThere is endless advice out there on how to write well. Some of this advice seems universal, and some of it varies a great deal, depending on the audience, purpose, and context for your writing. Academic writing brings its own…
+Jump to Top
+Center for Engaged Learning
+An International Center for Research on Engaged Learning
+Center for Engaged Learning
+Elon University
+2610 Campus Box, Elon, North Carolina
+United States
+Facebook
+LinkedIn
+RSS Feed
+Twitter
+YouTube
+centerforengagedlearning@elon.edu
+© 2026 Center for Engaged Learning

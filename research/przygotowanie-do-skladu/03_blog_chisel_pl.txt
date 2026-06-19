@@ -1,0 +1,70 @@
+﻿URL: https://blog.chisel.pl/%F0%9F%93%98-jak-przygotowac-tekst-ksiazki-w-wordzie-do-profesjonalnego-skladu-w-indesign-poradnik-dla-autorow/
+
+📘 Jak przygotować tekst książki w Wordzie do profesjonalnego składu w InDesign? [Poradnik dla autorów] - blog-chisel
+blog-chisel
+Projektowanie: blog graficzny.
+📘 Jak przygotować tekst książki w Wordzie do profesjonalnego składu w InDesign? [Poradnik dla autorów]
+Wielu autorów książek korzysta z programów takich jak Microsoft Word, Google Docs czy LibreOffice do tworzenia swoich manuskryptów. To całkowicie naturalne – są wygodne i łatwe w obsłudze. Jednak kiedy przychodzi czas na profesjonalny skład w Adobe InDesign, niewłaściwie przygotowany tekst może spowolnić pracę i wygenerować dodatkowe koszty.
+Ten poradnik pomoże Ci uniknąć typowych błędów i przygotować tekst w sposób, który ułatwi współpracę ze studiem DTP.
+✅ 1. Używaj stylów zamiast ręcznego formatowania
+Nie rób tego:
+Nie zaznaczaj nagłówków i nie zmieniaj ich czcionki, wielkości i pogrubienia ręcznie.
+Zrób to tak:
+Użyj „Stylów” w Wordzie: np. „Nagłówek 1” dla tytułów rozdziałów, „Nagłówek 2” dla podtytułów, „Tekst podstawowy” dla treści.
+💡 Dlaczego to ważne?Style można łatwo zmapować w InDesignie, co znacznie przyspiesza automatyzację składu.
+✅ 2. Unikaj znaków końca linii (Shift + Enter)
+Nie rób tego:
+Nie wciskaj Shift + Enter, żeby „przejść do nowej linii” bez nowego akapitu.
+Zrób to tak:
+Stosuj po prostu Enter między akapitami. A jeżeli to ma być nowy paragraf – niech będzie nowy paragraf.
+🔧 Problem: Znaki końca linii są trudne do wychwycenia przy imporcie do InDesigna i mogą psuć układ.
+✅ 3. Nigdy nie twórz wcięć akapitowych spacjami lub tabulatorem
+Zły sposób:[Spacja Spacja Spacja Spacja Spacja]Akapit
+Poprawny sposób:Nie stosuj wcięcia w Wordzie – to zostanie nadane w InDesignie przez style akapitowe.
+✅ 4. Używaj cudzysłowów drukarskich i znaków specjalnych
+Zwróć uwagę na:
+Cudzysłowy: „polskie” zamiast „maszynowe”
+Półpauzy (–) zamiast łączników (-)
+Myślniki zamiast pauz
+📌 W Wordzie można je włączyć automatycznie w ustawieniach autokorekty: „zamień cudzysłowy prosty na drukarski”, „zamień dwa minusy na półpauzę”.
+✅ 5. Obrazy – osobno, nie wklejone w plik
+Jeśli masz ilustracje, nie wklejaj ich bezpośrednio do Worda.
+Zamiast tego:
+Oznacz w tekście miejsce np.: [Ilustracja_01.jpg tutaj]
+Obrazy prześlij osobno w oryginalnej rozdzielczości (min. 300 dpi)
+✅ 6. Unikaj pustych akapitów jako „odstępów”
+Nie zostawiaj pustych linii między akapitami, żeby „zrobić więcej miejsca”.Profesjonalny skład i tak zadba o odstępy – lepiej utrzymać czystość dokumentu.
+✅ 7. Używaj prostego formatowania
+Nie przesadzaj z:
+Kolorami,
+Podkreśleniami,
+Czcionkami ozdobnymi,
+Kolorowym tłem.
+Skład w InDesignie i tak wszystko wystylizuje według projektu – nie ma potrzeby wstępnego „upiększania” tekstu.
+✅ 8. Przekazuj dokument w formacie DOCX lub RTF
+Najlepszy format do przekazania tekstu to:
+.DOCX (Word),
+.RTF (jeśli korzystasz z innego edytora tekstu).
+Unikaj PDF-ów – są trudniejsze do edycji i importu.
+✅ 9. Dołącz osobny plik z instrukcjami i uwagami
+Jeśli masz uwagi dotyczące layoutu (np. „ten fragment ma być wyróżniony ramką” albo „tu powinna być stopka z cytatem”) – umieść je w osobnym dokumencie, a nie w samym tekście.
+🟦 Podsumowanie
+Dobrze przygotowany plik w Wordzie to oszczędność czasu i pieniędzy – zarówno dla Ciebie, jak i dla studia składu. Pamiętaj, że InDesign działa na stylach, strukturze i „czystym” tekście. Im mniej bałaganu – tym lepszy efekt końcowy!
+Skład książki zamówisz na chisel.pl/sklad-tekstow
+ChiselTomasz Dąbrowskitel.: 697 136 404e-mail: tomek@chisel.pl
+Zapoznaj się z:Najczęstsze błędy w samodzielnym wydawaniu książkiHistoria i współczesność fontów bezszeryfowychSkład książek – ile kosztuje praca nad przygotowaniem publikacji?Skuteczna nawigacja. Raport PDF – wygoda w analizie danychCzym jest DTP?Kształtowanie się stylu i estetyki w grafice użytkowej
+Opublikowano
+9 lipca, 2025
+w
+edukacja, książka, projektowanie
+przez
+admin
+desktop publishing, dtp, informacja, projekt, projekt książki, skład tekstu
+Komentarze
+Dodaj komentarz Anuluj pisanie odpowiedziTwój adres e-mail nie zostanie opublikowany. Wymagane pola są oznaczone *Komentarz * Nazwa *
+Adres e-mail *
+Witryna internetowa
+Zapamiętaj moje dane w tej przeglądarce podczas pisania kolejnych komentarzy.
+Δ
+blog-chisel
+Administracja: Chisel
