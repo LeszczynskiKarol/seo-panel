@@ -14,6 +14,35 @@ export class GA4Service {
     return google.analyticsdata({ version: "v1beta", auth });
   }
 
+  /**
+   * Filtr hostName na apex + www danej domeny.
+   * Konieczny, bo połączone Google Tagi (GT-*) potrafią dublować hity z innych
+   * serwisów do tego samego property (case grandkuchnie/silniki/agencja, 2026-07)
+   * — bez filtra IntegrationDaily liczy cudzy ruch.
+   */
+  private hostFilter(
+    domain?: string | null,
+  ): analyticsdata_v1beta.Schema$FilterExpression | undefined {
+    if (!domain) return undefined;
+    const bare = domain.replace(/^www\./, "");
+    return {
+      filter: {
+        fieldName: "hostName",
+        inListFilter: { values: [bare, `www.${bare}`] },
+      },
+    };
+  }
+
+  private async domainForIntegration(
+    integrationId: string,
+  ): Promise<string | null> {
+    const integration = await prisma.domainIntegration.findUnique({
+      where: { id: integrationId },
+      select: { domain: { select: { domain: true } } },
+    });
+    return integration?.domain?.domain ?? null;
+  }
+
   async verifyAccess(
     propertyId: string,
   ): Promise<{ ok: boolean; error?: string; propertyName?: string }> {
@@ -59,12 +88,16 @@ export class GA4Service {
   ): Promise<{ days: number; error?: string }> {
     try {
       const analytics = await this.getAnalyticsData();
+      const dimensionFilter = this.hostFilter(
+        await this.domainForIntegration(integrationId),
+      );
 
       // 1. Daily aggregates
       const dailyRes = (await analytics.properties.runReport({
         property: propertyId,
         requestBody: {
           dateRanges: [{ startDate, endDate }],
+          dimensionFilter,
           dimensions: [{ name: "date" }],
           metrics: [
             { name: "sessions" },
@@ -128,6 +161,7 @@ export class GA4Service {
         property: propertyId,
         requestBody: {
           dateRanges: [{ startDate, endDate }],
+          dimensionFilter,
           dimensions: [{ name: "sessionSourceMedium" }],
           metrics: [
             { name: "sessions" },
@@ -153,6 +187,7 @@ export class GA4Service {
         property: propertyId,
         requestBody: {
           dateRanges: [{ startDate, endDate }],
+          dimensionFilter,
           dimensions: [{ name: "landingPagePlusQueryString" }],
           metrics: [
             { name: "sessions" },
@@ -291,6 +326,7 @@ export class GA4Service {
     propertyId: string,
     startDate: string,
     endDate: string,
+    domain?: string | null,
   ): Promise<any[]> {
     const analytics = await this.getAnalyticsData();
 
@@ -298,6 +334,7 @@ export class GA4Service {
       property: propertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
+        dimensionFilter: this.hostFilter(domain),
         dimensions: [{ name: "sessionSourceMedium" }],
         metrics: [
           { name: "sessions" },
@@ -326,6 +363,7 @@ export class GA4Service {
     propertyId: string,
     startDate: string,
     endDate: string,
+    domain?: string | null,
   ): Promise<any[]> {
     const analytics = await this.getAnalyticsData();
 
@@ -333,6 +371,7 @@ export class GA4Service {
       property: propertyId,
       requestBody: {
         dateRanges: [{ startDate, endDate }],
+        dimensionFilter: this.hostFilter(domain),
         dimensions: [{ name: "landingPagePlusQueryString" }],
         metrics: [
           { name: "sessions" },

@@ -249,6 +249,7 @@ export async function integrationRoutes(fastify: FastifyInstance) {
 
     const integration = await prisma.domainIntegration.findUniqueOrThrow({
       where: { id: intId },
+      include: { domain: { select: { domain: true } } },
     });
 
     const d = parseInt(days) || 30;
@@ -308,6 +309,7 @@ export async function integrationRoutes(fastify: FastifyInstance) {
             integration.propertyId,
             startStr,
             endStr,
+            integration.domain.domain,
           );
         } catch (e: any) {
           console.log("GA4 source query failed:", e.message?.slice(0, 100));
@@ -320,6 +322,7 @@ export async function integrationRoutes(fastify: FastifyInstance) {
             integration.propertyId,
             startStr,
             endStr,
+            integration.domain.domain,
           );
         } catch (e: any) {
           console.log(

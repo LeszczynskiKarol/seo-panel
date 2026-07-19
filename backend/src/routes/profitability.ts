@@ -20,7 +20,7 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
     // Determine commission rate by domain category
     const domainInfo = await prisma.domain.findUnique({
       where: { id: domainId },
-      select: { category: true },
+      select: { category: true, domain: true },
     });
     const isCommissionBased = domainInfo?.category === "ECOMMERCE";
     const COMMISSION_RATE = isCommissionBased ? 0.12 : 1.0;
@@ -51,6 +51,7 @@ export async function profitabilityRoutes(fastify: FastifyInstance) {
           integration.propertyId!,
           sd,
           ed,
+          domainInfo?.domain,
         );
       } catch {
         bySource = (integration.cachedData as any)?.bySource || [];
