@@ -111,6 +111,9 @@ export class GA4Service {
           ],
           orderBys: [{ dimension: { dimensionName: "date" } }],
           limit: "500",
+          // Bez tego GA4 pomija dni z zerowym ruchem po dimensionFilter,
+          // a upsert zostawia wtedy w IntegrationDaily stare (zawyżone) wartości.
+          keepEmptyRows: true,
         },
       })) as { data: RunReportResponse };
 
