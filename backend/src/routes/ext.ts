@@ -4,6 +4,13 @@ import { ContentDecayService } from "../services/content-decay.service.js";
 
 const decay = new ContentDecayService();
 
+const DAY = 86400000;
+function daysAgo(n: number): Date {
+  const d = new Date(Date.now() - n * DAY);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
 /**
  * Machine-to-machine API for external executors (Publisher, sitario).
  * Auth: x-api-key header checked against EXT_API_KEY — fail-closed when unset.
@@ -102,6 +109,145 @@ export async function extRoutes(fastify: FastifyInstance) {
 
     const result = await decay.generateForDomain(d.id);
     return { domain: d.domain, ...result };
+  });
+
+  // Aggregated weekly-report payload for the AI synthesis layer (local
+  // Claude Code cron on Karol's machine). Two consecutive 7-day windows,
+  // both ending at today-3 to respect GSC data lag.
+  fastify.get("/report-data", async () => {
+    const LAG = 3;
+    const curFrom = daysAgo(LAG + 7);
+    const curTo = daysAgo(LAG);
+    const prevFrom = daysAgo(LAG + 14);
+
+    const domains = await prisma.domain.findMany({
+      where: { isActive: true },
+      select: { id: true, domain: true, label: true, category: true },
+      orderBy: { domain: "asc" },
+    });
+
+    const out = [];
+    for (const d of domains) {
+      const [cur, prev] = await Promise.all([
+        prisma.gscDomainDaily.aggregate({
+          where: { domainId: d.id, date: { gte: curFrom, lt: curTo } },
+          _sum: { clicks: true, impressions: true },
+        }),
+        prisma.gscDomainDaily.aggregate({
+          where: { domainId: d.id, date: { gte: prevFrom, lt: curFrom } },
+          _sum: { clicks: true, impressions: true },
+        }),
+      ]);
+
+      // page movers by click delta between the two windows
+      const [curPages, prevPages] = await Promise.all([
+        prisma.gscPageDaily.groupBy({
+          by: ["pageId"],
+          where: { page: { domainId: d.id }, date: { gte: curFrom, lt: curTo } },
+          _sum: { clicks: true },
+        }),
+        prisma.gscPageDaily.groupBy({
+          by: ["pageId"],
+          where: { page: { domainId: d.id }, date: { gte: prevFrom, lt: curFrom } },
+          _sum: { clicks: true },
+        }),
+      ]);
+      const prevMap = new Map(prevPages.map((p) => [p.pageId, p._sum.clicks || 0]));
+      const ids = new Set([...curPages.map((p) => p.pageId), ...prevMap.keys()]);
+      const curMap = new Map(curPages.map((p) => [p.pageId, p._sum.clicks || 0]));
+      const deltas = [...ids]
+        .map((id) => ({
+          pageId: id,
+          cur: curMap.get(id) || 0,
+          prev: prevMap.get(id) || 0,
+          delta: (curMap.get(id) || 0) - (prevMap.get(id) || 0),
+        }))
+        .filter((m) => m.delta !== 0);
+      deltas.sort((a, b) => b.delta - a.delta);
+      const moverIds = [...deltas.slice(0, 5), ...deltas.slice(-5)].map((m) => m.pageId);
+      const paths = new Map(
+        (
+          await prisma.page.findMany({
+            where: { id: { in: moverIds } },
+            select: { id: true, path: true },
+          })
+        ).map((p) => [p.id, p.path]),
+      );
+      const withPath = (m: (typeof deltas)[0]) => ({
+        path: paths.get(m.pageId) || "?",
+        clicks: m.cur,
+        clicksPrev: m.prev,
+        delta: m.delta,
+      });
+
+      const [alerts, events, recsNew, outcomes, ga4] = await Promise.all([
+        prisma.alert.findMany({
+          where: { domainId: d.id, createdAt: { gte: daysAgo(7) } },
+          select: { type: true, severity: true, title: true },
+          take: 10,
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.seoEvent.groupBy({
+          by: ["type"],
+          where: { domainId: d.id, createdAt: { gte: daysAgo(7) } },
+          _count: true,
+        }),
+        prisma.contentRecommendation.findMany({
+          where: { domainId: d.id, createdAt: { gte: daysAgo(7) } },
+          select: { type: true, status: true, topic: true, reason: true, score: true },
+          orderBy: { score: "desc" },
+          take: 15,
+        }),
+        prisma.contentRecommendation.findMany({
+          where: { domainId: d.id, measuredAt: { gte: daysAgo(7) } },
+          select: {
+            type: true,
+            topic: true,
+            outcome: true,
+            publishedUrl: true,
+            page: { select: { path: true } },
+          },
+        }),
+        prisma.integrationDaily.aggregate({
+          where: {
+            integration: { domainId: d.id, provider: "GOOGLE_ANALYTICS" },
+            date: { gte: curFrom, lt: curTo },
+          },
+          _sum: { sessions: true, conversions: true, revenue: true },
+        }),
+      ]);
+
+      out.push({
+        domain: d.domain,
+        label: d.label,
+        category: d.category,
+        gsc: {
+          clicks: cur._sum.clicks || 0,
+          clicksPrev: prev._sum.clicks || 0,
+          impressions: cur._sum.impressions || 0,
+          impressionsPrev: prev._sum.impressions || 0,
+        },
+        ga4: {
+          sessions: ga4._sum.sessions || 0,
+          conversions: ga4._sum.conversions || 0,
+          revenue: ga4._sum.revenue || 0,
+        },
+        winners: deltas.slice(0, 5).map(withPath),
+        losers: deltas.slice(-5).reverse().map(withPath),
+        alerts,
+        events: Object.fromEntries(events.map((e) => [e.type, e._count])),
+        recommendationsNew: recsNew,
+        outcomesMeasured: outcomes,
+      });
+    }
+
+    return {
+      windows: {
+        current: `${curFrom.toISOString().slice(0, 10)}..${curTo.toISOString().slice(0, 10)}`,
+        previous: `${prevFrom.toISOString().slice(0, 10)}..${curFrom.toISOString().slice(0, 10)}`,
+      },
+      domains: out,
+    };
   });
 
   // Domain registration from external systems (sitario go-live provisioning).
