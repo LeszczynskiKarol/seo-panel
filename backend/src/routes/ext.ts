@@ -104,6 +104,51 @@ export async function extRoutes(fastify: FastifyInstance) {
     return { domain: d.domain, ...result };
   });
 
+  // Domain registration from external systems (sitario go-live provisioning).
+  // Expects the panel's SA to already be a co-owner of the GSC property
+  // (sitario adds it via siteVerification during go-live); here we upsert the
+  // Domain row and best-effort add the property to the SA's Search Console.
+  // body: {domain, siteUrl?, gscProperty?, category?, label?}
+  fastify.post("/domains", async (request, reply) => {
+    const { domain, siteUrl, gscProperty, category, label } = request.body as {
+      domain?: string;
+      siteUrl?: string;
+      gscProperty?: string;
+      category?: string;
+      label?: string;
+    };
+    if (!domain) return reply.code(400).send({ error: "domain required" });
+
+    const clean = domain.toLowerCase().replace(/^www\./, "");
+    const data = {
+      siteUrl: siteUrl || `https://www.${clean}`,
+      gscProperty: gscProperty || `sc-domain:${clean}`,
+      category: (category as any) || "CLIENT",
+      label: label || clean,
+      isActive: true,
+    };
+
+    const existing = await prisma.domain.findFirst({
+      where: { OR: [{ domain: clean }, { domain: `www.${clean}` }] },
+    });
+    const row = existing
+      ? await prisma.domain.update({ where: { id: existing.id }, data })
+      : await prisma.domain.create({ data: { domain: clean, ...data } });
+
+    // Property must be in the SA's account for daily gsc_pull to see it
+    let gscAdded = false;
+    try {
+      const { getSearchConsole } = await import("../lib/google-auth.js");
+      const sc = await getSearchConsole();
+      await sc.sites.add({ siteUrl: data.gscProperty });
+      gscAdded = true;
+    } catch (e: any) {
+      if (/already|409/i.test(e.message)) gscAdded = true;
+    }
+
+    return { ok: true, id: row.id, domain: row.domain, created: !existing, gscAdded };
+  });
+
   // Publication events from executors → SeoEvent timeline
   // body: {domain, type, url?, path?, title?, recommendationId?, data?}
   fastify.post("/events", async (request, reply) => {

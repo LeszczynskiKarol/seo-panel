@@ -71,6 +71,7 @@ enum DomainCategory {
   ECOMMERCE    // silniki-elektryczne.com.pl
   CONTENT_SITE // copywritingseo.pl, ebookcopywriting.pl
   SATELLITE    // SEO satellite domains
+  CLIENT       // domeny klientów sitario (rejestrowane przez /api/ext/domains przy go-live)
   OTHER
 }
 
