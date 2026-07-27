@@ -9,6 +9,7 @@ import { SitemapService } from "../services/sitemap.service.js";
 import { IndexingService } from "../services/indexing.service.js";
 import { LinkCrawlerService } from "../services/link-crawler.service.js";
 import { TimelineService } from "../services/timeline.service.js";
+import { ContentDecayService } from "../services/content-decay.service.js";
 
 const ga4Service = new GA4Service();
 const merchantService = new MerchantService();
@@ -18,6 +19,7 @@ const sitemap = new SitemapService();
 const indexing = new IndexingService();
 const crawler = new LinkCrawlerService();
 const timeline = new TimelineService();
+const contentDecay = new ContentDecayService();
 
 async function runJob(jobName: string, fn: () => Promise<any>) {
   const job = await prisma.jobRun.create({
@@ -319,6 +321,17 @@ export function startScheduler() {
     } catch (e: any) {
       console.error("❌ [CRON] Merchant sync failed:", e.message);
     }
+  });
+
+  // 10:45 — Content recommendations (decay/refresh/prune engine)
+  // Runs after gsc_pull (06:00) so windows include fresh data
+  cron.schedule("45 10 * * *", () => {
+    runJob("content_recommendations", () => contentDecay.generateAll());
+  });
+
+  // Monday 05:00 — measure outcomes of published recommendations
+  cron.schedule("0 5 * * 1", () => {
+    runJob("content_outcomes", () => contentDecay.measureOutcomes());
   });
 
   //   🚨 Alert detection:   daily 09:30

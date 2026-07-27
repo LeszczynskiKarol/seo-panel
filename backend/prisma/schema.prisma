@@ -61,6 +61,7 @@ model Domain {
   integrations DomainIntegration[]
   manualCosts ManualCost[]
   manualRevenues ManualRevenue[]
+  contentRecommendations ContentRecommendation[]
 
   @@index([isActive])
 }
@@ -140,6 +141,7 @@ model Page {
   seoEvents       SeoEvent[]
   backlinks       BacklinkSnapshot[]
   trackedKeywords TrackedKeyword[]
+  contentRecommendations ContentRecommendation[]
   
   @@unique([domainId, path])
   @@index([domainId, indexingVerdict])
@@ -428,6 +430,61 @@ enum SeoEventType {
   // Traffic
   TRAFFIC_SPIKE          // unusual traffic increase
   TRAFFIC_DROP           // unusual traffic decrease
+
+  // Content lifecycle (reported by external publishers via /api/ext/events)
+  CONTENT_PUBLISHED      // new article published
+  CONTENT_REFRESHED      // existing article refreshed/updated
+  CONTENT_PRUNED         // article removed/redirected
+}
+
+// ============================================
+// CONTENT RECOMMENDATIONS — silnik decay/refresh/prune
+// ============================================
+
+model ContentRecommendation {
+  id              String    @id @default(cuid())
+  domainId        String
+  domain          Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  // REFRESH/PRUNE point at an existing page; NEW_TOPIC has topic only
+  pageId          String?
+  page            Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  type            RecommendationType
+  status          RecommendationStatus @default(PROPOSED)
+
+  topic           String?   // NEW_TOPIC: proposed topic (query-derived)
+  reason          String    @db.Text  // human-readable explanation (PL)
+  evidence        Json?     // metric snapshot backing the recommendation
+  score           Float     @default(0)  // priority: estimated clicks at stake
+
+  publishedUrl    String?   // set when executor reports publication
+
+  queuedAt        DateTime?
+  publishedAt     DateTime?
+  measuredAt      DateTime?
+  outcome         Json?     // {before, after, deltaPct, verdict} after measurement
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([domainId, status])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([type, status])
+}
+
+enum RecommendationType {
+  REFRESH    // existing page losing clicks — rewrite/update
+  NEW_TOPIC  // query demand without a dedicated strong page
+  PRUNE      // dead page — remove or redirect
+}
+
+enum RecommendationStatus {
+  PROPOSED   // engine suggested it
+  QUEUED     // accepted, handed to an executor (Publisher/sitario)
+  REJECTED   // human said no (suppresses re-proposing for 90 days)
+  PUBLISHED  // executor reported publication
+  MEASURED   // outcome computed 28+ days after publication
 }
 
 model WatchedKeyword {

@@ -20,6 +20,7 @@ import { analyticsRoutes } from "./routes/analytics.js";
 import { costRoutes } from "./routes/costs.js";
 import { alertRoutes } from "./routes/alerts.js";
 import { timelineRoutes } from "./routes/timeline.js";
+import { extRoutes } from "./routes/ext.js";
 
 const fastify = Fastify();
 
@@ -62,6 +63,7 @@ fastify.post("/api/webhook/conversion", async (request, reply) => {
 
 fastify.addHook("onRequest", async (request, reply) => {
   if (request.url.startsWith("/api/webhook/")) return;
+  if (request.url.startsWith("/api/ext/")) return; // own x-api-key check in extRoutes
   if (request.url === "/api/health") return;
   return authGuard(request, reply);
 });
@@ -83,6 +85,7 @@ fastify.register(aiRoutes, { prefix: "/api/ai" });
 fastify.register(chatRoutes, { prefix: "/api/chat" });
 fastify.register(costRoutes, { prefix: "/api/costs" });
 fastify.register(alertRoutes, { prefix: "/api/alerts" });
+fastify.register(extRoutes, { prefix: "/api/ext" });
 
 // Health check
 fastify.get("/api/health", async () => ({
