@@ -114,14 +114,22 @@ export async function extRoutes(fastify: FastifyInstance) {
   // Aggregated weekly-report payload for the AI synthesis layer (local
   // Claude Code cron on Karol's machine). Two consecutive 7-day windows,
   // both ending at today-3 to respect GSC data lag.
-  fastify.get("/report-data", async () => {
+  fastify.get("/report-data", async (request) => {
     const LAG = 3;
     const curFrom = daysAgo(LAG + 7);
     const curTo = daysAgo(LAG);
     const prevFrom = daysAgo(LAG + 14);
 
+    // ?domain= zawęża do jednej domeny — używane przez sitario (insights/chat)
+    // do efektów per strona (np. artykułów bloga) bez ciągnięcia całego portfela.
+    const qDomain = (request.query as any)?.domain as string | undefined;
     const domains = await prisma.domain.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(qDomain
+          ? { OR: [{ domain: qDomain }, { domain: `www.${qDomain}` }] }
+          : {}),
+      },
       select: { id: true, domain: true, label: true, category: true },
       orderBy: { domain: "asc" },
     });
