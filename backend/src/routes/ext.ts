@@ -273,9 +273,12 @@ export async function extRoutes(fastify: FastifyInstance) {
     if (!d) return reply.code(404).send({ error: "Unknown domain" });
 
     const LAG = 3;
-    const curFrom = daysAgo(LAG + 28);
+    // ?days= przełącza okno (28 domyślnie, do 90) — porównanie zawsze z
+    // poprzednim oknem tej samej długości.
+    const qDays = Math.min(90, Math.max(7, parseInt((request.query as any)?.days) || 28));
+    const curFrom = daysAgo(LAG + qDays);
     const curTo = daysAgo(LAG);
-    const prevFrom = daysAgo(LAG + 56);
+    const prevFrom = daysAgo(LAG + 2 * qDays);
 
     const [cur, prev] = await Promise.all([
       prisma.gscPageDaily.groupBy({
@@ -358,7 +361,7 @@ export async function extRoutes(fastify: FastifyInstance) {
     return {
       domain: d.domain,
       ready,
-      window: { days: 28, current: `${curFrom.toISOString().slice(0, 10)}..${curTo.toISOString().slice(0, 10)}` },
+      window: { days: qDays, current: `${curFrom.toISOString().slice(0, 10)}..${curTo.toISOString().slice(0, 10)}` },
       totals,
       pages: top.map((p) => {
         const info = pathMap.get(p.pageId);
