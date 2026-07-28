@@ -1,38 +1,33 @@
 // backend/src/services/ads.service.ts
 
-import { GoogleAdsApi } from "google-ads-api";
+// Auth przez googleAdsRest (service account, z fallbackiem na refresh token).
+// Klucze OAuth/refresh token czyta już tamten moduł — tu zostaje tylko to,
+// co dotyczy adresowania konta.
+import { AdsRestClient, adsAuthMode } from "./googleAdsRest.js";
 import { prisma } from "../lib/prisma.js";
 
 const ADS_CONFIG = {
-  client_id: process.env.GOOGLE_ADS_CLIENT_ID || "",
-  client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET || "",
   developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "",
   customer_id: process.env.GOOGLE_ADS_CUSTOMER_ID || "",
   mcc_id: process.env.GOOGLE_ADS_MCC_ID || "",
-  refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN || "",
 };
 
 export class AdsService {
-  private client: GoogleAdsApi;
+  private client: AdsRestClient;
 
   constructor() {
-    this.client = new GoogleAdsApi({
-      client_id: ADS_CONFIG.client_id,
-      client_secret: ADS_CONFIG.client_secret,
-      developer_token: ADS_CONFIG.developer_token,
-    });
+    this.client = new AdsRestClient();
   }
 
   private getCustomer() {
     return this.client.Customer({
       customer_id: ADS_CONFIG.customer_id,
       login_customer_id: ADS_CONFIG.mcc_id,
-      refresh_token: ADS_CONFIG.refresh_token,
     });
   }
 
   isConfigured(): boolean {
-    return !!ADS_CONFIG.refresh_token && ADS_CONFIG.refresh_token !== "PENDING";
+    return adsAuthMode() !== null;
   }
 
   // ─── SYNC CAMPAIGNS ──────────────────────────────────────
@@ -42,12 +37,10 @@ export class AdsService {
       this.isConfigured(),
     );
     console.log("[Ads] config:", {
-      hasClientId: !!ADS_CONFIG.client_id,
-      hasSecret: !!ADS_CONFIG.client_secret,
+      authMode: adsAuthMode(),
       hasDevToken: !!ADS_CONFIG.developer_token,
       hasCustomerId: !!ADS_CONFIG.customer_id,
       hasMccId: !!ADS_CONFIG.mcc_id,
-      hasRefreshToken: !!ADS_CONFIG.refresh_token,
     });
 
     if (!this.isConfigured()) return { error: "Google Ads not configured" };
@@ -57,9 +50,7 @@ export class AdsService {
       console.log("[Ads] Customer created, querying campaigns...");
       // DEBUG — list accessible customers
       try {
-        const accessible = await this.client.listAccessibleCustomers(
-          ADS_CONFIG.refresh_token,
-        );
+        const accessible = await this.client.listAccessibleCustomers();
         console.log("[Ads] Accessible customers:", JSON.stringify(accessible));
       } catch (e: any) {
         console.error("[Ads] listAccessibleCustomers error:", e.message);
@@ -583,9 +574,7 @@ export class AdsService {
 
   async listAccessibleCustomers() {
     try {
-      const customers = await this.client.listAccessibleCustomers(
-        ADS_CONFIG.refresh_token,
-      );
+      const customers = await this.client.listAccessibleCustomers();
       console.log("[Ads] Accessible customers:", JSON.stringify(customers));
       return customers;
     } catch (e: any) {

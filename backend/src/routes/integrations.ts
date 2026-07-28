@@ -4,6 +4,7 @@ import { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { GA4Service } from "../services/ga4.service.js";
 import { MerchantService } from "../services/merchant.service.js";
+import { adsAuthMode } from "../services/googleAdsRest.js";
 
 const ga4 = new GA4Service();
 const merchant = new MerchantService();
@@ -93,14 +94,12 @@ export async function integrationRoutes(fastify: FastifyInstance) {
       verifyResult = await merchant.verifyAccess(merchantId);
     }
     if (provider === "GOOGLE_ADS") {
-      const hasConfig =
-        !!process.env.GOOGLE_ADS_REFRESH_TOKEN &&
-        process.env.GOOGLE_ADS_REFRESH_TOKEN !== "PENDING_APPROVAL";
+      const hasConfig = adsAuthMode() !== null;
       verifyResult = {
         ok: hasConfig,
         error: hasConfig
           ? undefined
-          : "Oczekiwanie na zatwierdzenie Google Ads API Basic Access. Po zatwierdzeniu uzupełnij GOOGLE_ADS_REFRESH_TOKEN w .env i kliknij Verify.",
+          : "Brak skonfigurowanej ścieżki auth Google Ads — ustaw GOOGLE_ADS_SA_KEY_FILE (service account) albo GOOGLE_ADS_REFRESH_TOKEN w .env i kliknij Verify.",
       };
     }
 
@@ -167,12 +166,12 @@ export async function integrationRoutes(fastify: FastifyInstance) {
     } else if (integration.provider === "GOOGLE_MERCHANT") {
       result = await merchant.verifyAccess(integration.merchantId!);
     } else if (integration.provider === "GOOGLE_ADS") {
-      const hasConfig =
-        !!process.env.GOOGLE_ADS_REFRESH_TOKEN &&
-        process.env.GOOGLE_ADS_REFRESH_TOKEN !== "PENDING";
+      const hasConfig = adsAuthMode() !== null;
       result = {
         ok: hasConfig,
-        error: hasConfig ? undefined : "GOOGLE_ADS_REFRESH_TOKEN not set",
+        error: hasConfig
+          ? undefined
+          : "Brak auth Google Ads: ustaw GOOGLE_ADS_SA_KEY_FILE albo GOOGLE_ADS_REFRESH_TOKEN",
       };
     } else {
       return { ok: false, error: "Unsupported provider" };
