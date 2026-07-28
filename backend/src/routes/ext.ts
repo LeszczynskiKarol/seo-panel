@@ -306,6 +306,26 @@ export async function extRoutes(fastify: FastifyInstance) {
     const pathMap = new Map(pageRows.map((p) => [p.id, p]));
     const urlToPath = new Map(pageRows.map((p) => [p.url, p.path]));
 
+    // Dzienna seria kliknięć per strona (sparkline w Statystykach PRO) —
+    // wyrównana do pełnej siatki dni okna (braki = 0).
+    const dailyRows = await prisma.gscPageDaily.findMany({
+      where: {
+        pageId: { in: top.map((p) => p.pageId) },
+        date: { gte: curFrom, lt: curTo },
+      },
+      select: { pageId: true, date: true, clicks: true },
+    });
+    const dayKeys: string[] = [];
+    for (let t = curFrom.getTime(); t < curTo.getTime(); t += DAY) {
+      dayKeys.push(new Date(t).toISOString().slice(0, 10));
+    }
+    const seriesMap = new Map<string, number[]>();
+    for (const p of top) seriesMap.set(p.pageId, dayKeys.map(() => 0));
+    for (const r of dailyRows) {
+      const idx = dayKeys.indexOf(r.date.toISOString().slice(0, 10));
+      if (idx >= 0) seriesMap.get(r.pageId)![idx] = r.clicks;
+    }
+
     const totals = {
       clicks: cur.reduce((s, p) => s + (p._sum.clicks || 0), 0),
       impressions: cur.reduce((s, p) => s + (p._sum.impressions || 0), 0),
@@ -375,6 +395,7 @@ export async function extRoutes(fastify: FastifyInstance) {
           delta: (p._sum.clicks || 0) - (pv?._sum.clicks || 0),
           positionPrev: pv?._avg.position ? Math.round(pv._avg.position * 10) / 10 : null,
           queries: queriesByPath.get(info?.path || "") || [],
+          clicksSeries: seriesMap.get(p.pageId) || [],
         };
       }),
       indexation,
