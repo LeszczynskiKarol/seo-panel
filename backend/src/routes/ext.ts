@@ -258,6 +258,126 @@ export async function extRoutes(fastify: FastifyInstance) {
     };
   });
 
+  // Page-level detail for one domain — Statystyki PRO w sitario (Premium).
+  // Aggregates from GscPageDaily (28d vs prev 28d) + live GSC page+query for
+  // per-page phrases + indexation summary. White-labeling happens client-side;
+  // here it's raw data. `ready:false` below the data threshold so the UI can
+  // hide empty PRO tables on fresh domains.
+  fastify.get("/domain-detail", async (request, reply) => {
+    const qDomain = (request.query as any)?.domain as string | undefined;
+    if (!qDomain) return reply.code(400).send({ error: "domain required" });
+    const d = await prisma.domain.findFirst({
+      where: { OR: [{ domain: qDomain }, { domain: `www.${qDomain}` }] },
+      select: { id: true, domain: true, gscProperty: true },
+    });
+    if (!d) return reply.code(404).send({ error: "Unknown domain" });
+
+    const LAG = 3;
+    const curFrom = daysAgo(LAG + 28);
+    const curTo = daysAgo(LAG);
+    const prevFrom = daysAgo(LAG + 56);
+
+    const [cur, prev] = await Promise.all([
+      prisma.gscPageDaily.groupBy({
+        by: ["pageId"],
+        where: { page: { domainId: d.id }, date: { gte: curFrom, lt: curTo } },
+        _sum: { clicks: true, impressions: true },
+        _avg: { position: true },
+      }),
+      prisma.gscPageDaily.groupBy({
+        by: ["pageId"],
+        where: { page: { domainId: d.id }, date: { gte: prevFrom, lt: curFrom } },
+        _sum: { clicks: true },
+        _avg: { position: true },
+      }),
+    ]);
+    const prevMap = new Map(prev.map((p) => [p.pageId, p]));
+
+    const top = [...cur]
+      .sort((a, b) => (b._sum.impressions || 0) - (a._sum.impressions || 0))
+      .slice(0, 25);
+    const pageRows = await prisma.page.findMany({
+      where: { id: { in: top.map((p) => p.pageId) } },
+      select: { id: true, path: true, url: true },
+    });
+    const pathMap = new Map(pageRows.map((p) => [p.id, p]));
+    const urlToPath = new Map(pageRows.map((p) => [p.url, p.path]));
+
+    const totals = {
+      clicks: cur.reduce((s, p) => s + (p._sum.clicks || 0), 0),
+      impressions: cur.reduce((s, p) => s + (p._sum.impressions || 0), 0),
+      clicksPrev: prev.reduce((s, p) => s + (p._sum.clicks || 0), 0),
+    };
+    const ready = totals.impressions >= 50;
+
+    // Live per-page queries (best-effort; the panel SA has property access)
+    const queriesByPath = new Map<string, any[]>();
+    if (ready && d.gscProperty) {
+      try {
+        const { getSearchConsole } = await import("../lib/google-auth.js");
+        const sc = await getSearchConsole();
+        const res = await sc.searchanalytics.query({
+          siteUrl: d.gscProperty,
+          requestBody: {
+            startDate: curFrom.toISOString().slice(0, 10),
+            endDate: curTo.toISOString().slice(0, 10),
+            dimensions: ["page", "query"],
+            rowLimit: 5000,
+          },
+        });
+        for (const row of res.data.rows || []) {
+          const path =
+            urlToPath.get(row.keys![0]) ||
+            (() => { try { return new URL(row.keys![0]).pathname; } catch { return null; } })();
+          if (!path) continue;
+          const list = queriesByPath.get(path) || [];
+          list.push({
+            query: row.keys![1],
+            clicks: row.clicks || 0,
+            impressions: row.impressions || 0,
+            position: row.position ? Math.round(row.position * 10) / 10 : null,
+          });
+          queriesByPath.set(path, list);
+        }
+        for (const [k, list] of queriesByPath) {
+          list.sort((a, b) => b.impressions - a.impressions);
+          queriesByPath.set(k, list.slice(0, 8));
+        }
+      } catch { /* frazy per strona są bonusem — brak nie blokuje widoku */ }
+    }
+
+    const indexationRaw = await prisma.page.groupBy({
+      by: ["indexingVerdict"],
+      where: { domainId: d.id, inSitemap: true },
+      _count: true,
+    });
+    const indexation = Object.fromEntries(
+      indexationRaw.map((r) => [r.indexingVerdict, r._count]),
+    );
+
+    return {
+      domain: d.domain,
+      ready,
+      window: { days: 28, current: `${curFrom.toISOString().slice(0, 10)}..${curTo.toISOString().slice(0, 10)}` },
+      totals,
+      pages: top.map((p) => {
+        const info = pathMap.get(p.pageId);
+        const pv = prevMap.get(p.pageId);
+        return {
+          path: info?.path || "?",
+          clicks: p._sum.clicks || 0,
+          impressions: p._sum.impressions || 0,
+          position: p._avg.position ? Math.round(p._avg.position * 10) / 10 : null,
+          clicksPrev: pv?._sum.clicks || 0,
+          delta: (p._sum.clicks || 0) - (pv?._sum.clicks || 0),
+          positionPrev: pv?._avg.position ? Math.round(pv._avg.position * 10) / 10 : null,
+          queries: queriesByPath.get(info?.path || "") || [],
+        };
+      }),
+      indexation,
+    };
+  });
+
   // Domain registration from external systems (sitario go-live provisioning).
   // Expects the panel's SA to already be a co-owner of the GSC property
   // (sitario adds it via siteVerification during go-live); here we upsert the
