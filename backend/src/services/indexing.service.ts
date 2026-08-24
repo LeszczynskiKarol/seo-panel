@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { getAccessToken } from "../lib/google-auth.js";
 import { IndexingVerdict } from "@prisma/client";
+import { writeAlert } from "../lib/alerts.js";
 
 export class IndexingService {
   /**
@@ -197,7 +198,7 @@ export class IndexingService {
           page.indexingVerdict === "PASS" &&
           verdict !== "PASS"
         ) {
-          await prisma.alert.create({
+          await writeAlert({
             data: {
               domainId,
               pageId: page.id,

@@ -3,6 +3,7 @@
 
 import { prisma } from "../lib/prisma.js";
 import type { AlertType, AlertSeverity } from "@prisma/client";
+import { writeAlert } from "../lib/alerts.js";
 
 // Helper: safe alert creation with type casting
 // If PAGE_INDEXED gives TS errors, run: npx prisma generate
@@ -15,7 +16,9 @@ async function createAlert(data: {
   description?: string;
   metadata?: any;
 }) {
-  return prisma.alert.create({
+  // Przez writeAlert, zeby wylacznik ALERTS_ENABLED obejmowal takze ten
+  // serwis, gdyby ktos kiedys odkomentowal cron albo wywolal detectAll().
+  return writeAlert({
     data: {
       domainId: data.domainId,
       pageId: data.pageId || undefined,

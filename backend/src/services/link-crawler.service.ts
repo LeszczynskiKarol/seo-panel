@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import * as cheerio from "cheerio";
+import { writeAlert } from "../lib/alerts.js";
 
 export class LinkCrawlerService {
   /**
@@ -137,7 +138,7 @@ export class LinkCrawlerService {
 
     // Create alerts for broken links
     if (totalBroken > 0) {
-      await prisma.alert.create({
+      await writeAlert({
         data: {
           domainId,
           type: "BROKEN_LINK",
