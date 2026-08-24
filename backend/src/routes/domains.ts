@@ -28,7 +28,8 @@ export async function domainRoutes(fastify: FastifyInstance) {
     const created = await prisma.domain.create({
       data: {
         domain,
-        siteUrl: siteUrl || `https://${domain}`,
+        // bez końcowego ukośnika — inaczej sklejenie z sitemapPath daje `//sitemap-index.xml` (404)
+        siteUrl: (siteUrl || `https://${domain}`).replace(/\/+$/, ""),
         gscProperty: gscProperty || null,
         sitemapPath: sitemapPath || "/sitemap-index.xml",
         label: label || null,

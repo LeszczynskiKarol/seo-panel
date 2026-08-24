@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { writeAlert } from "../lib/alerts.js";
 
 export class SitemapService {
   /**
@@ -12,10 +13,17 @@ export class SitemapService {
       where: { id: domainId },
     });
 
+    // siteUrl bywa zapisany z końcowym ukośnikiem — sklejenie z sitemapPath
+    // dawało wtedy `https://dom.pl//sitemap-index.xml` → 404 → wyjątek → sync
+    // nigdy nie kończył się dla tej domeny, a panel pokazywał 0 stron.
+    // (Incydent 2026-08-02: 5 domen ślepych od 27.07, m.in. inkmagnet.com,
+    // matura-online.pl 15 zamiast 877 URL-i.)
+    const siteUrl = domain.siteUrl.replace(/\/+$/, "");
+
     let effectivePath = domain.sitemapPath;
     let urls: string[];
     try {
-      urls = await this.fetchSitemapUrls(`${domain.siteUrl}${domain.sitemapPath}`);
+      urls = await this.fetchSitemapUrls(`${siteUrl}${domain.sitemapPath}`);
     } catch (e) {
       // Samonaprawa znanych wariantów: WordPress/Yoast używa
       // /sitemap_index.xml, Astro /sitemap-index.xml. Po migracji stara
@@ -28,7 +36,7 @@ export class SitemapService {
           ? domain.sitemapPath.replace("sitemap-index.xml", "sitemap_index.xml")
           : null;
       if (!alt) throw e;
-      urls = await this.fetchSitemapUrls(`${domain.siteUrl}${alt}`);
+      urls = await this.fetchSitemapUrls(`${siteUrl}${alt}`);
       effectivePath = alt;
       await prisma.domain.update({
         where: { id: domainId },
@@ -49,13 +57,13 @@ export class SitemapService {
           where: { domainId, type: "CRAWL_ERROR", title, isResolved: false },
         });
         if (!dup) {
-          await prisma.alert.create({
+          await writeAlert({
             data: {
               domainId,
               type: "CRAWL_ERROR",
               severity: "HIGH",
               title,
-              description: `${domain.siteUrl}${effectivePath} zwraca 0 URL-i przy ${existingInSitemap} stronach w bazie. Pominięto oznaczanie usunięć. Sprawdź ścieżkę sitemapy (sitemapPath) i build strony.`,
+              description: `${siteUrl}${effectivePath} zwraca 0 URL-i przy ${existingInSitemap} stronach w bazie. Pominięto oznaczanie usunięć. Sprawdź ścieżkę sitemapy (sitemapPath) i build strony.`,
             },
           });
         }
@@ -134,7 +142,7 @@ export class SitemapService {
 
     // Create alert for sitemap changes
     if (added > 0 || removed > 0) {
-      await prisma.alert.create({
+      await writeAlert({
         data: {
           domainId,
           type: "SITEMAP_CHANGE",
