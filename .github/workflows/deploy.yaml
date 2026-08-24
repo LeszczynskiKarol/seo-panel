@@ -49,18 +49,28 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            # Panel ma 1,9 GB RAM i dzieli maszyne ze smart-copy.ai,
+            # smart-edu i mobile-assistant. Niezdlawiony npm install + build
+            # Vite polozyl ten serwer 2026-08-10 i 2026-08-24. NICE oddaje CPU
+            # i IO zywym aplikacjom, a limit sterty pilnuje, zeby build nie
+            # zjadl pamieci spod nich. To samo zabezpieczenie maja deploye
+            # smart-copy.ai.
+            NICE="nice -n 19 ionice -c3"
+            export NODE_OPTIONS="--max-old-space-size=512"
+            export UV_THREADPOOL_SIZE=2
+
             echo "=== Backend ==="
             cd backend
             rm -rf node_modules
-            npm install
-            npx prisma db push
-            npx prisma generate
+            $NICE npm install
+            $NICE npx prisma db push
+            $NICE npx prisma generate
 
             echo "=== Frontend ==="
             cd ../frontend
             rm -rf node_modules
-            npm install
-            npm run build
+            $NICE npm install
+            $NICE npm run build
 
             echo "=== Restart ==="
             pm2 restart seo-panel
