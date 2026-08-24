@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { GscService } from "../services/gsc.service.js";
 import { GA4Service } from "../services/ga4.service.js";
 import { MerchantService } from "../services/merchant.service.js";
-import { AlertDetectionService } from "../services/alert-detection.service.js";
+// WYLACZONE 2026-08-24: import { AlertDetectionService } from "../services/alert-detection.service.js";
 import { MozService } from "../services/moz.service.js";
 import { SitemapService } from "../services/sitemap.service.js";
 import { IndexingService } from "../services/indexing.service.js";
@@ -14,7 +14,7 @@ import { ContentDecayService } from "../services/content-decay.service.js";
 const ga4Service = new GA4Service();
 const merchantService = new MerchantService();
 const gsc = new GscService();
-const alertDetection = new AlertDetectionService();
+// WYLACZONE 2026-08-24: const alertDetection = new AlertDetectionService();
 const sitemap = new SitemapService();
 const indexing = new IndexingService();
 const crawler = new LinkCrawlerService();
@@ -323,9 +323,12 @@ export function startScheduler() {
     }
   });
 
-  // 10:45 — Content recommendations (decay/refresh/prune engine)
-  // Runs after gsc_pull (06:00) so windows include fresh data
-  cron.schedule("45 10 * * *", () => {
+  // 04:30 UTC - Content recommendations (decay/refresh/prune engine)
+  // Przeniesione z 10:45 po awarii panelu 2026-08-24: job leci sekwencyjnie po
+  // ~46 domenach x 3 detektory x 2 agregaty groupBy na GscPageDaily i na 1,9 GB
+  // RAM wspoldzielonym z 3 innymi aplikacjami Node spycha maszyne w swap.
+  // Docelowo: batch/throttling miedzy domenami + indeks pod Page.domainId+date.
+  cron.schedule("30 4 * * *", () => {
     runJob("content_recommendations", () => contentDecay.generateAll());
   });
 
@@ -334,12 +337,16 @@ export function startScheduler() {
     runJob("content_outcomes", () => contentDecay.measureOutcomes());
   });
 
-  //   🚨 Alert detection:   daily 09:30
-
-  cron.schedule("30 9 * * *", async () => {
-    console.log("🚨 Running cross-source alert detection...");
-    const result = await alertDetection.detectAll();
-    console.log(`🚨 Alert detection done: ${result.created} new alerts`);
-    result.checks.forEach((c) => console.log(`   ${c}`));
-  });
+  // WYLACZONE 2026-08-24 na zyczenie Karola: alerty nie byly uzywane
+  // (10 366 wierszy skasowane, backup: /var/backups/seo-panel/ na panelu).
+  // Generowanie alertow ma sie NIE odbywac. Nie odkomentowywac bez decyzji.
+  // Rekomendacje (contentDecay) zostaja WLACZONE - karmia autoblog sitario
+  // przez /api/ext/recommendations.
+  //
+  // cron.schedule("30 9 * * *", async () => {
+  //   console.log("Running cross-source alert detection...");
+  //   const result = await alertDetection.detectAll();
+  //   console.log(`Alert detection done: ${result.created} new alerts`);
+  //   result.checks.forEach((c) => console.log(`   ${c}`));
+  // });
 }

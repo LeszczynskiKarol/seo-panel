@@ -3,7 +3,7 @@
 import { prisma } from "../lib/prisma.js";
 import { FastifyInstance } from "fastify";
 import { AnalyticsService } from "../services/analytics.service.js";
-import { AlertDetectionService } from "../services/alert-detection.service.js";
+// WYLACZONE 2026-08-24: import { AlertDetectionService } from "../services/alert-detection.service.js";
 
 const analytics = new AnalyticsService();
 
@@ -137,8 +137,15 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     };
   });
 
-  fastify.post("/detect-alerts", async () => {
-    const alertDetection = new AlertDetectionService();
-    return alertDetection.detectAll();
+  // WYLACZONE 2026-08-24 na zyczenie Karola: generowanie alertow jest martwe.
+  // Endpoint zostawiony, ale nie odpala juz detekcji - zwraca 410 Gone, zeby
+  // nic (UI, cron, skrypt) nie odtworzylo skasowanych alertow po cichu.
+  fastify.post("/detect-alerts", async (_request, reply) => {
+    return reply.code(410).send({
+      error: "Wykrywanie alertow zostalo wylaczone 2026-08-24.",
+      detail:
+        "Alerty nie byly uzywane; tabela Alert zostala oproszniona, a cron 09:30 wylaczony. " +
+        "Backup: /var/backups/seo-panel/seo-panel-Alert-2026-08-24.sql.gz na serwerze panel.",
+    });
   });
 }

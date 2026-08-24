@@ -16,27 +16,157 @@ function daysAgo(n: number): Date {
   return d;
 }
 
+// Ksztalt zgodny z wynikiem prisma.groupBy, zeby petle nizej nie wymagaly zmian.
+type Agg = {
+  pageId: string;
+  _sum: { clicks: number | null; impressions: number | null };
+  _avg: { position: number | null };
+};
+
+// Zagregowane dane dla wszystkich domen naraz: domainId -> wiersze.
+type Prefetch = {
+  recent: Map<string, Agg[]>;
+  prev: Map<string, Agg[]>;
+  prune: Map<string, Map<string, Agg>>;
+};
+
+type RawRow = {
+  domainId: string;
+  pageId: string;
+  recentClicks: number;
+  recentImpressions: number;
+  recentPosition: number | null;
+  prevClicks: number;
+  prevImpressions: number;
+  prevPosition: number | null;
+  pruneClicks: number;
+  pruneImpressions: number;
+};
+
+// Przerwa miedzy domenami, zeby job nie zajezdzal wspoldzielonego VPS-a.
+const DOMAIN_PAUSE_MS = Number(process.env.DECAY_DOMAIN_PAUSE_MS ?? 250);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export class ContentDecayService {
+  /**
+   * Jedno przejscie po GscPageDaily dla WSZYSTKICH domen naraz.
+   *
+   * Wczesniej kazda domena odpytywala te tabele osobno (2x w detectRefresh +
+   * 1x w detectPrune), czyli ~138 zapytan przy 46 domenach. Kazde robilo
+   * Parallel Seq Scan po calej tabeli (~27 MB, 2 workery) - i planner wybieral
+   * tak SLUSZNIE: nested loop po indeksie (pageId, date) wychodzil 8x wolniej
+   * (627 ms vs 73 ms, 6x wiecej buforow). Problem nie byl w planie ani w braku
+   * indeksu, tylko w liczbie powtorzen tego samego skanu. 2026-08-24 to
+   * polozylo caly serwer panel - swap thrashing, SSH nie wpuszczal 6 minut.
+   *
+   * Teraz: jeden skan, ~324 ms, ~27 MB odczytu zamiast ~2,4 GB.
+   */
+  private async prefetchAggregates(): Promise<Prefetch> {
+    const recentFrom = daysAgo(LAG_DAYS + WINDOW_DAYS);
+    const recentTo = daysAgo(LAG_DAYS);
+    const prevFrom = daysAgo(LAG_DAYS + 2 * WINDOW_DAYS);
+    const pruneFrom = daysAgo(LAG_DAYS + 90);
+
+    const rows = await prisma.$queryRaw<RawRow[]>`
+      SELECT p."domainId" AS "domainId",
+             g."pageId"   AS "pageId",
+             COALESCE(SUM(g.clicks)      FILTER (WHERE g.date >= ${recentFrom}), 0)::int AS "recentClicks",
+             COALESCE(SUM(g.impressions) FILTER (WHERE g.date >= ${recentFrom}), 0)::int AS "recentImpressions",
+             (AVG(g.position)            FILTER (WHERE g.date >= ${recentFrom}))::float8 AS "recentPosition",
+             COALESCE(SUM(g.clicks)      FILTER (WHERE g.date >= ${prevFrom} AND g.date < ${recentFrom}), 0)::int AS "prevClicks",
+             COALESCE(SUM(g.impressions) FILTER (WHERE g.date >= ${prevFrom} AND g.date < ${recentFrom}), 0)::int AS "prevImpressions",
+             (AVG(g.position)            FILTER (WHERE g.date >= ${prevFrom} AND g.date < ${recentFrom}))::float8 AS "prevPosition",
+             COALESCE(SUM(g.clicks), 0)::int      AS "pruneClicks",
+             COALESCE(SUM(g.impressions), 0)::int AS "pruneImpressions"
+      FROM "GscPageDaily" g
+      JOIN "Page" p ON p.id = g."pageId"
+      WHERE g.date >= ${pruneFrom} AND g.date < ${recentTo}
+      GROUP BY p."domainId", g."pageId"
+    `;
+
+    const pre: Prefetch = {
+      recent: new Map(),
+      prev: new Map(),
+      prune: new Map(),
+    };
+    const push = (m: Map<string, Agg[]>, k: string, v: Agg) => {
+      const arr = m.get(k);
+      if (arr) arr.push(v);
+      else m.set(k, [v]);
+    };
+
+    for (const r of rows) {
+      // detectRefresh iteruje po oknie "prev" i dolacza "recent" po pageId,
+      // wiec do map trafiaja tylko wiersze, ktore w danym oknie mialy dane -
+      // tak samo jak wczesniej robil to groupBy per okno.
+      if (r.recentClicks > 0 || r.recentImpressions > 0) {
+        push(pre.recent, r.domainId, {
+          pageId: r.pageId,
+          _sum: { clicks: r.recentClicks, impressions: r.recentImpressions },
+          _avg: { position: r.recentPosition },
+        });
+      }
+      if (r.prevClicks > 0 || r.prevImpressions > 0) {
+        push(pre.prev, r.domainId, {
+          pageId: r.pageId,
+          _sum: { clicks: r.prevClicks, impressions: r.prevImpressions },
+          _avg: { position: r.prevPosition },
+        });
+      }
+      let pm = pre.prune.get(r.domainId);
+      if (!pm) {
+        pm = new Map();
+        pre.prune.set(r.domainId, pm);
+      }
+      pm.set(r.pageId, {
+        pageId: r.pageId,
+        _sum: { clicks: r.pruneClicks, impressions: r.pruneImpressions },
+        _avg: { position: null },
+      });
+    }
+
+    return pre;
+  }
+
   async generateAll() {
     const domains = await prisma.domain.findMany({
       where: { isActive: true, gscProperty: { not: null } },
     });
 
+    const pre = await this.prefetchAggregates();
+
     const results = [];
     for (const domain of domains) {
       try {
-        const r = await this.generateForDomain(domain.id);
+        const r = await this.generateForDomain(domain.id, pre);
         results.push({ domain: domain.domain, ...r });
       } catch (e: any) {
         results.push({ domain: domain.domain, error: e.message });
       }
+      // detectNewTopics wola API GSC per domena; bez przerwy 46 domen leci
+      // ciurkiem i dusi maszyne razem z reszta aplikacji na tym VPS-ie.
+      if (DOMAIN_PAUSE_MS > 0) await sleep(DOMAIN_PAUSE_MS);
     }
     return results;
   }
 
-  async generateForDomain(domainId: string) {
-    const refresh = await this.detectRefresh(domainId);
-    const prune = await this.detectPrune(domainId);
+  /**
+   * Bez `pre` (tak wola sitario przez POST /api/ext/recommendations/generate)
+   * dziala dokladnie jak wczesniej - odpytuje baze dla tej jednej domeny.
+   */
+  async generateForDomain(domainId: string, pre?: Prefetch) {
+    const refresh = await this.detectRefresh(
+      domainId,
+      pre && {
+        recent: pre.recent.get(domainId) ?? [],
+        prev: pre.prev.get(domainId) ?? [],
+      },
+    );
+    const prune = await this.detectPrune(
+      domainId,
+      20,
+      pre && (pre.prune.get(domainId) ?? new Map()),
+    );
     const newTopics = await this.detectNewTopics(domainId);
     return { refresh, prune, newTopics };
   }
@@ -45,25 +175,36 @@ export class ContentDecayService {
    * REFRESH — pages whose clicks dropped ≥40% between two consecutive
    * 28-day windows, on a base of ≥10 clicks.
    */
-  private async detectRefresh(domainId: string) {
+  private async detectRefresh(
+    domainId: string,
+    pre?: { recent: Agg[]; prev: Agg[] },
+  ) {
     const recentFrom = daysAgo(LAG_DAYS + WINDOW_DAYS);
     const recentTo = daysAgo(LAG_DAYS);
     const prevFrom = daysAgo(LAG_DAYS + 2 * WINDOW_DAYS);
 
-    const [recentRaw, prevRaw] = await Promise.all([
-      prisma.gscPageDaily.groupBy({
-        by: ["pageId"],
-        where: { page: { domainId }, date: { gte: recentFrom, lt: recentTo } },
-        _sum: { clicks: true, impressions: true },
-        _avg: { position: true },
-      }),
-      prisma.gscPageDaily.groupBy({
-        by: ["pageId"],
-        where: { page: { domainId }, date: { gte: prevFrom, lt: recentFrom } },
-        _sum: { clicks: true, impressions: true },
-        _avg: { position: true },
-      }),
-    ]);
+    const [recentRaw, prevRaw] = pre
+      ? [pre.recent, pre.prev]
+      : await Promise.all([
+          prisma.gscPageDaily.groupBy({
+            by: ["pageId"],
+            where: {
+              page: { domainId },
+              date: { gte: recentFrom, lt: recentTo },
+            },
+            _sum: { clicks: true, impressions: true },
+            _avg: { position: true },
+          }),
+          prisma.gscPageDaily.groupBy({
+            by: ["pageId"],
+            where: {
+              page: { domainId },
+              date: { gte: prevFrom, lt: recentFrom },
+            },
+            _sum: { clicks: true, impressions: true },
+            _avg: { position: true },
+          }),
+        ]);
 
     const recentMap = new Map(recentRaw.map((r) => [r.pageId, r]));
     let created = 0;
@@ -129,7 +270,11 @@ export class ContentDecayService {
    * over the last 90 days. Page.createdAt (first seen by sitemap_sync) is a
    * lower bound on content age. Proposal only; a human decides.
    */
-  private async detectPrune(domainId: string, maxPerRun = 20) {
+  private async detectPrune(
+    domainId: string,
+    maxPerRun = 20,
+    preSums?: Map<string, Agg>,
+  ) {
     const statsFrom = daysAgo(LAG_DAYS + 90);
     const statsTo = daysAgo(LAG_DAYS);
 
@@ -144,15 +289,27 @@ export class ContentDecayService {
     });
     if (pages.length === 0) return 0;
 
-    const sums = await prisma.gscPageDaily.groupBy({
-      by: ["pageId"],
-      where: {
-        pageId: { in: pages.map((p) => p.id) },
-        date: { gte: statsFrom, lt: statsTo },
-      },
-      _sum: { clicks: true, impressions: true },
-    });
-    const sumMap = new Map(sums.map((s) => [s.pageId, s]));
+    const sumMap: Map<string, Agg> =
+      preSums ??
+      new Map(
+        (
+          await prisma.gscPageDaily.groupBy({
+            by: ["pageId"],
+            where: {
+              pageId: { in: pages.map((p) => p.id) },
+              date: { gte: statsFrom, lt: statsTo },
+            },
+            _sum: { clicks: true, impressions: true },
+          })
+        ).map((s) => [
+          s.pageId,
+          {
+            pageId: s.pageId,
+            _sum: s._sum,
+            _avg: { position: null },
+          } as Agg,
+        ]),
+      );
 
     // utility/system pages — never prune candidates
     const utilityPath =
