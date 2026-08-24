@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Podgląd niedostępny — Sitario</title>
+<style>
+  body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#0b0f1a;color:#edf0f8}
+  main{text-align:center;padding:2rem}
+  h1{font-size:1.5rem;margin:0 0 .5rem}
+  p{color:#9aa5bf;margin:0}
+  .logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#4f46e5,#9333ea);display:inline-grid;place-items:center;font-weight:700;color:#fff;margin-bottom:1rem}
+</style>
+</head>
+<body>
+<main>
+  <div class="logo">S</div>
+  <h1>Ten podgląd nie istnieje</h1>
+  <p>Sprawdź adres albo poczekaj — strona może być jeszcze w budowie.</p>
+</main>
+</body>
+</html>
