@@ -4,7 +4,6 @@ import { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { GA4Service } from "../services/ga4.service.js";
 import { MerchantService } from "../services/merchant.service.js";
-import { adsAuthMode } from "../services/googleAdsRest.js";
 
 const ga4 = new GA4Service();
 const merchant = new MerchantService();
@@ -94,13 +93,9 @@ export async function integrationRoutes(fastify: FastifyInstance) {
       verifyResult = await merchant.verifyAccess(merchantId);
     }
     if (provider === "GOOGLE_ADS") {
-      const hasConfig = adsAuthMode() !== null;
-      verifyResult = {
-        ok: hasConfig,
-        error: hasConfig
-          ? undefined
-          : "Brak skonfigurowanej ścieżki auth Google Ads — ustaw GOOGLE_ADS_SA_KEY_FILE (service account) albo GOOGLE_ADS_REFRESH_TOKEN w .env i kliknij Verify.",
-      };
+      // Realny test: czy MCC (SA) widzi to subkonto — nie tylko „czy jest auth w .env".
+      const { AdsService } = await import("../services/ads.service.js");
+      verifyResult = await new AdsService().verifyAccess(adsCustomerId!);
     }
 
     if (verifyResult) {
@@ -166,13 +161,8 @@ export async function integrationRoutes(fastify: FastifyInstance) {
     } else if (integration.provider === "GOOGLE_MERCHANT") {
       result = await merchant.verifyAccess(integration.merchantId!);
     } else if (integration.provider === "GOOGLE_ADS") {
-      const hasConfig = adsAuthMode() !== null;
-      result = {
-        ok: hasConfig,
-        error: hasConfig
-          ? undefined
-          : "Brak auth Google Ads: ustaw GOOGLE_ADS_SA_KEY_FILE albo GOOGLE_ADS_REFRESH_TOKEN",
-      };
+      const { AdsService } = await import("../services/ads.service.js");
+      result = await new AdsService().verifyAccess(integration.adsCustomerId || "");
     } else {
       return { ok: false, error: "Unsupported provider" };
     }

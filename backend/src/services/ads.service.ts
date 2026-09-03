@@ -12,6 +12,11 @@ const ADS_CONFIG = {
   mcc_id: process.env.GOOGLE_ADS_MCC_ID || "",
 };
 
+/** "123-456-7890" → "1234567890" (API chce same cyfry). */
+export function normalizeCustomerId(id?: string | null): string {
+  return String(id || "").replace(/\D/g, "");
+}
+
 export class AdsService {
   private client: AdsRestClient;
 
@@ -19,11 +24,43 @@ export class AdsService {
     this.client = new AdsRestClient();
   }
 
-  private getCustomer() {
+  private getCustomer(customerId?: string) {
     return this.client.Customer({
-      customer_id: ADS_CONFIG.customer_id,
+      customer_id: normalizeCustomerId(customerId) || ADS_CONFIG.customer_id,
       login_customer_id: ADS_CONFIG.mcc_id,
     });
+  }
+
+  /**
+   * Konto Google Ads dla domeny = adsCustomerId z jej integracji GOOGLE_ADS
+   * (subkonto pod MCC, do którego SA ma dostęp przez MCC). Dopiero gdy domena nie
+   * ma własnego ID, wracamy do globalnego GOOGLE_ADS_CUSTOMER_ID z .env — bez tego
+   * każda domena syncowałaby to samo konto (tak było do 3.09.2026).
+   */
+  private async getCustomerFor(domainId: string) {
+    const int = await prisma.domainIntegration.findFirst({
+      where: { domainId, provider: "GOOGLE_ADS" },
+      select: { adsCustomerId: true },
+    });
+    return this.getCustomer(int?.adsCustomerId || undefined);
+  }
+
+  /** Sprawdza, czy MCC widzi to subkonto: jedno zapytanie GAQL o customer. */
+  async verifyAccess(customerId: string): Promise<{ ok: boolean; error?: string; name?: string }> {
+    if (!this.isConfigured()) return { ok: false, error: "Brak auth Google Ads (GOOGLE_ADS_SA_KEY_FILE / GOOGLE_ADS_REFRESH_TOKEN)" };
+    const id = normalizeCustomerId(customerId);
+    if (!/^\d{10}$/.test(id)) return { ok: false, error: `Customer ID musi mieć 10 cyfr (np. 123-456-7890), dostałem „${customerId}”` };
+    try {
+      const rows: any[] = await this.getCustomer(id).query(
+        "SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.manager FROM customer",
+      );
+      const c = rows?.[0]?.customer;
+      if (!c) return { ok: false, error: "API nie zwróciło konta — brak dostępu przez MCC?" };
+      if (c.manager) return { ok: false, error: "To konto menedżera (MCC) — podaj ID subkonta z kampaniami" };
+      return { ok: true, name: `${c.descriptive_name || c.id} (${c.currency_code})` };
+    } catch (e: any) {
+      return { ok: false, error: `Google Ads: ${String(e.message || e).slice(0, 200)}` };
+    }
   }
 
   isConfigured(): boolean {
@@ -46,7 +83,7 @@ export class AdsService {
     if (!this.isConfigured()) return { error: "Google Ads not configured" };
 
     try {
-      const customer = this.getCustomer();
+      const customer = await this.getCustomerFor(domainId);
       console.log("[Ads] Customer created, querying campaigns...");
       // DEBUG — list accessible customers
       try {
@@ -142,7 +179,7 @@ export class AdsService {
     if (!this.isConfigured()) return { error: "Google Ads not configured" };
 
     try {
-      const customer = this.getCustomer();
+      const customer = await this.getCustomerFor(domainId);
       console.log("[Ads] Syncing products...");
 
       const rows = await customer.query(`
@@ -359,7 +396,7 @@ export class AdsService {
     if (!this.isConfigured()) return { error: "Google Ads not configured" };
 
     try {
-      const customer = this.getCustomer();
+      const customer = await this.getCustomerFor(domainId);
       console.log("[Ads] Syncing asset group performance...");
 
       const rows = await customer.query(`
@@ -442,7 +479,7 @@ export class AdsService {
     if (!this.isConfigured()) return { error: "Google Ads not configured" };
 
     try {
-      const customer = this.getCustomer();
+      const customer = await this.getCustomerFor(domainId);
       console.log("[Ads] Syncing asset performance...");
 
       const rows = await customer.query(`
@@ -542,7 +579,7 @@ export class AdsService {
     if (!this.isConfigured()) return { error: "Google Ads not configured" };
 
     try {
-      const customer = this.getCustomer();
+      const customer = await this.getCustomerFor(domainId);
       console.log("[Ads] Fetching audience signals...");
 
       const rows = await customer.query(`

@@ -91,7 +91,8 @@ const PROVIDERS = [
     configField: "adsCustomerId",
     configLabel: "Customer ID",
     configPlaceholder: "123-456-7890",
-    configHint: "Wymaga OAuth2 — wkrótce dostępne.",
+    configHint:
+      "ID subkonta Google Ads pod MCC Karola (format 123-456-7890, widoczny w prawym górnym rogu panelu Ads). Bez OAuth — konto usługowe ma dostęp przez MCC.",
     disabled: false,
   },
 ];
